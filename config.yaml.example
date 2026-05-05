@@ -1,0 +1,45 @@
+poll_interval_seconds: 60
+
+campgrounds:
+  - name: "Garibaldi Lake"
+    park_id: "1234"       # replace with real ID from campsite discover
+    priority: 1
+  - name: "Cultus Lake"
+    park_id: "5678"
+    priority: 2
+
+dates:
+  - "2026/06/20-2026/06/23"
+  - "2026/07/FRIDAY-SUNDAY"
+  - "2026/07/FRI"
+  - "2026/07/05"
+  - "2026/07/05-07"
+
+filters:
+  no_walkin: true
+  no_double: true
+
+credentials:
+  bcparks_email: "you@example.com"
+  bcparks_password: "${BCPARKS_PASSWORD}"
+  party_size: 4
+  vehicle_plate: "ABC 1234"
+
+payment:
+  card_number: "${CARD_NUMBER}"
+  card_expiry: "${CARD_EXPIRY}"
+  card_cvv: "${CARD_CVV}"
+  name_on_card: "Your Name"
+
+notifications:
+  terminal: true
+  desktop: true
+  email:
+    enabled: true
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    sender: "you@example.com"
+    recipient: "you@example.com"
+    password: "${EMAIL_PASSWORD}"
+
+auto_book: true
