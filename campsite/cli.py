@@ -16,6 +16,70 @@ def cli():
 
 
 @cli.command()
+@click.option("--search", "-s", default="", help="Filter by name (case-insensitive substring).")
+@click.option("--output", "-o", type=click.Path(), default=None,
+              help="Save results to a JSON file.")
+def parks(search: str, output: str | None) -> None:
+    """List all BC Parks campgrounds with their IDs (for use in config.yaml)."""
+    asyncio.run(_run_parks(search, output))
+
+
+async def _run_parks(search: str, output: str | None) -> None:
+    import httpx
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://camping.bcparks.ca/",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(base_url="https://camping.bcparks.ca", timeout=30.0, headers=headers) as client:
+        resp = await client.get("/api/resourceLocation")
+        resp.raise_for_status()
+        locations = resp.json()
+
+    # Filter by search term
+    term = search.lower()
+    matches = [
+        loc for loc in locations
+        if not term or any(
+            term in v.get("shortName", "").lower() or term in v.get("fullName", "").lower()
+            for v in loc.get("localizedValues", [{}])
+        )
+    ]
+
+    if not matches:
+        click.echo(f"No parks found matching {search!r}.")
+        return
+
+    # Console output — aligned columns
+    col_w = 16
+    click.echo(f"\n{'ID':<{col_w}}{'Short name':<30}Full name")
+    click.echo("-" * 90)
+    for loc in sorted(matches, key=lambda l: (l.get("localizedValues") or [{}])[0].get("shortName", "")):
+        loc_id = str(loc["resourceLocationId"])
+        vals = (loc.get("localizedValues") or [{}])[0]
+        short = vals.get("shortName", "")
+        full = vals.get("fullName", "")
+        click.echo(f"{loc_id:<{col_w}}{short:<30}{full}")
+
+    click.echo(f"\n{len(matches)} park(s) found.")
+
+    # File output
+    if output:
+        records = []
+        for loc in matches:
+            vals = (loc.get("localizedValues") or [{}])[0]
+            records.append({
+                "park_id": str(loc["resourceLocationId"]),
+                "short_name": vals.get("shortName", ""),
+                "full_name": vals.get("fullName", ""),
+                "root_map_id": str(loc.get("rootMapId", "")),
+            })
+        Path(output).write_text(json.dumps(records, indent=2))
+        click.echo(f"Saved to {output}")
+
+
+@cli.command()
 @click.option(
     "--phase",
     type=click.Choice(["1", "2", "all"]),

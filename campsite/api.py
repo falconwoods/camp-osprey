@@ -21,7 +21,11 @@ class BCParksAPI:
         self._client = httpx.AsyncClient(
             base_url=BASE_URL,
             timeout=30.0,
-            headers={"Accept": "application/json"},
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://camping.bcparks.ca/",
+                "Accept": "application/json",
+            },
         )
         self._cart_uid: str | None = None
         self._cart_tx_uid: str | None = None
