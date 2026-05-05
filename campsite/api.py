@@ -9,12 +9,6 @@ from campsite.models import AvailableSite
 
 BASE_URL = "https://camping.bcparks.ca"
 
-# Attribute definition IDs discovered from docs/api-notes.md.
-# filterData enumValues:[1] = "No" for both attributes.
-# So: attribute present with value 1.0 → drive-in / not-double.
-_ATTR_WALK_IN = -32764
-_ATTR_DOUBLE = -32722
-
 
 class BCParksAPI:
     def __init__(self) -> None:
@@ -29,27 +23,31 @@ class BCParksAPI:
         )
         self._cart_uid: str | None = None
         self._cart_tx_uid: str | None = None
-        # Cached per-session data (rarely changes between polls)
         self._locations: dict[str, dict] | None = None
-        self._resources: dict[str, dict[str, dict]] = {}  # locationId → {resourceId → resource}
+        self._resources: dict[str, dict[str, dict]] = {}
+        self._map_titles: dict[str, dict[str, str]] = {}  # locationId → {mapId → title}
 
     async def _ensure_cart(self) -> None:
         if self._cart_uid is not None:
             return
+        print("→ Initializing cart session...", flush=True)
         resp = await self._client.get("/api/cart")
         resp.raise_for_status()
         data = resp.json()
         self._cart_uid = data["cartUid"]
         self._cart_tx_uid = data["newTransaction"]["cartTransactionUid"]
+        print(f"  cart: {self._cart_uid}", flush=True)
 
     async def _locations_data(self) -> dict[str, dict]:
         if self._locations is None:
+            print("→ Fetching campground list...", flush=True)
             resp = await self._client.get("/api/resourceLocation")
             resp.raise_for_status()
             self._locations = {
                 str(loc["resourceLocationId"]): loc
                 for loc in resp.json()
             }
+            print(f"  {len(self._locations)} locations loaded", flush=True)
         return self._locations
 
     async def _root_map_id(self, campground_id: str) -> str:
@@ -64,13 +62,32 @@ class BCParksAPI:
 
     async def _resources_for(self, campground_id: str) -> dict[str, dict]:
         if campground_id not in self._resources:
+            print(f"→ Fetching site list for campground {campground_id}...", flush=True)
             resp = await self._client.get(
                 "/api/resourcelocation/resources",
                 params={"resourceLocationId": campground_id},
             )
             resp.raise_for_status()
             self._resources[campground_id] = resp.json()
+            print(f"  {len(self._resources[campground_id])} sites loaded", flush=True)
         return self._resources[campground_id]
+
+    async def _map_titles_for(self, campground_id: str) -> dict[str, str]:
+        """Returns {mapId: title} for all sub-maps of this campground."""
+        if campground_id not in self._map_titles:
+            resp = await self._client.get(
+                "/api/maps",
+                params={"resourceLocationId": campground_id},
+            )
+            resp.raise_for_status()
+            titles: dict[str, str] = {}
+            for m in resp.json():
+                map_id = str(m["mapId"])
+                vals = m.get("localizedValues") or []
+                title = vals[0].get("title", "") if vals else ""
+                titles[map_id] = title
+            self._map_titles[campground_id] = titles
+        return self._map_titles[campground_id]
 
     async def _map_availability(self, map_id: str, check_in: date, check_out: date) -> dict:
         resp = await self._client.get(
@@ -101,23 +118,61 @@ class BCParksAPI:
         return resp.json()
 
     @staticmethod
-    def _attr_value(resource: dict, attr_id: int) -> float | None:
-        for attr in resource.get("definedAttributes", []):
-            if attr["attributeDefinitionId"] == attr_id:
-                return attr.get("value")
-        return None
-
-    @staticmethod
-    def _is_walkin(resource: dict) -> bool:
-        # Attribute _ATTR_WALK_IN with value 1.0 means drive-in (NOT walk-in).
-        # Absent or other value → treat as walk-in.
-        val = BCParksAPI._attr_value(resource, _ATTR_WALK_IN)
-        return val != 1.0
-
-    @staticmethod
     def _is_double(resource: dict) -> bool:
-        # Double sites have linkedResources (the paired site they must be booked with).
         return len(resource.get("linkedResources", [])) > 0
+
+    async def _collect_sites(
+        self,
+        map_id: str,
+        check_in: date,
+        check_out: date,
+        resources: dict,
+        map_titles: dict[str, str],
+        visited: set[str],
+        campground_id: str,
+        section_is_walkin: bool = False,
+    ) -> list[AvailableSite]:
+        """Recursively traverse map hierarchy and collect all available sites."""
+        if map_id in visited:
+            return []
+        visited.add(map_id)
+
+        # Determine walk-in status from section title
+        title = map_titles.get(map_id, "")
+        is_walkin_section = section_is_walkin or "walk" in title.lower()
+
+        data = await self._map_availability(map_id, check_in, check_out)
+        sites: list[AvailableSite] = []
+
+        for resource_id, avail_list in data.get("resourceAvailabilities", {}).items():
+            if not any(a.get("availability") == 1 for a in avail_list):
+                continue
+            resource = resources.get(resource_id)
+            if resource is None:
+                continue
+            sites.append(AvailableSite(
+                site_id=resource_id,
+                campground_id=campground_id,
+                is_walkin=is_walkin_section,
+                is_double=self._is_double(resource),
+                check_in=check_in,
+                check_out=check_out,
+            ))
+
+        sub_map_ids = [mid for mid in data.get("mapLinkAvailabilities", {}) if mid not in visited]
+        if sub_map_ids:
+            sub_results = await asyncio.gather(
+                *[self._collect_sites(
+                    mid, check_in, check_out, resources, map_titles,
+                    visited, campground_id, is_walkin_section,
+                  ) for mid in sub_map_ids],
+                return_exceptions=True,
+            )
+            for result in sub_results:
+                if not isinstance(result, Exception):
+                    sites.extend(result)
+
+        return sites
 
     async def get_availability(
         self,
@@ -127,44 +182,17 @@ class BCParksAPI:
     ) -> list[AvailableSite]:
         """Return available sites for the campground and date range."""
         await self._ensure_cart()
-        root_map_id = await self._root_map_id(campground_id)
-        resources = await self._resources_for(campground_id)
-
-        # Step 1: root map → find which sub-maps have any availability
-        root_data = await self._map_availability(root_map_id, check_in, check_out)
-        sub_map_ids = [
-            map_id
-            for map_id, avail_list in root_data.get("mapLinkAvailabilities", {}).items()
-            if any(a > 0 for a in avail_list)
-        ]
-
-        if not sub_map_ids:
-            return []
-
-        # Step 2: fetch each sub-map in parallel
-        sub_results = await asyncio.gather(
-            *[self._map_availability(mid, check_in, check_out) for mid in sub_map_ids],
-            return_exceptions=True,
+        root_map_id, resources, map_titles = await asyncio.gather(
+            self._root_map_id(campground_id),
+            self._resources_for(campground_id),
+            self._map_titles_for(campground_id),
         )
 
-        sites: list[AvailableSite] = []
-        for result in sub_results:
-            if isinstance(result, Exception):
-                continue
-            for resource_id, avail_list in result.get("resourceAvailabilities", {}).items():
-                if not any(a.get("availability") == 1 for a in avail_list):
-                    continue
-                resource = resources.get(resource_id)
-                if resource is None:
-                    continue
-                sites.append(AvailableSite(
-                    site_id=resource_id,
-                    campground_id=campground_id,
-                    is_walkin=self._is_walkin(resource),
-                    is_double=self._is_double(resource),
-                    check_in=check_in,
-                    check_out=check_out,
-                ))
+        print(f"→ Checking availability: campground {campground_id} | {check_in} → {check_out}", flush=True)
+        sites = await self._collect_sites(
+            root_map_id, check_in, check_out, resources, map_titles, set(), campground_id
+        )
+        print(f"  {len(sites)} site(s) available before filters", flush=True)
         return sites
 
     async def close(self) -> None:
