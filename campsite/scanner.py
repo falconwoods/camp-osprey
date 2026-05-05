@@ -32,8 +32,14 @@ class Scanner:
     def _apply_filters(self, sites: list[AvailableSite]) -> list[AvailableSite]:
         result = sites
         if self._config.filters.no_walkin:
+            skipped = [s for s in result if s.is_walkin]
+            if skipped:
+                print(f"  skipped {len(skipped)} walk-in site(s): {[s.site_id for s in skipped]}", flush=True)
             result = [s for s in result if not s.is_walkin]
         if self._config.filters.no_double:
+            skipped = [s for s in result if s.is_double]
+            if skipped:
+                print(f"  skipped {len(skipped)} double site(s): {[s.site_id for s in skipped]}", flush=True)
             result = [s for s in result if not s.is_double]
         return result
 
