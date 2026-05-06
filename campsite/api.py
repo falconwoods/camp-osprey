@@ -316,6 +316,8 @@ class BCParksAPI:
         }]
 
         xsrf = self._client.cookies.get("XSRF-TOKEN", "")
+
+        # Step 1: hold the site (server calculates fees and line items)
         resp = await self._client.post(
             "/api/cart/commit",
             params={"isCompleted": "false", "isSelfCheckIn": "false"},
@@ -328,6 +330,26 @@ class BCParksAPI:
             except Exception:
                 detail = resp.text
             raise RuntimeError(f"Cart commit failed ({resp.status_code}): {detail}")
+
+        # Step 2: fetch updated cart (server has now added line items and fees)
+        cart_resp = await self._client.get("/api/cart")
+        cart_resp.raise_for_status()
+        confirmed_cart = cart_resp.json()
+
+        # Step 3: second commit — "Confirm reservation details"
+        resp2 = await self._client.post(
+            "/api/cart/commit",
+            params={"isCompleted": "false", "isSelfCheckIn": "false"},
+            json={"cart": confirmed_cart},
+            headers={"X-XSRF-TOKEN": xsrf},
+        )
+        if not resp2.is_success:
+            try:
+                detail = resp2.json().get("messageKey", resp2.text)
+            except Exception:
+                detail = resp2.text
+            raise RuntimeError(f"Confirmation commit failed ({resp2.status_code}): {detail}")
+
         return "https://camping.bcparks.ca/create-booking/reservationmessages"
 
     async def close(self) -> None:
