@@ -34,9 +34,16 @@ class BCParksAPI:
 
     async def login(self, email: str, password: str) -> None:
         """Authenticate with BC Parks account so the cart is tied to the account."""
-        resp = await self._client.post("/api/auth/login", json={"email": email, "password": password})
+        # GET /api/cart sets the XSRF-TOKEN cookie required for POST requests
+        await self._ensure_cart()
+        xsrf = self._client.cookies.get("XSRF-TOKEN", "")
+        resp = await self._client.post(
+            "/api/auth/login",
+            json={"email": email, "password": password},
+            headers={"X-XSRF-TOKEN": xsrf},
+        )
         resp.raise_for_status()
-        # Reset cached cart so next call gets the authenticated one
+        # Reset cached cart so next call fetches the authenticated one
         self._cart_uid = None
         self._cart_tx_uid = None
 
@@ -336,10 +343,12 @@ class BCParksAPI:
             }
         }
 
+        xsrf = self._client.cookies.get("XSRF-TOKEN", "")
         resp = await self._client.post(
             "/api/cart/commit",
             params={"isCompleted": "false", "isSelfCheckIn": "false"},
             json=body,
+            headers={"X-XSRF-TOKEN": xsrf},
         )
         resp.raise_for_status()
         return "https://camping.bcparks.ca/create-booking/reservationmessages"
