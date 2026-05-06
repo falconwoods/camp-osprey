@@ -82,7 +82,7 @@ class BCParksAPI:
     # ── Availability check ─────────────────────────────────────────────────
 
     async def _daily_availability(
-        self, resource_id: str, check_in: date, check_out: date, filter_data: str
+        self, resource_id: str, check_in: date, check_out: date, filter_data: str = "[]"
     ) -> list[dict]:
         resp = await self._client.get(
             "/api/availability/resourcedailyavailability",
@@ -115,8 +115,12 @@ class BCParksAPI:
         return all(entry.get("availability", 1) == 0 for entry in daily[:num_nights])
 
     @staticmethod
-    def _is_double(resource: dict) -> bool:
-        return len(resource.get("linkedResources", [])) > 0
+    def _site_flags(resource: dict, section_is_walkin: bool) -> tuple[bool, bool]:
+        """Return (is_walkin, is_double) using section membership and resource description."""
+        desc = ((resource.get("localizedValues") or [{}])[0].get("description") or "").lower()
+        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc
+        is_double = "double site" in desc or len(resource.get("linkedResources", [])) > 0
+        return is_walkin, is_double
 
     @staticmethod
     def build_filter_data(no_walkin: bool, no_double: bool) -> str:
@@ -149,16 +153,15 @@ class BCParksAPI:
 
         loc_vals = (locs.get(campground_id, {}).get("localizedValues") or [{}])[0]
         park_name = loc_vals.get("shortName", campground_id)
-        filter_data = self.build_filter_data(no_walkin, no_double)
         num_nights = (check_out - check_in).days
 
         print(f"→ Checking availability: {park_name} | {check_in} → {check_out}", flush=True)
 
-        # Build candidate list (pre-filter walk-in / double by section/resource metadata)
+        # Build candidates: pre-filter by walk-in / double using section + description
         candidates = []
         for resource_id, resource in resources.items():
-            section_name, is_walkin = sections.get(resource_id, ("", False))
-            is_double = self._is_double(resource)
+            section_name, section_is_walkin = sections.get(resource_id, ("", False))
+            is_walkin, is_double = self._site_flags(resource, section_is_walkin)
             if no_walkin and is_walkin:
                 continue
             if no_double and is_double:
@@ -167,13 +170,12 @@ class BCParksAPI:
             site_name = res_vals.get("name", resource_id)
             candidates.append((resource_id, section_name, is_walkin, is_double, site_name))
 
-        # Check per-site calendar availability in parallel with a concurrency cap
         semaphore = asyncio.Semaphore(_CONCURRENCY)
 
         async def check_one(resource_id, section_name, is_walkin, is_double, site_name):
             async with semaphore:
                 try:
-                    daily = await self._daily_availability(resource_id, check_in, check_out, filter_data)
+                    daily = await self._daily_availability(resource_id, check_in, check_out)
                 except Exception:
                     return None
             if not self._nights_available(daily, num_nights):
