@@ -40,17 +40,17 @@ async def test_run_once_returns_match():
     api = AsyncMock()
     api.get_availability.return_value = [_make_site()]
     scanner = Scanner(_make_config(), api)
-    result = await scanner.run_once()
-    assert result is not None
-    assert result.campground_id == "c1"
+    results = await scanner.run_once()
+    assert len(results) == 1
+    assert results[0].campground_id == "c1"
 
 
-async def test_run_once_returns_none_when_empty():
+async def test_run_once_returns_empty_when_none():
     api = AsyncMock()
     api.get_availability.return_value = []
     scanner = Scanner(_make_config(), api)
-    result = await scanner.run_once()
-    assert result is None
+    results = await scanner.run_once()
+    assert results == []
 
 
 async def test_filter_walkin_excluded():
@@ -58,8 +58,7 @@ async def test_filter_walkin_excluded():
     api.get_availability.return_value = [_make_site(is_walkin=True)]
     config = _make_config(filters=FiltersConfig(no_walkin=True, no_double=False))
     scanner = Scanner(config, api)
-    result = await scanner.run_once()
-    assert result is None
+    assert await scanner.run_once() == []
 
 
 async def test_filter_double_excluded():
@@ -67,8 +66,7 @@ async def test_filter_double_excluded():
     api.get_availability.return_value = [_make_site(is_double=True)]
     config = _make_config(filters=FiltersConfig(no_walkin=False, no_double=True))
     scanner = Scanner(config, api)
-    result = await scanner.run_once()
-    assert result is None
+    assert await scanner.run_once() == []
 
 
 async def test_priority_order():
@@ -85,9 +83,9 @@ async def test_priority_order():
         CampgroundConfig(name="B", park_id="c2", priority=2),
     ])
     scanner = Scanner(config, api)
-    result = await scanner.run_once()
+    results = await scanner.run_once()
     assert calls[0] == "c1"
-    assert result.campground_id == "c2"
+    assert results[0].campground_id == "c2"
 
 
 async def test_deduplication_skips_attempted():
@@ -95,9 +93,9 @@ async def test_deduplication_skips_attempted():
     api.get_availability.return_value = [_make_site()]
     scanner = Scanner(_make_config(), api)
 
-    first = await scanner.run_once()
+    first = (await scanner.run_once())[0]
     assert first is not None
     scanner.mark_attempted(first)
 
     second = await scanner.run_once()
-    assert second is None
+    assert second == []

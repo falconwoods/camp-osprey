@@ -12,12 +12,13 @@ class Scanner:
         self._api = api
         self._attempted: set[tuple[str, date, date]] = set()
 
-    async def run_once(self) -> AvailableSite | None:
-        """Check all campground × date pairs in priority order. Returns the first match."""
+    async def run_once(self) -> list[AvailableSite]:
+        """Check all campground × date pairs in priority order. Returns all matches."""
         date_ranges: list[tuple[date, date]] = []
         for expr in self._config.dates:
             date_ranges.extend(parse_date_expression(expr))
 
+        all_matches: list[AvailableSite] = []
         for campground in sorted(self._config.campgrounds, key=lambda c: c.priority):
             for check_in, check_out in date_ranges:
                 key = (campground.park_id, check_in, check_out)
@@ -28,10 +29,8 @@ class Scanner:
                     no_walkin=self._config.filters.no_walkin,
                     no_double=self._config.filters.no_double,
                 )
-                matches = self._apply_filters(sites)
-                if matches:
-                    return matches[0]
-        return None
+                all_matches.extend(self._apply_filters(sites))
+        return all_matches
 
     def _apply_filters(self, sites: list[AvailableSite]) -> list[AvailableSite]:
         result = sites
@@ -51,12 +50,13 @@ class Scanner:
         self._attempted.add((site.campground_id, site.check_in, site.check_out))
 
     async def run_loop(self, on_match: callable) -> None:
-        """Poll until on_match returns True (booking succeeded), then stop."""
+        """Poll until on_match returns True (booking/hold succeeded), then stop."""
         while True:
-            match = await self.run_once()
-            if match:
+            matches = await self.run_once()
+            for match in matches:
                 success = await on_match(match)
                 if success:
                     return
+                # Hold/book failed — mark so we don't retry this slot this session
                 self.mark_attempted(match)
             await asyncio.sleep(self._config.poll_interval_seconds)
