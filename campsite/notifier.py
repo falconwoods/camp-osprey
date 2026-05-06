@@ -18,7 +18,10 @@ def notify(event: NotificationEvent, config: NotificationsConfig) -> None:
     if config.desktop:
         _notify_desktop(event)
     if config.email.enabled:
-        _notify_email(event, config)
+        try:
+            _notify_email(event, config)
+        except Exception as e:
+            print(f"  [email failed: {e}]", flush=True)
 
 
 def _notify_terminal(event: NotificationEvent) -> None:
