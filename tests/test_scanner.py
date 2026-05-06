@@ -74,7 +74,7 @@ async def test_filter_double_excluded():
 async def test_priority_order():
     calls = []
 
-    async def fake_availability(campground_id, check_in, check_out):
+    async def fake_availability(campground_id, check_in, check_out, no_walkin=False, no_double=False):
         calls.append(campground_id)
         return [_make_site(campground_id=campground_id)] if campground_id == "c2" else []
 

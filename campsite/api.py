@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import json
 import uuid
 from datetime import date, datetime, timezone
 
@@ -89,7 +90,9 @@ class BCParksAPI:
             self._map_titles[campground_id] = titles
         return self._map_titles[campground_id]
 
-    async def _map_availability(self, map_id: str, check_in: date, check_out: date) -> dict:
+    async def _map_availability(
+        self, map_id: str, check_in: date, check_out: date, filter_data: str = "[]"
+    ) -> dict:
         resp = await self._client.get(
             "/api/availability/map",
             params={
@@ -105,7 +108,7 @@ class BCParksAPI:
                 "endDate": check_out.isoformat(),
                 "getDailyAvailability": "false",
                 "isReserving": "true",
-                "filterData": "[]",
+                "filterData": filter_data,
                 "boatLength": 0,
                 "boatDraft": 0,
                 "boatWidth": 0,
@@ -131,6 +134,7 @@ class BCParksAPI:
         visited: set[str],
         campground_id: str,
         park_name: str,
+        filter_data: str = "[]",
         section_is_walkin: bool = False,
         parent_section: str = "",
     ) -> list[AvailableSite]:
@@ -143,7 +147,7 @@ class BCParksAPI:
         section_name = title or parent_section
         is_walkin_section = section_is_walkin or "walk" in title.lower()
 
-        data = await self._map_availability(map_id, check_in, check_out)
+        data = await self._map_availability(map_id, check_in, check_out, filter_data)
         sites: list[AvailableSite] = []
 
         for resource_id, avail_list in data.get("resourceAvailabilities", {}).items():
@@ -171,7 +175,7 @@ class BCParksAPI:
             sub_results = await asyncio.gather(
                 *[self._collect_sites(
                     mid, check_in, check_out, resources, map_titles,
-                    visited, campground_id, park_name, is_walkin_section, section_name,
+                    visited, campground_id, park_name, filter_data, is_walkin_section, section_name,
                   ) for mid in sub_map_ids],
                 return_exceptions=True,
             )
@@ -181,11 +185,27 @@ class BCParksAPI:
 
         return sites
 
+    @staticmethod
+    def build_filter_data(no_walkin: bool, no_double: bool) -> str:
+        """Build the filterData JSON string the BC Parks API needs for correct calendar availability."""
+        filters = []
+        if no_walkin:
+            # attributeDefinitionId -32764 = Walk-In attribute; enumValues:[1] = "No" (drive-in only)
+            filters.append({"attributeDefinitionId": -32764, "attributeType": 0,
+                            "enumValues": [1], "attributeDefinitionDecimalValue": 0, "filterStrategy": 1})
+        if no_double:
+            # attributeDefinitionId -32722 = Double Site attribute; enumValues:[1] = "No" (single only)
+            filters.append({"attributeDefinitionId": -32722, "attributeType": 0,
+                            "enumValues": [1], "attributeDefinitionDecimalValue": 0, "filterStrategy": 1})
+        return json.dumps(filters)
+
     async def get_availability(
         self,
         campground_id: str,
         check_in: date,
         check_out: date,
+        no_walkin: bool = False,
+        no_double: bool = False,
     ) -> list[AvailableSite]:
         """Return available sites for the campground and date range."""
         await self._ensure_cart()
@@ -199,9 +219,11 @@ class BCParksAPI:
         loc_vals = (loc.get("localizedValues") or [{}])[0]
         park_name = loc_vals.get("shortName", campground_id)
 
+        filter_data = self.build_filter_data(no_walkin, no_double)
         print(f"→ Checking availability: {park_name} | {check_in} → {check_out}", flush=True)
         sites = await self._collect_sites(
-            root_map_id, check_in, check_out, resources, map_titles, set(), campground_id, park_name
+            root_map_id, check_in, check_out, resources, map_titles, set(),
+            campground_id, park_name, filter_data,
         )
         print(f"  {len(sites)} site(s) available before filters", flush=True)
         return sites

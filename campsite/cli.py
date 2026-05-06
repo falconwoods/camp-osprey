@@ -219,7 +219,11 @@ async def _run_check(config) -> None:
         for campground in sorted(config.campgrounds, key=lambda c: c.priority):
             for expr in config.dates:
                 for check_in, check_out in parse_date_expression(expr):
-                    sites = await api.get_availability(campground.park_id, check_in, check_out)
+                    sites = await api.get_availability(
+                        campground.park_id, check_in, check_out,
+                        no_walkin=config.filters.no_walkin,
+                        no_double=config.filters.no_double,
+                    )
                     matches = scanner._apply_filters(sites)
                     all_matches.extend(matches)
 

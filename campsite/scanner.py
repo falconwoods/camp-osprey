@@ -23,7 +23,11 @@ class Scanner:
                 key = (campground.park_id, check_in, check_out)
                 if key in self._attempted:
                     continue
-                sites = await self._api.get_availability(campground.park_id, check_in, check_out)
+                sites = await self._api.get_availability(
+                    campground.park_id, check_in, check_out,
+                    no_walkin=self._config.filters.no_walkin,
+                    no_double=self._config.filters.no_double,
+                )
                 matches = self._apply_filters(sites)
                 if matches:
                     return matches[0]
