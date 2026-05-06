@@ -381,7 +381,8 @@ async def _run_scan(config, hold: bool = False) -> None:
             return False
 
     try:
-        await scanner.run_loop(on_match)
+        # --hold: only attempt one site per cycle to avoid sending burst of cart commits
+        await scanner.run_loop(on_match, first_only=hold)
         click.echo("Done — campsite booked successfully.")
     except KeyboardInterrupt:
         click.echo("\nScan stopped.")

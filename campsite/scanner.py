@@ -49,14 +49,17 @@ class Scanner:
     def mark_attempted(self, site: AvailableSite) -> None:
         self._attempted.add((site.campground_id, site.check_in, site.check_out))
 
-    async def run_loop(self, on_match: callable) -> None:
-        """Poll until on_match returns True (booking/hold succeeded), then stop."""
+    async def run_loop(self, on_match: callable, first_only: bool = False) -> None:
+        """Poll until on_match returns True (booking/hold succeeded), then stop.
+
+        first_only=True: only call on_match for the first available site per cycle
+        (use for --hold to avoid sending multiple cart commits in one scan cycle).
+        """
         while True:
             matches = await self.run_once()
-            for match in matches:
+            for match in (matches[:1] if first_only else matches):
                 success = await on_match(match)
                 if success:
                     return
-                # Hold/book failed — mark so we don't retry this slot this session
                 self.mark_attempted(match)
             await asyncio.sleep(self._config.poll_interval_seconds)
