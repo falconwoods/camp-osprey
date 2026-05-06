@@ -25,6 +25,7 @@ class BCParksAPI:
         )
         self._cart_uid: str | None = None
         self._cart_tx_uid: str | None = None
+        self._terminal_location_id: int = -2147483590
         self._locations: dict[str, dict] | None = None
         self._resources: dict[str, dict[str, dict]] = {}
         # {locationId → {resourceId → (section_name, is_walkin)}}
@@ -55,7 +56,9 @@ class BCParksAPI:
         resp.raise_for_status()
         data = resp.json()
         self._cart_uid = data["cartUid"]
-        self._cart_tx_uid = data["newTransaction"]["cartTransactionUid"]
+        tx = data["newTransaction"]
+        self._cart_tx_uid = tx["cartTransactionUid"]
+        self._terminal_location_id = tx.get("terminalLocationId", -2147483590)
         print(f"  cart: {self._cart_uid}", flush=True)
 
     async def _locations_data(self) -> dict[str, dict]:
@@ -241,7 +244,7 @@ class BCParksAPI:
                     "lastEditDate": now,
                     "shopperUid": None,
                     "status": 1,
-                    "terminalLocationId": -2147483590,
+                    "terminalLocationId": self._terminal_location_id,
                     "transactionBookings": [],
                     "transactionSales": [],
                     "transactionShipments": [],
@@ -350,7 +353,12 @@ class BCParksAPI:
             json=body,
             headers={"X-XSRF-TOKEN": xsrf},
         )
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json().get("messageKey", resp.text)
+            except Exception:
+                detail = resp.text
+            raise RuntimeError(f"Cart commit failed ({resp.status_code}): {detail}")
         return "https://camping.bcparks.ca/create-booking/reservationmessages"
 
     async def close(self) -> None:

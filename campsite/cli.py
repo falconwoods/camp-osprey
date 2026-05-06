@@ -325,7 +325,11 @@ async def _run_scan(config, hold: bool = False) -> None:
                 )
                 click.echo(f"  Held! Complete payment at: {checkout_url}")
             except Exception as e:
-                click.echo(f"  Hold failed: {e}")
+                msg = str(e)
+                if "ResourceUnavailable" in msg:
+                    click.echo("  Site was taken before hold could complete — continuing scan.")
+                else:
+                    click.echo(f"  Hold failed: {e}")
             return False  # keep scanning after a hold attempt
 
         if not config.auto_book:
