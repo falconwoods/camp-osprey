@@ -16,6 +16,7 @@ class AvailableSite:
     park_name: str = ""
     section_name: str = ""
     site_name: str = ""
+    map_id: str = ""
 
 
 @dataclass

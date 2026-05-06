@@ -64,18 +64,19 @@ class BCParksAPI:
             print(f"  {len(self._resources[campground_id])} sites loaded", flush=True)
         return self._resources[campground_id]
 
-    async def _sections_for(self, campground_id: str) -> dict[str, tuple[str, bool]]:
-        """Returns {resourceId: (section_name, is_walkin)} from the maps data."""
+    async def _sections_for(self, campground_id: str) -> dict[str, tuple[str, bool, str]]:
+        """Returns {resourceId: (section_name, is_walkin, map_id)} from the maps data."""
         if campground_id not in self._sections:
             resp = await self._client.get("/api/maps", params={"resourceLocationId": campground_id})
             resp.raise_for_status()
-            sections: dict[str, tuple[str, bool]] = {}
+            sections: dict[str, tuple[str, bool, str]] = {}
             for m in resp.json():
+                map_id = str(m["mapId"])
                 vals = m.get("localizedValues") or []
                 title = vals[0].get("title", "") if vals else ""
                 is_walkin = "walk" in title.lower()
                 for mr in m.get("mapResources", []):
-                    sections[str(mr["resourceId"])] = (title, is_walkin)
+                    sections[str(mr["resourceId"])] = (title, is_walkin, map_id)
             self._sections[campground_id] = sections
         return self._sections[campground_id]
 
@@ -160,7 +161,7 @@ class BCParksAPI:
         # Build candidates: pre-filter by walk-in / double using section + description
         candidates = []
         for resource_id, resource in resources.items():
-            section_name, section_is_walkin = sections.get(resource_id, ("", False))
+            section_name, section_is_walkin, map_id = sections.get(resource_id, ("", False, ""))
             is_walkin, is_double = self._site_flags(resource, section_is_walkin)
             if no_walkin and is_walkin:
                 continue
@@ -168,11 +169,11 @@ class BCParksAPI:
                 continue
             res_vals = (resource.get("localizedValues") or [{}])[0]
             site_name = res_vals.get("name", resource_id)
-            candidates.append((resource_id, section_name, is_walkin, is_double, site_name))
+            candidates.append((resource_id, section_name, is_walkin, is_double, site_name, map_id))
 
         semaphore = asyncio.Semaphore(_CONCURRENCY)
 
-        async def check_one(resource_id, section_name, is_walkin, is_double, site_name):
+        async def check_one(resource_id, section_name, is_walkin, is_double, site_name, map_id):
             async with semaphore:
                 try:
                     daily = await self._daily_availability(resource_id, check_in, check_out)
@@ -190,6 +191,7 @@ class BCParksAPI:
                 park_name=park_name,
                 section_name=section_name,
                 site_name=site_name,
+                map_id=map_id,
             )
 
         results = await asyncio.gather(*[check_one(*c) for c in candidates])

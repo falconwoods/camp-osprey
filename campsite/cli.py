@@ -280,9 +280,10 @@ async def _run_scan(config) -> None:
 
     def _booking_url(site) -> str:
         pid = site.campground_id
+        mid = site.map_id or pid
         return (
             f"https://camping.bcparks.ca/create-booking/results"
-            f"?transactionLocationId={pid}&resourceLocationId={pid}&mapId={pid}"
+            f"?transactionLocationId={pid}&resourceLocationId={pid}&mapId={mid}"
             f"&searchTabGroupId=0&bookingCategoryId=0"
             f"&startDate={site.check_in}&endDate={site.check_out}"
             f"&nights={(site.check_out - site.check_in).days}"
