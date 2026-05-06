@@ -13,6 +13,9 @@ class AvailableSite:
     is_double: bool
     check_in: date
     check_out: date
+    park_name: str = ""
+    section_name: str = ""
+    site_name: str = ""
 
 
 @dataclass

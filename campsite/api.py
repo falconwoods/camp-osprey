@@ -130,15 +130,17 @@ class BCParksAPI:
         map_titles: dict[str, str],
         visited: set[str],
         campground_id: str,
+        park_name: str,
         section_is_walkin: bool = False,
+        parent_section: str = "",
     ) -> list[AvailableSite]:
         """Recursively traverse map hierarchy and collect all available sites."""
         if map_id in visited:
             return []
         visited.add(map_id)
 
-        # Determine walk-in status from section title
         title = map_titles.get(map_id, "")
+        section_name = title or parent_section
         is_walkin_section = section_is_walkin or "walk" in title.lower()
 
         data = await self._map_availability(map_id, check_in, check_out)
@@ -150,6 +152,8 @@ class BCParksAPI:
             resource = resources.get(resource_id)
             if resource is None:
                 continue
+            res_vals = (resource.get("localizedValues") or [{}])[0]
+            site_name = res_vals.get("name", resource_id)
             sites.append(AvailableSite(
                 site_id=resource_id,
                 campground_id=campground_id,
@@ -157,6 +161,9 @@ class BCParksAPI:
                 is_double=self._is_double(resource),
                 check_in=check_in,
                 check_out=check_out,
+                park_name=park_name,
+                section_name=section_name,
+                site_name=site_name,
             ))
 
         sub_map_ids = [mid for mid in data.get("mapLinkAvailabilities", {}) if mid not in visited]
@@ -164,7 +171,7 @@ class BCParksAPI:
             sub_results = await asyncio.gather(
                 *[self._collect_sites(
                     mid, check_in, check_out, resources, map_titles,
-                    visited, campground_id, is_walkin_section,
+                    visited, campground_id, park_name, is_walkin_section, section_name,
                   ) for mid in sub_map_ids],
                 return_exceptions=True,
             )
@@ -182,15 +189,19 @@ class BCParksAPI:
     ) -> list[AvailableSite]:
         """Return available sites for the campground and date range."""
         await self._ensure_cart()
-        root_map_id, resources, map_titles = await asyncio.gather(
-            self._root_map_id(campground_id),
+        locs, resources, map_titles = await asyncio.gather(
+            self._locations_data(),
             self._resources_for(campground_id),
             self._map_titles_for(campground_id),
         )
+        root_map_id = await self._root_map_id(campground_id)
+        loc = locs.get(campground_id, {})
+        loc_vals = (loc.get("localizedValues") or [{}])[0]
+        park_name = loc_vals.get("shortName", campground_id)
 
-        print(f"→ Checking availability: campground {campground_id} | {check_in} → {check_out}", flush=True)
+        print(f"→ Checking availability: {park_name} | {check_in} → {check_out}", flush=True)
         sites = await self._collect_sites(
-            root_map_id, check_in, check_out, resources, map_titles, set(), campground_id
+            root_map_id, check_in, check_out, resources, map_titles, set(), campground_id, park_name
         )
         print(f"  {len(sites)} site(s) available before filters", flush=True)
         return sites

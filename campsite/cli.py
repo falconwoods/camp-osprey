@@ -207,18 +207,39 @@ def check(config_file: str) -> None:
 async def _run_check(config) -> None:
     from campsite.api import BCParksAPI
     from campsite.scanner import Scanner
+    from campsite.models import AvailableSite
 
     api = BCParksAPI()
     try:
         scanner = Scanner(config, api)
-        match = await scanner.run_once()
-        if match:
+
+        # Collect all available sites across all campgrounds and dates
+        all_matches: list[AvailableSite] = []
+        from campsite.models import parse_date_expression
+        for campground in sorted(config.campgrounds, key=lambda c: c.priority):
+            for expr in config.dates:
+                for check_in, check_out in parse_date_expression(expr):
+                    sites = await api.get_availability(campground.park_id, check_in, check_out)
+                    matches = scanner._apply_filters(sites)
+                    all_matches.extend(matches)
+
+        if not all_matches:
+            click.echo("\nNo availability found for your campgrounds and dates.")
+            return
+
+        click.echo(f"\n{'─' * 60}")
+        click.echo(f"  {len(all_matches)} site(s) available")
+        click.echo(f"{'─' * 60}")
+        for s in all_matches:
+            nights = (s.check_out - s.check_in).days
+            night_str = f"{nights} night{'s' if nights != 1 else ''}"
             click.echo(
-                f"Available: {match.campground_id} | {match.check_in} → {match.check_out}"
-                f" | site {match.site_id}"
+                f"  {s.park_name or s.campground_id}"
+                f"  │  {s.section_name or '—'}"
+                f"  │  {s.site_name or s.site_id}"
+                f"  │  {s.check_in} → {s.check_out} ({night_str})"
             )
-        else:
-            click.echo("No availability found for your campgrounds and dates.")
+        click.echo(f"{'─' * 60}")
     finally:
         await api.close()
 
