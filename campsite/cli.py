@@ -271,13 +271,22 @@ async def _run_scan(config) -> None:
 
     click.echo(f"Scanning every {config.poll_interval_seconds}s. Press Ctrl+C to stop.")
 
+    def _site_label(site) -> str:
+        parts = [site.park_name or site.campground_id]
+        if site.section_name:
+            parts.append(site.section_name)
+        parts.append(f"Site {site.site_name or site.site_id}")
+        return " › ".join(parts)
+
     async def on_match(site) -> bool:
+        nights = (site.check_out - site.check_in).days
+        night_str = f"{nights} night{'s' if nights != 1 else ''}"
         notify(
             NotificationEvent(
-                title="Campsite Available!",
+                title=f"Campsite Available — {site.park_name or site.campground_id}",
                 message=(
-                    f"{site.campground_id} | {site.check_in} → {site.check_out}"
-                    f" | site {site.site_id}"
+                    f"{_site_label(site)}\n"
+                    f"{site.check_in} → {site.check_out} ({night_str})"
                 ),
             ),
             config.notifications,
@@ -292,10 +301,11 @@ async def _run_scan(config) -> None:
         if result.success:
             notify(
                 NotificationEvent(
-                    title="Booking Confirmed!",
+                    title=f"Booking Confirmed — {site.park_name or site.campground_id}",
                     message=(
+                        f"{_site_label(site)}\n"
+                        f"{site.check_in} → {site.check_out} ({night_str})\n"
                         f"Confirmation: {result.confirmation_number}"
-                        f" | {site.check_in} → {site.check_out}"
                     ),
                 ),
                 config.notifications,
@@ -306,8 +316,9 @@ async def _run_scan(config) -> None:
                 NotificationEvent(
                     title="Payment Failed — Action Required",
                     message=(
-                        f"{result.error_message}"
-                        " — scanning paused. Restart campsite scan to resume."
+                        f"{_site_label(site)}\n"
+                        f"{result.error_message}\n"
+                        "Scanning paused. Restart campsite scan to resume."
                     ),
                 ),
                 config.notifications,
@@ -317,7 +328,11 @@ async def _run_scan(config) -> None:
             notify(
                 NotificationEvent(
                     title="Booking Failed",
-                    message=f"{result.error_message} — trying next campground",
+                    message=(
+                        f"{_site_label(site)}\n"
+                        f"{result.error_message}\n"
+                        "Trying next campground in priority list."
+                    ),
                 ),
                 config.notifications,
             )
