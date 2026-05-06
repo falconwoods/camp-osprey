@@ -278,6 +278,17 @@ async def _run_scan(config) -> None:
         parts.append(f"Site {site.site_name or site.site_id}")
         return " › ".join(parts)
 
+    def _booking_url(site) -> str:
+        pid = site.campground_id
+        return (
+            f"https://camping.bcparks.ca/create-booking/results"
+            f"?transactionLocationId={pid}&resourceLocationId={pid}&mapId={pid}"
+            f"&searchTabGroupId=0&bookingCategoryId=0"
+            f"&startDate={site.check_in}&endDate={site.check_out}"
+            f"&nights={(site.check_out - site.check_in).days}"
+            f"&isReserving=true&equipmentId=-32768&subEquipmentId=-32768"
+        )
+
     async def on_match(site) -> bool:
         nights = (site.check_out - site.check_in).days
         night_str = f"{nights} night{'s' if nights != 1 else ''}"
@@ -288,6 +299,7 @@ async def _run_scan(config) -> None:
                     f"{_site_label(site)}\n"
                     f"{site.check_in} → {site.check_out} ({night_str})"
                 ),
+                url=_booking_url(site),
             ),
             config.notifications,
         )
@@ -307,6 +319,7 @@ async def _run_scan(config) -> None:
                         f"{site.check_in} → {site.check_out} ({night_str})\n"
                         f"Confirmation: {result.confirmation_number}"
                     ),
+                    url="https://camping.bcparks.ca/my-bookings",
                 ),
                 config.notifications,
             )
