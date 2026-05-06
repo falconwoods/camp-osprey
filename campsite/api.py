@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 import httpx
 
@@ -31,6 +31,14 @@ class BCParksAPI:
         self._sections: dict[str, dict[str, tuple[str, bool]]] = {}
 
     # ── Session / cache ────────────────────────────────────────────────────
+
+    async def login(self, email: str, password: str) -> None:
+        """Authenticate with BC Parks account so the cart is tied to the account."""
+        resp = await self._client.post("/api/auth/login", json={"email": email, "password": password})
+        resp.raise_for_status()
+        # Reset cached cart so next call gets the authenticated one
+        self._cart_uid = None
+        self._cart_tx_uid = None
 
     async def _ensure_cart(self) -> None:
         if self._cart_uid is not None:
@@ -198,6 +206,143 @@ class BCParksAPI:
         sites = [r for r in results if r is not None]
         print(f"  {len(sites)} site(s) available", flush=True)
         return sites
+
+    async def hold_site(self, site: AvailableSite, party_size: int = 1) -> str:
+        """
+        Add site to cart via API (isCompleted=false) to hold it for 15 minutes.
+        The cart is tied to the logged-in account — the user can open BC Parks,
+        log in, and complete payment. Returns the checkout URL.
+        """
+        await self._ensure_cart()
+
+        booking_uid = str(uuid.uuid4())
+        blocker_uid = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+
+        body = {
+            "cart": {
+                "cartUid": self._cart_uid,
+                "createTransactionUid": self._cart_tx_uid,
+                "shopperUid": None,
+                "groupUid": None,
+                "newTransaction": {
+                    "cartTransactionUid": self._cart_tx_uid,
+                    "cartUid": "00000000-0000-0000-0000-000000000000",
+                    "completeDate": None,
+                    "createDate": now,
+                    "editBookingLock": False,
+                    "lastEditDate": now,
+                    "shopperUid": None,
+                    "status": 1,
+                    "terminalLocationId": -2147483590,
+                    "transactionBookings": [],
+                    "transactionSales": [],
+                    "transactionShipments": [],
+                },
+                "transactionDrafts": [],
+                "transactionHistory": [],
+                "giftCards": [],
+                "sales": [],
+                "bookings": [{
+                    "bookingUid": booking_uid,
+                    "cartUid": self._cart_uid,
+                    "bookingCategoryId": 0,
+                    "bookingModel": 0,
+                    "newVersion": {
+                        "cartTransactionUid": self._cart_tx_uid,
+                        "bookingMembers": [],
+                        "bookingVehicles": [],
+                        "bookingBoats": [],
+                        "bookingCapacityCategoryCounts": [
+                            {"capacityCategoryId": -32767, "subCapacityCategoryId": -32768,
+                             "count": party_size, "isAdult": True},
+                            {"capacityCategoryId": -32767, "subCapacityCategoryId": -32767,
+                             "count": 0, "isAdult": True},
+                            {"capacityCategoryId": -32767, "subCapacityCategoryId": -32766,
+                             "count": 0, "isAdult": False},
+                            {"capacityCategoryId": -32767, "subCapacityCategoryId": -32765,
+                             "count": 0, "isAdult": False},
+                        ],
+                        "rateCategoryId": -32768,
+                        "resourceBlockerUids": [blocker_uid],
+                        "resourceNonSpecificBlockerUids": [],
+                        "resourceZoneBlockerUids": [],
+                        "resourceZoneEntryBlockerUids": [],
+                        "startDate": site.check_in.isoformat(),
+                        "endDate": site.check_out.isoformat(),
+                        "releasePersonalInformation": False,
+                        "equipmentCategoryId": -32768,
+                        "subEquipmentCategoryId": -32768,
+                        "occupant": {
+                            "contact": {"email": "", "contactName": "",
+                                        "phoneNumberCountryCode": None, "phoneNumber": ""},
+                            "address": {},
+                            "allowMarketing": False,
+                            "phoneNumbers": {},
+                            "preferredCultureName": "en-CA",
+                            "firstName": "",
+                            "lastName": "",
+                        },
+                        "requiresCheckout": False,
+                        "bookingStatus": 0,
+                        "completedDate": now,
+                        "arrivalComment": "",
+                        "entryPointResourceId": None,
+                        "exitPointResourceId": None,
+                        "bookingSurcharges": [],
+                        "consentToRelease": False,
+                        "equipmentDescription": "",
+                        "groupHoldUid": "",
+                        "organizationName": "",
+                        "passExpiryDate": None,
+                        "passNumber": "",
+                        "resourceLocationId": int(site.campground_id),
+                        "checkInTime": None,
+                        "checkOutTime": None,
+                        "deferredPayment": False,
+                    },
+                    "createTransactionUid": self._cart_tx_uid,
+                    "currentVersion": None,
+                    "history": [],
+                    "drafts": [],
+                    "referenceNumberPostfix": "",
+                }],
+                "shipments": [],
+                "groupHold": None,
+                "paymentGroups": [],
+                "gatewayPaymentSessions": [],
+                "lineItems": [],
+                "resourceBlockers": [{
+                    "blockerType": 0,
+                    "cartUid": self._cart_uid,
+                    "resourceBlockerUid": blocker_uid,
+                    "bookingUid": booking_uid,
+                    "groupHoldUid": "",
+                    "isReservation": True,
+                    "newVersion": {
+                        "creationDate": now,
+                        "cartTransactionUid": self._cart_tx_uid,
+                        "startDate": site.check_in.isoformat(),
+                        "endDate": site.check_out.isoformat(),
+                        "resourceId": int(site.site_id),
+                        "resourceLocationId": int(site.campground_id),
+                        "status": 0,
+                    },
+                }],
+                "resourceNonSpecificBlockers": [],
+                "resourceZoneBlockers": [],
+                "resourceZoneEntryBlockers": [],
+                "waitlistApplications": [],
+            }
+        }
+
+        resp = await self._client.post(
+            "/api/cart/commit",
+            params={"isCompleted": "false", "isSelfCheckIn": "false"},
+            json=body,
+        )
+        resp.raise_for_status()
+        return "https://camping.bcparks.ca/create-booking/reservationmessages"
 
     async def close(self) -> None:
         await self._client.aclose()

@@ -251,16 +251,18 @@ async def _run_check(config) -> None:
 @cli.command()
 @click.option("--file", "config_file", default="config.yaml", show_default=True,
               type=click.Path(exists=True), help="Path to config.yaml")
-def scan(config_file: str) -> None:
+@click.option("--hold", is_flag=True, default=False,
+              help="On match, open browser and add site to cart (held 15 min) for manual checkout.")
+def scan(config_file: str, hold: bool) -> None:
     """
     Start the polling loop. Scans for availability, books the first match, then stops.
     Runs until a campsite is successfully booked or you press Ctrl+C.
     """
     config = load_config(Path(config_file))
-    asyncio.run(_run_scan(config))
+    asyncio.run(_run_scan(config, hold=hold))
 
 
-async def _run_scan(config) -> None:
+async def _run_scan(config, hold: bool = False) -> None:
     from campsite.api import BCParksAPI
     from campsite.scanner import Scanner
     from campsite.booker import book_site
@@ -304,6 +306,28 @@ async def _run_scan(config) -> None:
             ),
             config.notifications,
         )
+        if hold:
+            click.echo("Holding site via cart API...")
+            try:
+                await api.login(config.credentials.bcparks_email, config.credentials.bcparks_password)
+                checkout_url = await api.hold_site(site, config.credentials.party_size)
+                notify(
+                    NotificationEvent(
+                        title=f"Site Held — Complete Payment Now",
+                        message=(
+                            f"{_site_label(site)}\n"
+                            f"{site.check_in} → {site.check_out} ({night_str})\n"
+                            f"Held for 15 minutes — log in to BC Parks and pay."
+                        ),
+                        url=checkout_url,
+                    ),
+                    config.notifications,
+                )
+                click.echo(f"  Held! Complete payment at: {checkout_url}")
+            except Exception as e:
+                click.echo(f"  Hold failed: {e}")
+            return False  # keep scanning after a hold attempt
+
         if not config.auto_book:
             click.echo("auto_book is false — not booking. Continuing to scan.")
             return False
