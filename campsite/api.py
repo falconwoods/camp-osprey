@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import copy
 import json
 import uuid
 from datetime import date, datetime, timezone
@@ -26,6 +27,7 @@ class BCParksAPI:
         self._cart_uid: str | None = None
         self._cart_tx_uid: str | None = None
         self._terminal_location_id: int = -2147483590
+        self._cart_data: dict | None = None  # full cart JSON, kept in sync with _cart_uid
         self._locations: dict[str, dict] | None = None
         self._resources: dict[str, dict[str, dict]] = {}
         # {locationId → {resourceId → (section_name, is_walkin)}}
@@ -47,6 +49,7 @@ class BCParksAPI:
         # Reset cached cart so next call fetches the authenticated one
         self._cart_uid = None
         self._cart_tx_uid = None
+        self._cart_data = None
 
     async def _ensure_cart(self) -> None:
         if self._cart_uid is not None:
@@ -54,9 +57,9 @@ class BCParksAPI:
         print("→ Initializing cart session...", flush=True)
         resp = await self._client.get("/api/cart")
         resp.raise_for_status()
-        data = resp.json()
-        self._cart_uid = data["cartUid"]
-        tx = data["newTransaction"]
+        self._cart_data = resp.json()
+        self._cart_uid = self._cart_data["cartUid"]
+        tx = self._cart_data["newTransaction"]
         self._cart_tx_uid = tx["cartTransactionUid"]
         self._terminal_location_id = tx.get("terminalLocationId", -2147483590)
         print(f"  cart: {self._cart_uid}", flush=True)
@@ -224,11 +227,7 @@ class BCParksAPI:
         log in, and complete payment. Returns the checkout URL.
         """
         await self._ensure_cart()
-
-        # Use the server's cart as the base so all fields match exactly
-        cart_resp = await self._client.get("/api/cart")
-        cart_resp.raise_for_status()
-        cart = cart_resp.json()
+        cart = copy.deepcopy(self._cart_data)  # use the same cart that _ensure_cart fetched
 
         booking_uid = str(uuid.uuid4())
         blocker_uid = str(uuid.uuid4())
