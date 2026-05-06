@@ -225,35 +225,16 @@ class BCParksAPI:
         """
         await self._ensure_cart()
 
+        # Use the server's cart as the base so all fields match exactly
+        cart_resp = await self._client.get("/api/cart")
+        cart_resp.raise_for_status()
+        cart = cart_resp.json()
+
         booking_uid = str(uuid.uuid4())
         blocker_uid = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
 
-        body = {
-            "cart": {
-                "cartUid": self._cart_uid,
-                "createTransactionUid": self._cart_tx_uid,
-                "shopperUid": None,
-                "groupUid": None,
-                "newTransaction": {
-                    "cartTransactionUid": self._cart_tx_uid,
-                    "cartUid": "00000000-0000-0000-0000-000000000000",
-                    "completeDate": None,
-                    "createDate": now,
-                    "editBookingLock": False,
-                    "lastEditDate": now,
-                    "shopperUid": None,
-                    "status": 1,
-                    "terminalLocationId": self._terminal_location_id,
-                    "transactionBookings": [],
-                    "transactionSales": [],
-                    "transactionShipments": [],
-                },
-                "transactionDrafts": [],
-                "transactionHistory": [],
-                "giftCards": [],
-                "sales": [],
-                "bookings": [{
+        cart["bookings"] = [{
                     "bookingUid": booking_uid,
                     "cartUid": self._cart_uid,
                     "bookingCategoryId": 0,
@@ -316,41 +297,30 @@ class BCParksAPI:
                     "history": [],
                     "drafts": [],
                     "referenceNumberPostfix": "",
-                }],
-                "shipments": [],
-                "groupHold": None,
-                "paymentGroups": [],
-                "gatewayPaymentSessions": [],
-                "lineItems": [],
-                "resourceBlockers": [{
-                    "blockerType": 0,
-                    "cartUid": self._cart_uid,
-                    "resourceBlockerUid": blocker_uid,
-                    "bookingUid": booking_uid,
-                    "groupHoldUid": "",
-                    "isReservation": True,
-                    "newVersion": {
-                        "creationDate": now,
-                        "cartTransactionUid": self._cart_tx_uid,
-                        "startDate": site.check_in.isoformat(),
-                        "endDate": site.check_out.isoformat(),
-                        "resourceId": int(site.site_id),
-                        "resourceLocationId": int(site.campground_id),
-                        "status": 0,
-                    },
-                }],
-                "resourceNonSpecificBlockers": [],
-                "resourceZoneBlockers": [],
-                "resourceZoneEntryBlockers": [],
-                "waitlistApplications": [],
-            }
-        }
+                }]
+        cart["resourceBlockers"] = [{
+            "blockerType": 0,
+            "cartUid": self._cart_uid,
+            "resourceBlockerUid": blocker_uid,
+            "bookingUid": booking_uid,
+            "groupHoldUid": "",
+            "isReservation": True,
+            "newVersion": {
+                "creationDate": now,
+                "cartTransactionUid": self._cart_tx_uid,
+                "startDate": site.check_in.isoformat(),
+                "endDate": site.check_out.isoformat(),
+                "resourceId": int(site.site_id),
+                "resourceLocationId": int(site.campground_id),
+                "status": 0,
+            },
+        }]
 
         xsrf = self._client.cookies.get("XSRF-TOKEN", "")
         resp = await self._client.post(
             "/api/cart/commit",
             params={"isCompleted": "false", "isSelfCheckIn": "false"},
-            json=body,
+            json={"cart": cart},
             headers={"X-XSRF-TOKEN": xsrf},
         )
         if not resp.is_success:
