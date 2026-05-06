@@ -110,8 +110,9 @@ class BCParksAPI:
 
     @staticmethod
     def _nights_available(daily: list[dict], num_nights: int) -> bool:
-        # Response has one entry per day including check-out; only check-in nights matter.
-        return all(entry.get("availability", 0) > 0 for entry in daily[:num_nights])
+        # availability=0 means FREE, availability=1 means OCCUPIED (confirmed by live API).
+        # Only check-in nights matter; the check-out day entry is ignored.
+        return all(entry.get("availability", 1) == 0 for entry in daily[:num_nights])
 
     @staticmethod
     def _is_double(resource: dict) -> bool:
