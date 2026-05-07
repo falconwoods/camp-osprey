@@ -56,12 +56,17 @@ async function renderTripList() {
   })
 }
 
-function openEditor(trip?: Trip) {
+async function openEditor(trip?: Trip) {
   editingTripId = trip?.id ?? null
   tripParks = trip ? [...trip.parks] : []
   tripDates = trip ? [...trip.dateRanges] : []
 
-  ;(document.getElementById('trip-name') as HTMLInputElement).value = trip?.name ?? ''
+  let defaultName = trip?.name ?? ''
+  if (!trip) {
+    const { trips } = await getStorage()
+    defaultName = `Trip ${trips.length + 1}`
+  }
+  ;(document.getElementById('trip-name') as HTMLInputElement).value = defaultName
   ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'notify'
   ;(document.getElementById('filter-walkin') as HTMLInputElement).checked = trip?.filters.noWalkin ?? false
   ;(document.getElementById('filter-double') as HTMLInputElement).checked = trip?.filters.noDouble ?? false
@@ -182,6 +187,22 @@ function updateRecurringPreview() {
     `→ Scanner will try any of ${upcoming.length} ${DAY_NAMES[startDay]}–${DAY_NAMES[endDay]} stays in ${MONTH_NAMES[month]}${pastNote}`
 }
 
+// Populate year select dynamically and default to current month/year
+function initFlexibleDefaults() {
+  const now = new Date()
+  const currentMonth = now.getMonth() + 1
+  const currentYear = now.getFullYear()
+
+  const yearSelect = document.getElementById('rec-year') as HTMLSelectElement
+  yearSelect.innerHTML = [currentYear, currentYear + 1, currentYear + 2]
+    .map(y => `<option value="${y}">${y}</option>`).join('')
+  yearSelect.value = String(currentYear)
+
+  ;(document.getElementById('rec-month') as HTMLSelectElement).value = String(currentMonth)
+}
+
+initFlexibleDefaults()
+
 ;['rec-start-day', 'rec-end-day', 'rec-month', 'rec-year'].forEach(id => {
   document.getElementById(id)!.addEventListener('change', updateRecurringPreview)
 })
@@ -261,11 +282,13 @@ document.getElementById('save-payment-btn')!.addEventListener('click', async () 
 async function loadSettingsForm() {
   const { settings } = await getStorage()
   ;(document.getElementById('poll-interval') as HTMLSelectElement).value = String(settings.pollIntervalSeconds)
+  ;(document.getElementById('debug-mode') as HTMLInputElement).checked = settings.debugMode ?? false
 }
 
 document.getElementById('save-settings-btn')!.addEventListener('click', async () => {
   const val = parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as 30 | 60 | 120
-  await saveSettings({ pollIntervalSeconds: val })
+  const debugMode = (document.getElementById('debug-mode') as HTMLInputElement).checked
+  await saveSettings({ pollIntervalSeconds: val, debugMode })
   alert('Settings saved.')
 })
 

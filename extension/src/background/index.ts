@@ -1,5 +1,5 @@
 import { BCParksProvider } from '../providers/bcparks'
-import { getStorage, updateTrip } from '../storage'
+import { getStorage, updateTrip, addDebugLog } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, makeAttemptedKey, buildBookingUrl } from './scanner'
 import type { AvailableSite, Trip } from '../types'
@@ -38,10 +38,15 @@ async function runScanCycle(): Promise<void> {
   await setupAlarm(settings.pollIntervalSeconds)
 
   const scanningTrips = trips.filter(t => t.status === 'scanning')
+  const debug = settings.debugMode
+
+  if (debug) await addDebugLog(`Alarm fired — ${scanningTrips.length} trip(s) scanning`)
+
   for (const trip of scanningTrips) {
     const loggedIn = await isLoggedIn()
     const needsLogin = trip.mode !== 'notify' && !loggedIn
     if (needsLogin) {
+      if (debug) await addDebugLog(`"${trip.name}" — not logged in, skipping hold/autopay`)
       await notify(
         'CampSniper — Login Required',
         `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
@@ -49,12 +54,23 @@ async function runScanCycle(): Promise<void> {
       continue
     }
 
+    if (debug) await addDebugLog(`Scanning "${trip.name}" (${trip.parks.length} park(s), ${trip.dateRanges.length} date range(s))`)
+
     try {
-      const site = await scanTrip(trip, (id, ci, co, filters) =>
-        provider.getAvailability(id, ci, co, filters)
-      )
-      if (site) await handleMatch(trip, site, payment?.partySize ?? 1)
+      const site = await scanTrip(trip, async (id, ci, co, filters) => {
+        if (debug) await addDebugLog(`  Checking park ${id} | ${ci} → ${co}`)
+        const results = await provider.getAvailability(id, ci, co, filters)
+        if (debug) await addDebugLog(`  → ${results.length} site(s) available`)
+        return results
+      })
+      if (site) {
+        if (debug) await addDebugLog(`Match found: ${site.campgroundName} › Site ${site.siteName}`)
+        await handleMatch(trip, site, payment?.partySize ?? 1)
+      } else {
+        if (debug) await addDebugLog(`"${trip.name}" — no availability this cycle`)
+      }
     } catch (err) {
+      if (debug) await addDebugLog(`Error scanning "${trip.name}": ${err}`)
       console.error(`Scan error for trip ${trip.id}:`, err)
     }
   }

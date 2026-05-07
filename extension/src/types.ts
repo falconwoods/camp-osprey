@@ -59,10 +59,12 @@ export interface PaymentConfig {
 
 export interface Settings {
   pollIntervalSeconds: 30 | 60 | 120
+  debugMode: boolean
 }
 
 export interface StorageData {
   trips: Trip[]
   payment: PaymentConfig | null
   settings: Settings
+  debugLog: string[]
 }

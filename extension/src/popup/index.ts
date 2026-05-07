@@ -60,10 +60,12 @@ function renderTrip(trip: Trip): string {
 }
 
 async function render() {
-  const { trips } = await getStorage()
+  const { trips, settings, debugLog } = await getStorage()
   const loggedIn = await isLoggedIn()
   const container = document.getElementById('trips-container')!
   const warn = document.getElementById('login-warn')!
+  const debugPanel = document.getElementById('debug-panel')!
+  const debugLogEl = document.getElementById('debug-log')!
 
   const needsLogin = trips.some(t => t.status === 'scanning' && t.mode !== 'notify')
   warn.style.display = !loggedIn && needsLogin ? 'block' : 'none'
@@ -72,6 +74,16 @@ async function render() {
     container.innerHTML = '<div class="empty">No trips yet. Add one to start scanning.</div>'
   } else {
     container.innerHTML = trips.map(renderTrip).join('')
+  }
+
+  // Debug log panel
+  if (settings.debugMode) {
+    debugPanel.style.display = 'block'
+    debugLogEl.innerHTML = debugLog.length === 0
+      ? '<span style="color:#475569">No log entries yet — waiting for next scan cycle.</span>'
+      : [...debugLog].reverse().map(l => `<div>${l}</div>`).join('')
+  } else {
+    debugPanel.style.display = 'none'
   }
 
   container.querySelectorAll('[data-action]').forEach(btn => {
@@ -83,5 +95,8 @@ async function render() {
     })
   })
 }
+
+// Re-render whenever storage changes (catches service worker updates too)
+chrome.storage.onChanged.addListener(() => render())
 
 render()

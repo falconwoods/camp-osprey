@@ -3,7 +3,8 @@ import type { StorageData, Trip, PaymentConfig, Settings } from './types'
 const DEFAULTS: StorageData = {
   trips: [],
   payment: null,
-  settings: { pollIntervalSeconds: 60 },
+  settings: { pollIntervalSeconds: 60, debugMode: false },
+  debugLog: [],
 }
 
 function promisify<T>(fn: (callback: (result: T) => void) => void): Promise<T> {
@@ -28,6 +29,13 @@ export async function savePayment(payment: PaymentConfig | null): Promise<void> 
 
 export async function saveSettings(settings: Settings): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.set({ settings }, cb))
+}
+
+export async function addDebugLog(entry: string): Promise<void> {
+  const { debugLog } = await getStorage()
+  const timestamp = new Date().toLocaleTimeString()
+  const newLog = [...debugLog, `${timestamp} — ${entry}`].slice(-30)
+  await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
 }
 
 export async function updateTrip(tripId: string, updates: Partial<Trip>): Promise<void> {
