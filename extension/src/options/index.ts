@@ -266,11 +266,30 @@ function initFlexibleDefaults() {
   ;(document.getElementById('rec-month') as HTMLSelectElement).value = String(now.getMonth() + 1)
 }
 
+const FULL_DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+function updateEndDayOptions(): void {
+  const startDay = parseInt((document.getElementById('rec-start-day') as HTMLSelectElement).value)
+  const endSelect = document.getElementById('rec-end-day') as HTMLSelectElement
+  const prevEnd = parseInt(endSelect.value)
+
+  // Only show days strictly after the start day
+  endSelect.innerHTML = FULL_DAY_NAMES
+    .map((name, i) => i > startDay ? `<option value="${i}">${name}</option>` : null)
+    .filter(Boolean)
+    .join('')
+
+  // Keep previous selection if still valid, else pick the day after start
+  endSelect.value = prevEnd > startDay ? String(prevEnd) : String(startDay + 1)
+  updateRecurringPreview()
+}
+
 initFlexibleDefaults()
-;['rec-start-day', 'rec-end-day', 'rec-month', 'rec-year'].forEach(id => {
+document.getElementById('rec-start-day')!.addEventListener('change', updateEndDayOptions)
+;['rec-end-day', 'rec-month', 'rec-year'].forEach(id => {
   document.getElementById(id)!.addEventListener('change', updateRecurringPreview)
 })
-updateRecurringPreview()
+updateEndDayOptions()  // initialise end-day options based on default start-day
 
 document.getElementById('add-date-btn')!.addEventListener('click', () => {
   if (dateMode === 'specific') {

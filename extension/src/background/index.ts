@@ -107,14 +107,16 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
   // For hold and autopay: open BC Parks booking tab so the reservation
   // happens inside the user's real browser session (not the extension's
   // isolated service-worker session, which has a separate cart).
+  // Use chrome.storage.local (not session) — content scripts can only access local storage
   await new Promise<void>(resolve =>
-    chrome.storage.session.set({
+    chrome.storage.local.set({
       campSnaperTarget: {
         resourceId: site.resourceId,
         siteName: site.siteName,
         sectionName: site.sectionName,
         tripId: trip.id,
         mode: trip.mode,
+        setAt: Date.now(),  // freshness check in content script
       },
     }, resolve)
   )

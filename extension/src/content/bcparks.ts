@@ -6,19 +6,23 @@ interface TargetSite {
   sectionName: string
   tripId: string
   mode: 'hold' | 'autopay'
+  setAt: number
 }
 
 // ── Results page: find & reserve target site ───────────────────────────────
 
-chrome.storage.session.get('campSnaperTarget', result => {
-  const target = result['campSnaperTarget'] as TargetSite | undefined
+// content scripts can only access chrome.storage.local, not session
+chrome.storage.local.get('campSnaperTarget', (result: Record<string, unknown>) => {
+  if (chrome.runtime.lastError) return  // storage not available on this page
+  const target = result?.['campSnaperTarget'] as TargetSite | undefined
   if (!target) return
+  // Ignore stale targets (set more than 5 minutes ago)
+  if (Date.now() - target.setAt > 5 * 60 * 1000) return
 
   const url = window.location.href
   if (url.includes('/create-booking/results')) {
     handleResultsPage(target)
   } else if (url.includes('reservationmessages') || url.includes('payment') || url.includes('checkout')) {
-    // Autopay — page opened after user clicked Reserve on results page
     if (target.mode === 'autopay') runCheckout(target.tripId)
   }
 })
@@ -190,7 +194,7 @@ async function runCheckout(tripId: string): Promise<void> {
       )
       const confirmationNumber = confirmEl.textContent?.trim() ?? 'unknown'
       chrome.runtime.sendMessage({ type: 'BOOKING_CONFIRMED', tripId, confirmationNumber })
-      chrome.storage.session.remove('campSnaperTarget')
+      chrome.storage.local.remove('campSnaperTarget')
     }
   } catch (err) {
     chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: String(err) })
