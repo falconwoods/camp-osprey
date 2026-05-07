@@ -8,13 +8,19 @@ type GetAvailabilityFn = (
   filters: Filters,
 ) => Promise<AvailableSite[]>
 
+function todayISO(): string {
+  return new Date().toISOString().split('T')[0]
+}
+
 export async function scanTrip(
   trip: Trip,
   getAvailability: GetAvailabilityFn,
 ): Promise<AvailableSite | null> {
+  const today = todayISO()
   for (const park of trip.parks) {
     for (const dateRange of trip.dateRanges) {
       for (const window of expandDateRange(dateRange)) {
+        if (window.checkIn < today) continue  // skip past dates
         const key = `${park.id}|${window.checkIn}|${window.checkOut}`
         if (trip.attempted.includes(key)) continue
 

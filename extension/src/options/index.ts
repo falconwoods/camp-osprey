@@ -12,6 +12,15 @@ let dateMode: 'specific' | 'recurring' = 'specific'
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+function todayISO(): string {
+  return new Date().toISOString().split('T')[0]
+}
+
+function upcomingWindows(range: DateRange) {
+  const today = todayISO()
+  return expandDateRange(range).filter(w => w.checkIn >= today)
+}
+
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -122,8 +131,11 @@ parkSearch.addEventListener('input', () => {
 // Dates
 function describeRange(r: DateRange): string {
   if (r.type === 'specific') return `${r.checkIn} → ${r.checkOut}`
-  const windows = expandDateRange(r)
-  return `Every ${DAY_NAMES[r.startDay]}–${DAY_NAMES[r.endDay]} · ${MONTH_NAMES[r.month]} ${r.year} (${windows.length} stays)`
+  const upcoming = upcomingWindows(r)
+  const total = expandDateRange(r).length
+  const pastCount = total - upcoming.length
+  const suffix = pastCount > 0 ? ` · ${upcoming.length} upcoming` : ` · ${upcoming.length} stays`
+  return `Any ${DAY_NAMES[r.startDay]}–${DAY_NAMES[r.endDay]} · ${MONTH_NAMES[r.month]} ${r.year}${suffix}`
 }
 
 function renderDatesList() {
@@ -158,9 +170,16 @@ function updateRecurringPreview() {
   const endDay = parseInt((document.getElementById('rec-end-day') as HTMLSelectElement).value)
   const month = parseInt((document.getElementById('rec-month') as HTMLSelectElement).value)
   const year = parseInt((document.getElementById('rec-year') as HTMLSelectElement).value)
-  const windows = expandDateRange({ type: 'recurring', year, month, startDay, endDay })
+  const range: DateRange = { type: 'recurring', year, month, startDay, endDay }
+  const upcoming = upcomingWindows(range)
+  const total = expandDateRange(range).length
+  const pastNote = total > upcoming.length ? ` (${total - upcoming.length} past, skipped)` : ''
+  if (upcoming.length === 0) {
+    document.getElementById('rec-preview')!.textContent = `→ No upcoming dates in this month`
+    return
+  }
   document.getElementById('rec-preview')!.textContent =
-    `→ ${windows.length} stay${windows.length !== 1 ? 's' : ''}: ${windows[0]?.checkIn ?? ''} to ${windows[windows.length - 1]?.checkOut ?? ''}`
+    `→ Scanner will try any of ${upcoming.length} ${DAY_NAMES[startDay]}–${DAY_NAMES[endDay]} stays in ${MONTH_NAMES[month]}${pastNote}`
 }
 
 ;['rec-start-day', 'rec-end-day', 'rec-month', 'rec-year'].forEach(id => {
