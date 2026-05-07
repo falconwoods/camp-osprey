@@ -1,0 +1,68 @@
+export interface Trip {
+  id: string
+  name: string
+  parks: Park[]           // index 0 = highest priority
+  dateRanges: DateRange[]
+  filters: Filters
+  mode: 'notify' | 'hold' | 'autopay'
+  status: 'idle' | 'scanning' | 'paused' | 'completed'
+  lastMatch: MatchedSite | null
+  attempted: string[]     // "parkId|checkIn|checkOut" dedup keys
+  createdAt: number
+}
+
+export interface Park {
+  id: string              // BC Parks resourceLocationId as string
+  name: string
+}
+
+export interface Filters {
+  noWalkin: boolean
+  noDouble: boolean
+}
+
+export type DateRange =
+  | { type: 'specific'; checkIn: string; checkOut: string }
+  | { type: 'recurring'; year: number; month: number; startDay: number; endDay: number }
+  // startDay/endDay: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+
+export interface MatchedSite {
+  parkName: string
+  siteName: string
+  sectionName: string
+  checkIn: string         // ISO date YYYY-MM-DD
+  checkOut: string        // ISO date YYYY-MM-DD
+  bookingUrl: string
+  resourceId: string
+}
+
+export interface AvailableSite {
+  resourceId: string
+  campgroundId: string
+  campgroundName: string
+  sectionName: string
+  siteName: string
+  mapId: string
+  isWalkin: boolean
+  isDouble: boolean
+  checkIn: string         // ISO date YYYY-MM-DD
+  checkOut: string        // ISO date YYYY-MM-DD
+}
+
+export interface PaymentConfig {
+  cardNumber: string
+  cardHolder: string
+  cardExpiry: string      // "MM/YY"
+  cardCvv: string
+  partySize: number
+}
+
+export interface Settings {
+  pollIntervalSeconds: 30 | 60 | 120
+}
+
+export interface StorageData {
+  trips: Trip[]
+  payment: PaymentConfig | null
+  settings: Settings
+}

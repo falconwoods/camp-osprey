@@ -1,2 +1,55 @@
-import * as chrome from 'vitest-chrome'
+import { vi } from 'vitest'
+
+const mockStorageArea = () => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  remove: vi.fn(),
+  clear: vi.fn(),
+})
+
+const mockEvent = () => ({
+  addListener: vi.fn(),
+  removeListener: vi.fn(),
+  hasListener: vi.fn(),
+  hasListeners: vi.fn(),
+})
+
+const chrome = {
+  storage: {
+    local: mockStorageArea(),
+    session: mockStorageArea(),
+    sync: mockStorageArea(),
+  },
+  cookies: {
+    get: vi.fn(),
+    getAll: vi.fn(),
+    set: vi.fn(),
+    remove: vi.fn(),
+    onChanged: mockEvent(),
+  },
+  alarms: {
+    create: vi.fn(),
+    clear: vi.fn(),
+    clearAll: vi.fn(),
+    get: vi.fn(),
+    getAll: vi.fn(),
+    onAlarm: mockEvent(),
+  },
+  notifications: {
+    create: vi.fn(),
+    clear: vi.fn(),
+    onClicked: mockEvent(),
+  },
+  tabs: {
+    create: vi.fn(),
+    query: vi.fn(),
+  },
+  runtime: {
+    openOptionsPage: vi.fn(),
+    sendMessage: vi.fn(),
+    onMessage: mockEvent(),
+    onInstalled: mockEvent(),
+  },
+}
+
 Object.assign(global, { chrome })
