@@ -1,1 +1,152 @@
-// stub
+import { BCParksProvider } from '../providers/bcparks'
+import { getStorage, updateTrip } from '../storage'
+import { isLoggedIn, watchLoginChanges } from './login'
+import { scanTrip, makeAttemptedKey, buildBookingUrl } from './scanner'
+import type { AvailableSite, Trip } from '../types'
+
+const ALARM_NAME = 'scan'
+const provider = new BCParksProvider()
+
+chrome.runtime.onInstalled.addListener(() => {
+  setupAlarm(60)
+})
+
+// Restore alarm on service worker restart
+chrome.storage.local.get('settings', result => {
+  const interval = (result as Record<string, { pollIntervalSeconds?: number }>)['settings']?.pollIntervalSeconds ?? 60
+  setupAlarm(interval)
+})
+
+async function setupAlarm(intervalSeconds: number): Promise<void> {
+  await new Promise<void>(resolve => chrome.alarms.clear(ALARM_NAME, () => resolve()))
+  chrome.alarms.create(ALARM_NAME, { periodInMinutes: intervalSeconds / 60 })
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm: chrome.alarms.Alarm) => {
+  if (alarm.name !== ALARM_NAME) return
+  await runScanCycle()
+})
+
+watchLoginChanges(async loggedIn => {
+  if (!loggedIn) return
+  // Trigger a scan immediately on login
+  await runScanCycle()
+})
+
+async function runScanCycle(): Promise<void> {
+  const { trips, payment, settings } = await getStorage()
+  await setupAlarm(settings.pollIntervalSeconds)
+
+  const scanningTrips = trips.filter(t => t.status === 'scanning')
+  for (const trip of scanningTrips) {
+    const loggedIn = await isLoggedIn()
+    const needsLogin = trip.mode !== 'notify' && !loggedIn
+    if (needsLogin) {
+      await notify(
+        'CampSniper — Login Required',
+        `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
+      )
+      continue
+    }
+
+    try {
+      const site = await scanTrip(trip, (id, ci, co, filters) =>
+        provider.getAvailability(id, ci, co, filters)
+      )
+      if (site) await handleMatch(trip, site, payment?.partySize ?? 1)
+    } catch (err) {
+      console.error(`Scan error for trip ${trip.id}:`, err)
+    }
+  }
+}
+
+async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): Promise<void> {
+  const nights = Math.round(
+    (new Date(site.checkOut).getTime() - new Date(site.checkIn).getTime()) / 86_400_000
+  )
+  const nightStr = `${nights} night${nights !== 1 ? 's' : ''}`
+  const bookingUrl = buildBookingUrl(site)
+
+  const matchedSite = {
+    parkName: site.campgroundName || site.campgroundId,
+    siteName: site.siteName,
+    sectionName: site.sectionName,
+    checkIn: site.checkIn,
+    checkOut: site.checkOut,
+    bookingUrl,
+    resourceId: site.resourceId,
+  }
+
+  if (trip.mode === 'notify') {
+    await notify(
+      `Campsite Available — ${matchedSite.parkName}`,
+      `${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut} (${nightStr})`,
+      bookingUrl,
+    )
+    await updateTrip(trip.id, { lastMatch: matchedSite })
+    return
+  }
+
+  try {
+    await provider.holdSite(site, partySize)
+  } catch (err) {
+    const msg = String(err)
+    if (msg.includes('ResourceUnavailable')) {
+      await updateTrip(trip.id, { attempted: [...trip.attempted, makeAttemptedKey(site)] })
+      return
+    }
+    await notify(`Hold Failed — ${matchedSite.parkName}`, msg)
+    await updateTrip(trip.id, { status: 'paused' })
+    return
+  }
+
+  const checkoutUrl = 'https://camping.bcparks.ca/create-booking/reservationmessages'
+
+  if (trip.mode === 'hold') {
+    await notify(
+      'Site Held — Complete Payment Now',
+      `${matchedSite.parkName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}\nHeld 15 min — open BC Parks to pay.`,
+      checkoutUrl,
+    )
+    chrome.tabs.create({ url: checkoutUrl })
+    await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
+    return
+  }
+
+  if (trip.mode === 'autopay') {
+    await new Promise<void>(resolve => chrome.storage.session.set({ autopayTripId: trip.id }, resolve))
+    chrome.tabs.create({ url: checkoutUrl })
+    await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
+  }
+}
+
+async function notify(title: string, message: string, url?: string): Promise<void> {
+  const id = `campsniper-${Date.now()}`
+  chrome.notifications.create(id, {
+    type: 'basic',
+    iconUrl: 'icons/icon48.png',
+    title,
+    message,
+  })
+  if (url) {
+    chrome.notifications.onClicked.addListener(function handler(notifId: string) {
+      if (notifId === id) {
+        chrome.tabs.create({ url })
+        chrome.notifications.onClicked.removeListener(handler)
+      }
+    })
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg: { type: string; tripId?: string; confirmationNumber?: string; error?: string }) => {
+  if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
+    updateTrip(msg.tripId, { status: 'completed' }).then(() => {
+      notify('Booking Confirmed!', `Confirmation: ${msg.confirmationNumber ?? 'unknown'}`)
+    })
+  }
+  if (msg.type === 'BOOKING_FAILED' && msg.tripId) {
+    updateTrip(msg.tripId, { status: 'paused' }).then(() => {
+      notify('Payment Failed', msg.error ?? 'Unknown error — check BC Parks tab.')
+    })
+  }
+})
