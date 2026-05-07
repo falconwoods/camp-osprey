@@ -104,42 +104,41 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
     return
   }
 
-  try {
-    await provider.holdSite(site, partySize)
-  } catch (err) {
-    const msg = String(err)
-    if (msg.includes('ResourceUnavailable')) {
-      await updateTrip(trip.id, { attempted: [...trip.attempted, makeAttemptedKey(site)] })
-      return
-    }
-    // Site was found but hold failed — save lastMatch so user can book manually
-    await notify(
-      `Hold Failed — Book Manually`,
-      `${matchedSite.parkName} › Site ${matchedSite.siteName} (${site.checkIn} → ${site.checkOut})\nError: ${msg}`,
-      bookingUrl,
-      true,
-    )
-    await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
-    return
-  }
-
-  const checkoutUrl = 'https://camping.bcparks.ca/create-booking/reservationmessages'
+  // For hold and autopay: open BC Parks booking tab so the reservation
+  // happens inside the user's real browser session (not the extension's
+  // isolated service-worker session, which has a separate cart).
+  await new Promise<void>(resolve =>
+    chrome.storage.session.set({
+      campSnaperTarget: {
+        resourceId: site.resourceId,
+        siteName: site.siteName,
+        sectionName: site.sectionName,
+        tripId: trip.id,
+        mode: trip.mode,
+      },
+    }, resolve)
+  )
 
   if (trip.mode === 'hold') {
     await notify(
-      'Site Held — Complete Payment Now',
-      `${matchedSite.parkName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}\nHeld 15 min — open BC Parks to pay.`,
-      checkoutUrl,
+      `Site Available — Reserve Now`,
+      `${matchedSite.parkName} › ${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}\nBC Parks is opening — click Reserve in your browser.`,
+      bookingUrl,
       true,
     )
-    chrome.tabs.create({ url: checkoutUrl })
+    chrome.tabs.create({ url: bookingUrl })
     await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
     return
   }
 
   if (trip.mode === 'autopay') {
-    await new Promise<void>(resolve => chrome.storage.session.set({ autopayTripId: trip.id }, resolve))
-    chrome.tabs.create({ url: checkoutUrl })
+    await notify(
+      `Site Available — Auto-paying`,
+      `${matchedSite.parkName} › ${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}`,
+      bookingUrl,
+      true,
+    )
+    chrome.tabs.create({ url: bookingUrl })
     await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
   }
 }
