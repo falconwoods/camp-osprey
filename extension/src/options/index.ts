@@ -302,7 +302,7 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
   const { trips } = await getStorage()
   if (editingTripId) {
     const idx = trips.findIndex(t => t.id === editingTripId)
-    if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning' }
+    if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [] }
   } else {
     trips.push({ id: crypto.randomUUID(), name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [], createdAt: Date.now() })
   }
@@ -353,6 +353,23 @@ async function loadSettingsForm() {
 document.getElementById('debug-mode')!.addEventListener('change', () => {
   const checked = (document.getElementById('debug-mode') as HTMLInputElement).checked
   document.getElementById('debug-section')!.classList.toggle('hidden', !checked)
+})
+
+document.getElementById('test-notif-btn')!.addEventListener('click', () => {
+  const id = `campsniper-test-${Date.now()}`
+  chrome.notifications.create(id, {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icons/icon48.png'),
+    title: 'CampSniper — Notifications working ✓',
+    message: 'If you see this, notifications are set up correctly.',
+    requireInteraction: false,
+  }, createdId => {
+    if (chrome.runtime.lastError) {
+      alert(`Notification failed: ${chrome.runtime.lastError.message}\n\nCheck that Chrome has notification permission in macOS System Settings → Notifications → Google Chrome.`)
+    } else {
+      console.log('[CampSniper] Test notification sent:', createdId)
+    }
+  })
 })
 
 document.getElementById('save-settings-btn')!.addEventListener('click', async () => {

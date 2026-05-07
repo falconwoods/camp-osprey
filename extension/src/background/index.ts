@@ -138,11 +138,23 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
 
 async function notify(title: string, message: string, url?: string): Promise<void> {
   const id = `campsniper-${Date.now()}`
-  chrome.notifications.create(id, {
-    type: 'basic',
-    iconUrl: 'icons/icon48.png',
-    title,
-    message,
+  await new Promise<void>(resolve => {
+    chrome.notifications.create(id, {
+      type: 'basic',
+      // Use extension URL so icon always resolves correctly from service worker context
+      iconUrl: chrome.runtime.getURL('icons/icon48.png'),
+      title,
+      message,
+      requireInteraction: false,
+    }, createdId => {
+      if (chrome.runtime.lastError) {
+        console.error('[CampSniper] Notification failed:', chrome.runtime.lastError.message)
+        addDebugLog(`Notification error: ${chrome.runtime.lastError.message}`)
+      } else {
+        console.log('[CampSniper] Notification sent:', createdId)
+      }
+      resolve()
+    })
   })
   if (url) {
     chrome.notifications.onClicked.addListener(function handler(notifId: string) {
