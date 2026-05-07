@@ -1,4 +1,158 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>CampSniper Settings</title></head>
-<body><script type="module" src="../src/options/index.ts"></script></body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CampSniper Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; font-size: 13px; max-width: 720px; margin: 0 auto; padding: 32px 24px; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #64748b; font-size: 12px; margin-bottom: 24px; }
+    .section { margin-bottom: 20px; }
+    .section-label { color: #94a3b8; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .input { width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 9px 12px; color: #e2e8f0; font-size: 13px; }
+    .input:focus { outline: none; border-color: #3b82f6; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .chip { background: #1e293b; border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .chip-remove { color: #64748b; cursor: pointer; background: none; border: none; font-size: 14px; padding: 0 4px; }
+    .btn-add { width: 100%; background: #1e3a5f; border: 1px dashed #3b82f6; color: #3b82f6; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 4px; }
+    .btn-primary { background: #22c55e; border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .btn-danger { background: #1e293b; border: 1px solid #ef444433; color: #ef4444; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .select { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px 10px; color: #e2e8f0; font-size: 12px; }
+    .checkbox-row { display: flex; gap: 12px; }
+    .checkbox-label { display: flex; align-items: center; gap: 6px; background: #1e293b; padding: 7px 12px; border-radius: 6px; cursor: pointer; }
+    .search-results { background: #1e293b; border: 1px solid #334155; border-radius: 6px; max-height: 160px; overflow-y: auto; margin-top: 4px; display: none; }
+    .search-result { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #0f172a; font-size: 12px; }
+    .search-result:hover { background: #0f172a; }
+    .trip-list-item { background: #1e293b; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .trip-list-item:hover { background: #233047; }
+    .back-link { color: #64748b; cursor: pointer; font-size: 11px; margin-bottom: 16px; display: inline-block; }
+    .hidden { display: none; }
+    .tabs { display: flex; border-bottom: 1px solid #334155; margin-bottom: 20px; gap: 2px; }
+    .tab { padding: 8px 16px; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; font-size: 12px; }
+    .tab.active { color: #e2e8f0; border-bottom-color: #22c55e; }
+    .date-form { background: #1e293b; border-radius: 8px; padding: 14px; margin-top: 8px; }
+    .date-mode-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+    .date-mode-btn { padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; border: 1px solid #334155; background: #0f172a; color: #64748b; }
+    .date-mode-btn.active { background: #1e3a5f; color: #3b82f6; border-color: #3b82f6; }
+    .preview { background: #0f172a; border-radius: 4px; padding: 6px 10px; font-size: 11px; color: #22c55e; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div id="trips-view">
+    <h1>🏕 CampSniper</h1>
+    <p class="subtitle">Manage your camping trips</p>
+    <div class="tabs">
+      <div class="tab active" data-tab="trips">Trips</div>
+      <div class="tab" data-tab="payment">Payment</div>
+      <div class="tab" data-tab="settings">Settings</div>
+    </div>
+    <div id="tab-trips">
+      <div id="trip-list"></div>
+      <button class="btn-add" id="new-trip-btn">+ New Trip</button>
+    </div>
+    <div id="tab-payment" class="hidden">
+      <div class="section">
+        <div class="section-label">Card Details (for Auto-pay mode)</div>
+        <input class="input" id="card-number" placeholder="Card number" style="margin-bottom:8px">
+        <input class="input" id="card-holder" placeholder="Name on card" style="margin-bottom:8px">
+        <div class="row" style="margin-bottom:8px">
+          <input class="input" id="card-expiry" placeholder="MM/YY">
+          <input class="input" id="card-cvv" placeholder="CVV">
+        </div>
+        <input class="input" id="party-size" type="number" min="1" max="8" placeholder="Party size">
+      </div>
+      <button class="btn-primary" id="save-payment-btn" style="margin-top:8px">Save Payment Info</button>
+    </div>
+    <div id="tab-settings" class="hidden">
+      <div class="section">
+        <div class="section-label">Check interval</div>
+        <select class="select" id="poll-interval">
+          <option value="30">Every 30 seconds</option>
+          <option value="60" selected>Every 60 seconds</option>
+          <option value="120">Every 2 minutes</option>
+        </select>
+      </div>
+      <button class="btn-primary" id="save-settings-btn" style="margin-top:8px">Save Settings</button>
+    </div>
+  </div>
+
+  <div id="trip-editor" class="hidden">
+    <span class="back-link" id="back-btn">← All Trips</span>
+    <div class="section">
+      <div class="section-label">Trip Name</div>
+      <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
+    </div>
+    <div class="section">
+      <div class="section-label">Parks (drag to reorder priority)</div>
+      <div id="parks-list"></div>
+      <input class="input" id="park-search" placeholder="🔍 Search parks..." style="margin-top:6px">
+      <div class="search-results" id="park-results"></div>
+    </div>
+    <div class="section">
+      <div class="section-label">Date Ranges</div>
+      <div id="dates-list"></div>
+      <div class="date-form">
+        <div class="date-mode-toggle">
+          <button class="date-mode-btn active" data-mode="specific">Specific dates</button>
+          <button class="date-mode-btn" data-mode="recurring">Recurring</button>
+        </div>
+        <div id="specific-inputs">
+          <div class="row">
+            <div style="flex:1"><div style="color:#64748b;font-size:10px;margin-bottom:4px">Check-in</div><input type="date" class="input" id="date-checkin"></div>
+            <div style="flex:1"><div style="color:#64748b;font-size:10px;margin-bottom:4px">Check-out</div><input type="date" class="input" id="date-checkout"></div>
+          </div>
+        </div>
+        <div id="recurring-inputs" class="hidden">
+          <div class="row" style="align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            <span style="color:#94a3b8">Every</span>
+            <select class="select" id="rec-start-day">
+              <option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
+              <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3">Thursday</option>
+            </select>
+            <span style="color:#94a3b8">to</span>
+            <select class="select" id="rec-end-day">
+              <option value="6">Sunday</option><option value="5">Saturday</option><option value="0">Monday</option>
+              <option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3">Thursday</option><option value="4">Friday</option>
+            </select>
+            <span style="color:#94a3b8">in</span>
+            <select class="select" id="rec-month">
+              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+              <option value="7" selected>July</option><option value="8">August</option><option value="9">September</option>
+              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+            </select>
+            <select class="select" id="rec-year"><option value="2026">2026</option><option value="2027">2027</option></select>
+          </div>
+          <div class="preview" id="rec-preview">→ Select options above</div>
+        </div>
+        <button class="btn-add" id="add-date-btn" style="margin-top:10px">+ Add This Range</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="row">
+        <div style="flex:1">
+          <div class="section-label">On Match</div>
+          <select class="select" id="trip-mode" style="width:100%">
+            <option value="notify">Notify only</option>
+            <option value="hold">Auto-reserve</option>
+            <option value="autopay">Auto-pay</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <div class="section-label">Filters</div>
+          <div class="checkbox-row">
+            <label class="checkbox-label"><input type="checkbox" id="filter-walkin"> No walk-in</label>
+            <label class="checkbox-label"><input type="checkbox" id="filter-double"> No double</label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="gap:10px;margin-top:8px">
+      <button class="btn-primary" id="save-trip-btn">Save &amp; Start Scanning</button>
+      <button class="btn-danger" id="delete-trip-btn">Delete Trip</button>
+    </div>
+  </div>
+  <script type="module" src="../src/options/index.ts"></script>
+</body>
 </html>
