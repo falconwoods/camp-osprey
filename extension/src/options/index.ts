@@ -1,6 +1,6 @@
 import { getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
-import { expandDateRange } from '../dates'
+import { expandDateRange, isBookable } from '../dates'
 import type { Trip, DateRange, Park } from '../types'
 
 const provider = new BCParksProvider()
@@ -12,13 +12,8 @@ let dateMode: 'specific' | 'recurring' = 'specific'
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-function todayISO(): string {
-  return new Date().toISOString().split('T')[0]
-}
-
 function upcomingWindows(range: DateRange) {
-  const today = todayISO()
-  return expandDateRange(range).filter(w => w.checkIn >= today)
+  return expandDateRange(range).filter(w => isBookable(w.checkIn))
 }
 
 function statusTextHTML(status: Trip['status']): string {
@@ -207,11 +202,14 @@ parkSearch.addEventListener('input', () => {
 // ── Dates ──────────────────────────────────────────────────────────────────
 
 function describeRange(r: DateRange): string {
-  if (r.type === 'specific') return `${r.checkIn} → ${r.checkOut}`
-  const upcoming = upcomingWindows(r)
+  if (r.type === 'specific') {
+    const ok = isBookable(r.checkIn)
+    return `${r.checkIn} → ${r.checkOut}${ok ? '' : ' ⚠ past deadline'}`
+  }
+  const bookable = upcomingWindows(r)
   const total = expandDateRange(r).length
-  const pastCount = total - upcoming.length
-  const suffix = pastCount > 0 ? ` · ${upcoming.length} upcoming` : ` · ${upcoming.length} stays`
+  const skipped = total - bookable.length
+  const suffix = skipped > 0 ? ` · ${bookable.length} bookable` : ` · ${bookable.length} stays`
   return `Any ${DAY_NAMES[r.startDay]}–${DAY_NAMES[r.endDay]} · ${MONTH_NAMES[r.month]} ${r.year}${suffix}`
 }
 
@@ -248,13 +246,14 @@ function updateRecurringPreview() {
   const range: DateRange = { type: 'recurring', year, month, startDay, endDay }
   const upcoming = upcomingWindows(range)
   const total = expandDateRange(range).length
-  const pastNote = total > upcoming.length ? ` (${total - upcoming.length} past, skipped)` : ''
+  const skipped = total - upcoming.length
+  const skipNote = skipped > 0 ? ` (${skipped} past booking deadline, skipped)` : ''
   if (upcoming.length === 0) {
-    document.getElementById('rec-preview')!.textContent = `→ No upcoming dates in this month`
+    document.getElementById('rec-preview')!.textContent = `→ All dates past BC Parks 8 PM / 2-day booking deadline`
     return
   }
   document.getElementById('rec-preview')!.textContent =
-    `→ Scanner will try any of ${upcoming.length} ${DAY_NAMES[startDay]}–${DAY_NAMES[endDay]} stays in ${MONTH_NAMES[month]}${pastNote}`
+    `→ Scanner will try any of ${upcoming.length} bookable ${DAY_NAMES[startDay]}–${DAY_NAMES[endDay]} stays in ${MONTH_NAMES[month]}${skipNote}`
 }
 
 function initFlexibleDefaults() {

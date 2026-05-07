@@ -17,6 +17,16 @@ function toJSDay(ourDay: number): number {
   return (ourDay + 1) % 7
 }
 
+// BC Parks rule: reservations close at 8 PM, 2 days before check-in.
+// e.g. check-in Jul 10 → deadline Jul 8 @ 20:00 local time
+export function isBookable(checkIn: string): boolean {
+  const checkInDate = new Date(checkIn + 'T00:00:00')
+  const deadline = new Date(checkInDate)
+  deadline.setDate(deadline.getDate() - 2)
+  deadline.setHours(20, 0, 0, 0)
+  return new Date() < deadline
+}
+
 export function expandDateRange(range: DateRange): DateWindow[] {
   if (range.type === 'specific') {
     return [{ checkIn: range.checkIn, checkOut: range.checkOut }]

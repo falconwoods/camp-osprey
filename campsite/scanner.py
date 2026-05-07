@@ -1,9 +1,15 @@
 from __future__ import annotations
 import asyncio
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 from campsite.config import AppConfig
 from campsite.models import AvailableSite, parse_date_expression
 from campsite.api import BCParksAPI
+
+
+def _is_bookable(check_in: date) -> bool:
+    """BC Parks closes reservations at 8 PM local time, 2 days before arrival."""
+    deadline = datetime(check_in.year, check_in.month, check_in.day, 20, 0, 0) - timedelta(days=2)
+    return datetime.now() < deadline
 
 
 class Scanner:
@@ -24,6 +30,8 @@ class Scanner:
                 key = (campground.park_id, check_in, check_out)
                 if key in self._attempted:
                     continue
+                if not _is_bookable(check_in):
+                    continue  # past BC Parks 8 PM / 2-day booking deadline
                 sites = await self._api.get_availability(
                     campground.park_id, check_in, check_out,
                     no_walkin=self._config.filters.no_walkin,
