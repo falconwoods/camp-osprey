@@ -25,12 +25,20 @@ function badgeLabel(status: Trip['status']): string {
   return map[status] ?? status
 }
 
-function renderMatch(match: MatchedSite): string {
-  return `<div class="match-banner">
-    Found: ${match.parkName} › ${match.sectionName} › Site ${match.siteName}<br>
+function renderMatch(match: MatchedSite, mode: Trip['mode'], status: Trip['status']): string {
+  const isBooked = status === 'completed'
+  const label = isBooked ? '✓ Booked' : 'Found'
+  const color = isBooked ? '#22c55e' : '#f59e0b'
+  const borderColor = isBooked ? '#22c55e44' : '#f59e0b44'
+  const bg = isBooked ? '#22c55e15' : '#f59e0b11'
+
+  return `<div style="background:${bg};border:1px solid ${borderColor};border-radius:5px;padding:6px 8px;margin-top:6px;font-size:10px;color:${color}">
+    ${label}: ${match.parkName} › ${match.sectionName || '—'} › Site ${match.siteName}<br>
     ${match.checkIn} → ${match.checkOut}
   </div>
-  <a href="${match.bookingUrl}" target="_blank"><button class="btn btn-reserve">Reserve Now →</button></a>`
+  ${!isBooked && match.bookingUrl
+    ? `<a href="${match.bookingUrl}" target="_blank"><button class="btn btn-reserve" style="margin-top:4px">Reserve Now →</button></a>`
+    : ''}`
 }
 
 function renderTrip(trip: Trip): string {
@@ -40,9 +48,7 @@ function renderTrip(trip: Trip): string {
 
   const actionBtn = trip.status === 'scanning'
     ? `<button class="btn btn-stop" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
-    : trip.status === 'paused'
-    ? `<button class="btn btn-resume" data-id="${trip.id}" data-action="start">▶ Resume</button>`
-    : trip.status === 'idle'
+    : (trip.status === 'paused' || trip.status === 'idle')
     ? `<button class="btn btn-start" data-id="${trip.id}" data-action="start">▶ Start</button>`
     : ''
 
@@ -54,18 +60,16 @@ function renderTrip(trip: Trip): string {
     <div class="trip-summary">
       ${parkNames} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[trip.mode]}
     </div>
-    ${trip.lastMatch ? renderMatch(trip.lastMatch) : ''}
+    ${trip.lastMatch ? renderMatch(trip.lastMatch, trip.mode, trip.status) : ''}
     ${actionBtn}
   </div>`
 }
 
 async function render() {
-  const { trips, settings, debugLog } = await getStorage()
+  const { trips } = await getStorage()
   const loggedIn = await isLoggedIn()
   const container = document.getElementById('trips-container')!
   const warn = document.getElementById('login-warn')!
-  const debugPanel = document.getElementById('debug-panel')!
-  const debugLogEl = document.getElementById('debug-log')!
 
   const needsLogin = trips.some(t => t.status === 'scanning' && t.mode !== 'notify')
   warn.style.display = !loggedIn && needsLogin ? 'block' : 'none'
@@ -74,16 +78,6 @@ async function render() {
     container.innerHTML = '<div class="empty">No trips yet. Add one to start scanning.</div>'
   } else {
     container.innerHTML = trips.map(renderTrip).join('')
-  }
-
-  // Debug log panel
-  if (settings.debugMode) {
-    debugPanel.style.display = 'block'
-    debugLogEl.innerHTML = debugLog.length === 0
-      ? '<span style="color:#475569">No log entries yet — waiting for next scan cycle.</span>'
-      : [...debugLog].reverse().map(l => `<div>${l}</div>`).join('')
-  } else {
-    debugPanel.style.display = 'none'
   }
 
   container.querySelectorAll('[data-action]').forEach(btn => {
@@ -96,7 +90,7 @@ async function render() {
   })
 }
 
-// Re-render whenever storage changes (catches service worker updates too)
+// Re-render whenever storage changes (catches service worker updates)
 chrome.storage.onChanged.addListener(() => render())
 
 render()

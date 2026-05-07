@@ -38,6 +38,10 @@ export async function addDebugLog(entry: string): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
 }
 
+export async function clearDebugLog(): Promise<void> {
+  await promisify<void>(cb => chrome.storage.local.set({ debugLog: [] }, cb))
+}
+
 export async function updateTrip(tripId: string, updates: Partial<Trip>): Promise<void> {
   const { trips } = await getStorage()
   const idx = trips.findIndex(t => t.id === tripId)

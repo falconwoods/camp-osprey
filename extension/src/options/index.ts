@@ -1,4 +1,4 @@
-import { getStorage, saveTrips, savePayment, saveSettings } from '../storage'
+import { getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange } from '../dates'
 import type { Trip, DateRange, Park } from '../types'
@@ -21,7 +21,27 @@ function upcomingWindows(range: DateRange) {
   return expandDateRange(range).filter(w => w.checkIn >= today)
 }
 
-// Tab switching
+function statusBadgeHTML(status: Trip['status']): string {
+  const map: Record<Trip['status'], { cls: string; label: string }> = {
+    scanning: { cls: 'badge-scanning', label: '● Scanning' },
+    paused:   { cls: 'badge-paused',   label: '⏸ Paused' },
+    idle:     { cls: 'badge-idle',     label: '— Idle' },
+    completed:{ cls: 'badge-completed',label: '✓ Done' },
+  }
+  const b = map[status] ?? map.idle
+  return `<span class="badge ${b.cls}">${b.label}</span>`
+}
+
+function actionBtnHTML(trip: Trip): string {
+  if (trip.status === 'scanning')
+    return `<button class="btn-sm btn-sm-stop" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
+  if (trip.status === 'paused' || trip.status === 'idle')
+    return `<button class="btn-sm btn-sm-start" data-id="${trip.id}" data-action="start">▶ Start</button>`
+  return ''
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
@@ -33,43 +53,97 @@ document.querySelectorAll('.tab').forEach(tab => {
   })
 })
 
-// Trip list
+// ── Trip list ──────────────────────────────────────────────────────────────
+
 async function renderTripList() {
   const { trips } = await getStorage()
   const list = document.getElementById('trip-list')!
-  list.innerHTML = trips.length === 0
-    ? '<p style="color:#64748b;font-size:12px;padding:8px 0">No trips yet.</p>'
-    : trips.map(t => `
-      <div class="trip-list-item" data-id="${t.id}">
-        <div>
-          <div style="font-weight:600">${t.name}</div>
-          <div style="color:#64748b;font-size:11px">${t.parks.map(p => p.name).join(', ') || '—'} · ${t.status}</div>
-        </div>
-        <span style="color:#64748b">›</span>
-      </div>`).join('')
+  if (trips.length === 0) {
+    list.innerHTML = '<p style="color:#64748b;font-size:12px;padding:8px 0">No trips yet.</p>'
+    return
+  }
 
-  list.querySelectorAll('[data-id]').forEach(el => {
+  list.innerHTML = trips.map(t => {
+    const parkNames = t.parks.map(p => p.name).join(', ') || '—'
+    const dateCount = t.dateRanges.length
+    const modeLabel: Record<Trip['mode'], string> = { notify: 'Notify', hold: 'Hold', autopay: 'Auto-pay' }
+    const matchHTML = t.lastMatch
+      ? `<div class="match-info">Found: ${t.lastMatch.parkName} › ${t.lastMatch.sectionName} › Site ${t.lastMatch.siteName} · ${t.lastMatch.checkIn} → ${t.lastMatch.checkOut}
+         ${t.lastMatch.bookingUrl ? `<a href="${t.lastMatch.bookingUrl}" target="_blank" style="color:#22c55e;margin-left:8px">Book →</a>` : ''}</div>`
+      : ''
+
+    return `<div class="trip-list-item ${t.status}">
+      <div class="trip-list-header">
+        <span class="trip-list-name" data-edit="${t.id}">${t.name}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${statusBadgeHTML(t.status)}
+          ${actionBtnHTML(t)}
+        </div>
+      </div>
+      <div class="trip-list-meta">${parkNames} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[t.mode]}</div>
+      ${matchHTML}
+    </div>`
+  }).join('')
+
+  // Edit on name click
+  list.querySelectorAll('[data-edit]').forEach(el => {
     el.addEventListener('click', () => {
-      const trip = trips.find(t => t.id === (el as HTMLElement).dataset['id'])
+      const trip = trips.find(t => t.id === (el as HTMLElement).dataset['edit'])
       if (trip) openEditor(trip)
     })
   })
+
+  // Start/Stop buttons
+  list.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = (btn as HTMLElement).dataset['id']!
+      const action = (btn as HTMLElement).dataset['action']!
+      await updateTrip(id, { status: action === 'start' ? 'scanning' : 'paused' })
+      await renderTripList()
+    })
+  })
 }
+
+// Live refresh when service worker updates storage
+chrome.storage.onChanged.addListener((_changes, area) => {
+  if (area === 'local') {
+    const tripsView = document.getElementById('trips-view')!
+    const settingsTab = document.getElementById('tab-settings')!
+    if (!tripsView.classList.contains('hidden')) renderTripList()
+    if (!settingsTab.classList.contains('hidden')) refreshDebugLog()
+  }
+})
+
+// ── Trip editor ────────────────────────────────────────────────────────────
 
 async function openEditor(trip?: Trip) {
   editingTripId = trip?.id ?? null
   tripParks = trip ? [...trip.parks] : []
   tripDates = trip ? [...trip.dateRanges] : []
 
-  let defaultName = trip?.name ?? ''
+  let name = trip?.name ?? ''
   if (!trip) {
     const { trips } = await getStorage()
-    defaultName = `Trip ${trips.length + 1}`
+    name = `Trip ${trips.length + 1}`
   }
-  ;(document.getElementById('trip-name') as HTMLInputElement).value = defaultName
+  ;(document.getElementById('trip-name') as HTMLInputElement).value = name
   ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'notify'
   ;(document.getElementById('filter-walkin') as HTMLInputElement).checked = trip?.filters.noWalkin ?? false
   ;(document.getElementById('filter-double') as HTMLInputElement).checked = trip?.filters.noDouble ?? false
+
+  // Status bar (only for existing trips)
+  const statusBar = document.getElementById('editor-status-bar')!
+  const statusBadge = document.getElementById('editor-status-badge')!
+  if (trip) {
+    statusBar.classList.remove('hidden')
+    statusBadge.innerHTML = statusBadgeHTML(trip.status)
+    if (trip.lastMatch) {
+      const m = trip.lastMatch
+      statusBadge.innerHTML += `&nbsp;&nbsp;<span style="color:#22c55e;font-size:11px">Match: ${m.parkName} › Site ${m.siteName} · ${m.checkIn} → ${m.checkOut}</span>`
+    }
+  } else {
+    statusBar.classList.add('hidden')
+  }
 
   renderParksList()
   renderDatesList()
@@ -85,7 +159,8 @@ document.getElementById('back-btn')!.addEventListener('click', () => {
 
 document.getElementById('new-trip-btn')!.addEventListener('click', () => openEditor())
 
-// Parks
+// ── Parks ──────────────────────────────────────────────────────────────────
+
 function renderParksList() {
   const list = document.getElementById('parks-list')!
   list.innerHTML = tripParks.map((p, i) => `
@@ -93,12 +168,10 @@ function renderParksList() {
       <span>⠿ ${i + 1}. ${p.name}</span>
       <button class="chip-remove" data-idx="${i}">✕</button>
     </div>`).join('')
-
   list.querySelectorAll('.chip-remove').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation()
-      const idx = parseInt((btn as HTMLElement).dataset['idx']!)
-      tripParks.splice(idx, 1)
+      tripParks.splice(parseInt((btn as HTMLElement).dataset['idx']!), 1)
       renderParksList()
     })
   })
@@ -122,10 +195,7 @@ parkSearch.addEventListener('input', () => {
       el.addEventListener('click', () => {
         const id = (el as HTMLElement).dataset['id']!
         const name = (el as HTMLElement).dataset['name']!
-        if (!tripParks.find(p => p.id === id)) {
-          tripParks.push({ id, name })
-          renderParksList()
-        }
+        if (!tripParks.find(p => p.id === id)) { tripParks.push({ id, name }); renderParksList() }
         parkSearch.value = ''
         parkResults.style.display = 'none'
       })
@@ -133,7 +203,8 @@ parkSearch.addEventListener('input', () => {
   }, 250)
 })
 
-// Dates
+// ── Dates ──────────────────────────────────────────────────────────────────
+
 function describeRange(r: DateRange): string {
   if (r.type === 'specific') return `${r.checkIn} → ${r.checkOut}`
   const upcoming = upcomingWindows(r)
@@ -152,14 +223,12 @@ function renderDatesList() {
     </div>`).join('')
   list.querySelectorAll('.chip-remove').forEach(btn => {
     btn.addEventListener('click', () => {
-      const idx = parseInt((btn as HTMLElement).dataset['idx']!)
-      tripDates.splice(idx, 1)
+      tripDates.splice(parseInt((btn as HTMLElement).dataset['idx']!), 1)
       renderDatesList()
     })
   })
 }
 
-// Date mode toggle
 document.querySelectorAll('.date-mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     dateMode = (btn as HTMLElement).dataset['mode'] as 'specific' | 'recurring'
@@ -187,22 +256,17 @@ function updateRecurringPreview() {
     `→ Scanner will try any of ${upcoming.length} ${DAY_NAMES[startDay]}–${DAY_NAMES[endDay]} stays in ${MONTH_NAMES[month]}${pastNote}`
 }
 
-// Populate year select dynamically and default to current month/year
 function initFlexibleDefaults() {
   const now = new Date()
-  const currentMonth = now.getMonth() + 1
   const currentYear = now.getFullYear()
-
   const yearSelect = document.getElementById('rec-year') as HTMLSelectElement
   yearSelect.innerHTML = [currentYear, currentYear + 1, currentYear + 2]
     .map(y => `<option value="${y}">${y}</option>`).join('')
   yearSelect.value = String(currentYear)
-
-  ;(document.getElementById('rec-month') as HTMLSelectElement).value = String(currentMonth)
+  ;(document.getElementById('rec-month') as HTMLSelectElement).value = String(now.getMonth() + 1)
 }
 
 initFlexibleDefaults()
-
 ;['rec-start-day', 'rec-end-day', 'rec-month', 'rec-year'].forEach(id => {
   document.getElementById(id)!.addEventListener('change', updateRecurringPreview)
 })
@@ -215,35 +279,31 @@ document.getElementById('add-date-btn')!.addEventListener('click', () => {
     if (!checkIn || !checkOut) return
     tripDates.push({ type: 'specific', checkIn, checkOut })
   } else {
-    const startDay = parseInt((document.getElementById('rec-start-day') as HTMLSelectElement).value)
-    const endDay = parseInt((document.getElementById('rec-end-day') as HTMLSelectElement).value)
-    const month = parseInt((document.getElementById('rec-month') as HTMLSelectElement).value)
-    const year = parseInt((document.getElementById('rec-year') as HTMLSelectElement).value)
-    tripDates.push({ type: 'recurring', year, month, startDay, endDay })
+    tripDates.push({
+      type: 'recurring',
+      year: parseInt((document.getElementById('rec-year') as HTMLSelectElement).value),
+      month: parseInt((document.getElementById('rec-month') as HTMLSelectElement).value),
+      startDay: parseInt((document.getElementById('rec-start-day') as HTMLSelectElement).value),
+      endDay: parseInt((document.getElementById('rec-end-day') as HTMLSelectElement).value),
+    })
   }
   renderDatesList()
 })
 
-// Save trip
+// ── Save / Delete trip ─────────────────────────────────────────────────────
+
 document.getElementById('save-trip-btn')!.addEventListener('click', async () => {
   const name = (document.getElementById('trip-name') as HTMLInputElement).value.trim()
   if (!name) { alert('Trip name is required.'); return }
   const mode = (document.getElementById('trip-mode') as HTMLSelectElement).value as Trip['mode']
   const noWalkin = (document.getElementById('filter-walkin') as HTMLInputElement).checked
   const noDouble = (document.getElementById('filter-double') as HTMLInputElement).checked
-
   const { trips } = await getStorage()
   if (editingTripId) {
     const idx = trips.findIndex(t => t.id === editingTripId)
-    if (idx !== -1) {
-      trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning' }
-    }
+    if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning' }
   } else {
-    trips.push({
-      id: crypto.randomUUID(), name, parks: tripParks, dateRanges: tripDates,
-      mode, filters: { noWalkin, noDouble }, status: 'scanning',
-      lastMatch: null, attempted: [], createdAt: Date.now(),
-    })
+    trips.push({ id: crypto.randomUUID(), name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [], createdAt: Date.now() })
   }
   await saveTrips(trips)
   document.getElementById('back-btn')!.click()
@@ -256,7 +316,8 @@ document.getElementById('delete-trip-btn')!.addEventListener('click', async () =
   document.getElementById('back-btn')!.click()
 })
 
-// Payment form
+// ── Payment ────────────────────────────────────────────────────────────────
+
 async function loadPaymentForm() {
   const { payment } = await getStorage()
   if (!payment) return
@@ -278,12 +339,20 @@ document.getElementById('save-payment-btn')!.addEventListener('click', async () 
   alert('Payment info saved.')
 })
 
-// Settings form
+// ── Settings ───────────────────────────────────────────────────────────────
+
 async function loadSettingsForm() {
   const { settings } = await getStorage()
   ;(document.getElementById('poll-interval') as HTMLSelectElement).value = String(settings.pollIntervalSeconds)
-  ;(document.getElementById('debug-mode') as HTMLInputElement).checked = settings.debugMode ?? false
+  const debugEl = document.getElementById('debug-mode') as HTMLInputElement
+  debugEl.checked = settings.debugMode ?? false
+  document.getElementById('debug-section')!.classList.toggle('hidden', !debugEl.checked)
 }
+
+document.getElementById('debug-mode')!.addEventListener('change', () => {
+  const checked = (document.getElementById('debug-mode') as HTMLInputElement).checked
+  document.getElementById('debug-section')!.classList.toggle('hidden', !checked)
+})
 
 document.getElementById('save-settings-btn')!.addEventListener('click', async () => {
   const val = parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as 30 | 60 | 120
@@ -292,7 +361,25 @@ document.getElementById('save-settings-btn')!.addEventListener('click', async ()
   alert('Settings saved.')
 })
 
-// Init
+async function refreshDebugLog() {
+  const { debugLog, settings } = await getStorage()
+  const section = document.getElementById('debug-section')!
+  section.classList.toggle('hidden', !settings.debugMode)
+  if (!settings.debugMode) return
+  const box = document.getElementById('debug-log-box')!
+  box.textContent = debugLog.length === 0
+    ? 'No log entries yet — waiting for next scan cycle.'
+    : [...debugLog].reverse().join('\n')
+}
+
+document.getElementById('clear-log-btn')!.addEventListener('click', async () => {
+  await clearDebugLog()
+  await refreshDebugLog()
+})
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
 renderTripList()
 loadPaymentForm()
 loadSettingsForm()
+refreshDebugLog()

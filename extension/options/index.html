@@ -5,7 +5,7 @@
   <title>CampSniper Settings</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; font-size: 13px; max-width: 720px; margin: 0 auto; padding: 32px 24px; }
+    body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; font-size: 13px; max-width: 760px; margin: 0 auto; padding: 32px 24px; }
     h1 { font-size: 20px; margin-bottom: 4px; }
     .subtitle { color: #64748b; font-size: 12px; margin-bottom: 24px; }
     .section { margin-bottom: 20px; }
@@ -17,15 +17,38 @@
     .chip-remove { color: #64748b; cursor: pointer; background: none; border: none; font-size: 14px; padding: 0 4px; }
     .btn-add { width: 100%; background: #1e3a5f; border: 1px dashed #3b82f6; color: #3b82f6; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 4px; }
     .btn-primary { background: #22c55e; border: none; color: white; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .btn-secondary { background: #1e3a5f; border: 1px solid #334155; color: #94a3b8; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
     .btn-danger { background: #1e293b; border: 1px solid #ef444433; color: #ef4444; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .btn-sm { padding: 4px 10px; border-radius: 4px; font-size: 11px; border: none; cursor: pointer; }
+    .btn-sm-stop { background: #1e3a5f; color: #64748b; }
+    .btn-sm-start { background: #1e3a5f; color: #22c55e; }
+    .btn-sm-resume { background: #1e3a5f; color: #3b82f6; }
     .select { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 8px 10px; color: #e2e8f0; font-size: 12px; }
     .checkbox-row { display: flex; gap: 12px; }
     .checkbox-label { display: flex; align-items: center; gap: 6px; background: #1e293b; padding: 7px 12px; border-radius: 6px; cursor: pointer; }
     .search-results { background: #1e293b; border: 1px solid #334155; border-radius: 6px; max-height: 160px; overflow-y: auto; margin-top: 4px; display: none; }
     .search-result { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #0f172a; font-size: 12px; }
     .search-result:hover { background: #0f172a; }
-    .trip-list-item { background: #1e293b; border-radius: 6px; padding: 10px 14px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-    .trip-list-item:hover { background: #233047; }
+
+    /* Trip list */
+    .trip-list-item { background: #1e293b; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; border-left: 3px solid #334155; }
+    .trip-list-item.scanning { border-left-color: #22c55e; }
+    .trip-list-item.paused { border-left-color: #f59e0b; }
+    .trip-list-item.completed { border-left-color: #64748b; opacity: 0.8; }
+    .trip-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .trip-list-name { font-weight: 600; cursor: pointer; }
+    .trip-list-name:hover { color: #3b82f6; }
+    .trip-list-meta { color: #64748b; font-size: 11px; margin-bottom: 6px; }
+    .trip-list-footer { display: flex; align-items: center; gap: 8px; }
+    .match-info { background: #22c55e15; border: 1px solid #22c55e33; border-radius: 5px; padding: 5px 8px; font-size: 11px; color: #22c55e; margin-top: 6px; }
+
+    /* Badge */
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; }
+    .badge-scanning { background: #22c55e22; color: #22c55e; }
+    .badge-paused { background: #f59e0b22; color: #f59e0b; }
+    .badge-idle { background: #1e3a5f; color: #64748b; }
+    .badge-completed { background: #33415566; color: #94a3b8; }
+
     .back-link { color: #64748b; cursor: pointer; font-size: 11px; margin-bottom: 16px; display: inline-block; }
     .hidden { display: none; }
     .tabs { display: flex; border-bottom: 1px solid #334155; margin-bottom: 20px; gap: 2px; }
@@ -36,6 +59,8 @@
     .date-mode-btn { padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; border: 1px solid #334155; background: #0f172a; color: #64748b; }
     .date-mode-btn.active { background: #1e3a5f; color: #3b82f6; border-color: #3b82f6; }
     .preview { background: #0f172a; border-radius: 4px; padding: 6px 10px; font-size: 11px; color: #22c55e; margin-top: 8px; }
+    .status-bar { display: flex; align-items: center; gap: 10px; background: #1e293b; border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; }
+    .debug-log-box { background: #0a0f1a; border: 1px solid #1e293b; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; color: #94a3b8; height: 300px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap; }
   </style>
 </head>
 <body>
@@ -73,18 +98,30 @@
           <option value="120">Every 2 minutes</option>
         </select>
       </div>
-      <div class="section" style="margin-top:16px">
+      <div class="section">
         <label class="checkbox-label" style="width:fit-content">
           <input type="checkbox" id="debug-mode">
-          Debug mode — log scan activity to popup
+          Debug mode — log scan activity below
         </label>
       </div>
-      <button class="btn-primary" id="save-settings-btn" style="margin-top:8px">Save Settings</button>
+      <button class="btn-primary" id="save-settings-btn">Save Settings</button>
+
+      <div id="debug-section" class="hidden" style="margin-top:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="section-label" style="margin-bottom:0">Scan Log</div>
+          <button class="btn-secondary" id="clear-log-btn" style="padding:4px 12px;font-size:11px">Clear</button>
+        </div>
+        <div class="debug-log-box" id="debug-log-box">No log entries yet — waiting for next scan cycle.</div>
+      </div>
     </div>
   </div>
 
   <div id="trip-editor" class="hidden">
     <span class="back-link" id="back-btn">← All Trips</span>
+    <div id="editor-status-bar" class="status-bar hidden">
+      <span style="font-size:11px;color:#64748b">Current status:</span>
+      <span id="editor-status-badge"></span>
+    </div>
     <div class="section">
       <div class="section-label">Trip Name</div>
       <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
@@ -125,10 +162,10 @@
             <select class="select" id="rec-month">
               <option value="1">January</option><option value="2">February</option><option value="3">March</option>
               <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-              <option value="7" selected>July</option><option value="8">August</option><option value="9">September</option>
+              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
               <option value="10">October</option><option value="11">November</option><option value="12">December</option>
             </select>
-            <select class="select" id="rec-year"><option value="2026">2026</option><option value="2027">2027</option></select>
+            <select class="select" id="rec-year"></select>
           </div>
           <div class="preview" id="rec-preview">→ Select options above</div>
         </div>
