@@ -21,22 +21,22 @@ function upcomingWindows(range: DateRange) {
   return expandDateRange(range).filter(w => w.checkIn >= today)
 }
 
-function statusBadgeHTML(status: Trip['status']): string {
-  const map: Record<Trip['status'], { cls: string; label: string }> = {
-    scanning: { cls: 'badge-scanning', label: '● Scanning' },
-    paused:   { cls: 'badge-paused',   label: '⏸ Paused' },
-    idle:     { cls: 'badge-idle',     label: '— Idle' },
-    completed:{ cls: 'badge-completed',label: '✓ Done' },
+function statusTextHTML(status: Trip['status']): string {
+  const map: Record<Trip['status'], { color: string; label: string }> = {
+    scanning:  { color: '#22c55e', label: '● Scanning' },
+    paused:    { color: '#f59e0b', label: '⏸ Paused' },
+    idle:      { color: '#64748b', label: '— Idle' },
+    completed: { color: '#94a3b8', label: '✓ Done' },
   }
-  const b = map[status] ?? map.idle
-  return `<span class="badge ${b.cls}">${b.label}</span>`
+  const s = map[status] ?? map.idle
+  return `<span style="color:${s.color};font-size:11px;font-weight:500">${s.label}</span>`
 }
 
 function actionBtnHTML(trip: Trip): string {
   if (trip.status === 'scanning')
-    return `<button class="btn-sm btn-sm-stop" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
+    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
   if (trip.status === 'paused' || trip.status === 'idle')
-    return `<button class="btn-sm btn-sm-start" data-id="${trip.id}" data-action="start">▶ Start</button>`
+    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="start">▶ Start</button>`
   return ''
 }
 
@@ -72,11 +72,11 @@ async function renderTripList() {
          ${t.lastMatch.bookingUrl ? `<a href="${t.lastMatch.bookingUrl}" target="_blank" style="color:#22c55e;margin-left:8px">Book →</a>` : ''}</div>`
       : ''
 
-    return `<div class="trip-list-item ${t.status}">
+    return `<div class="trip-list-item ${t.status}" data-edit="${t.id}" style="cursor:pointer">
       <div class="trip-list-header">
-        <span class="trip-list-name" data-edit="${t.id}">${t.name}</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          ${statusBadgeHTML(t.status)}
+        <span class="trip-list-name">${t.name} <span style="color:#475569;font-size:10px">› tap to edit</span></span>
+        <div style="display:flex;align-items:center;gap:10px" onclick="event.stopPropagation()">
+          ${statusTextHTML(t.status)}
           ${actionBtnHTML(t)}
         </div>
       </div>
@@ -85,7 +85,7 @@ async function renderTripList() {
     </div>`
   }).join('')
 
-  // Edit on name click
+  // Whole card → edit (except action button zone which stops propagation inline)
   list.querySelectorAll('[data-edit]').forEach(el => {
     el.addEventListener('click', () => {
       const trip = trips.find(t => t.id === (el as HTMLElement).dataset['edit'])
@@ -95,7 +95,8 @@ async function renderTripList() {
 
   // Start/Stop buttons
   list.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
       const id = (btn as HTMLElement).dataset['id']!
       const action = (btn as HTMLElement).dataset['action']!
       await updateTrip(id, { status: action === 'start' ? 'scanning' : 'paused' })
@@ -136,7 +137,7 @@ async function openEditor(trip?: Trip) {
   const statusBadge = document.getElementById('editor-status-badge')!
   if (trip) {
     statusBar.classList.remove('hidden')
-    statusBadge.innerHTML = statusBadgeHTML(trip.status)
+    statusBadge.innerHTML = statusTextHTML(trip.status)
     if (trip.lastMatch) {
       const m = trip.lastMatch
       statusBadge.innerHTML += `&nbsp;&nbsp;<span style="color:#22c55e;font-size:11px">Match: ${m.parkName} › Site ${m.siteName} · ${m.checkIn} → ${m.checkOut}</span>`
