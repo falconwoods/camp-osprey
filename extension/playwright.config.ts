@@ -1,5 +1,11 @@
 import { defineConfig } from '@playwright/test'
+
 export default defineConfig({
   testDir: 'e2e',
-  use: { headless: false },
+  timeout: 60_000,
+  workers: 1,
+  use: {
+    headless: false,
+    actionTimeout: 15_000,
+  },
 })

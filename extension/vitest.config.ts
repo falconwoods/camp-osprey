@@ -6,5 +6,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
     clearMocks: true,
+    exclude: ['e2e/**', 'node_modules/**'],
   },
 })
