@@ -8,3 +8,8 @@ build/
 config.yaml
 .pytest_cache/
 .coverage
+.env
+.envrc
+extension/node_modules/
+extension/dist/
+.superpowers/
