@@ -98,6 +98,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
       `Campsite Available — ${matchedSite.parkName}`,
       `${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut} (${nightStr})`,
       bookingUrl,
+      true,
     )
     await updateTrip(trip.id, { lastMatch: matchedSite })
     return
@@ -111,8 +112,14 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
       await updateTrip(trip.id, { attempted: [...trip.attempted, makeAttemptedKey(site)] })
       return
     }
-    await notify(`Hold Failed — ${matchedSite.parkName}`, msg)
-    await updateTrip(trip.id, { status: 'paused' })
+    // Site was found but hold failed — save lastMatch so user can book manually
+    await notify(
+      `Hold Failed — Book Manually`,
+      `${matchedSite.parkName} › Site ${matchedSite.siteName} (${site.checkIn} → ${site.checkOut})\nError: ${msg}`,
+      bookingUrl,
+      true,
+    )
+    await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
     return
   }
 
@@ -123,6 +130,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
       'Site Held — Complete Payment Now',
       `${matchedSite.parkName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}\nHeld 15 min — open BC Parks to pay.`,
       checkoutUrl,
+      true,
     )
     chrome.tabs.create({ url: checkoutUrl })
     await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
@@ -136,16 +144,15 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
   }
 }
 
-async function notify(title: string, message: string, url?: string): Promise<void> {
+async function notify(title: string, message: string, url?: string, persist = false): Promise<void> {
   const id = `campsniper-${Date.now()}`
   await new Promise<void>(resolve => {
     chrome.notifications.create(id, {
       type: 'basic',
-      // Use extension URL so icon always resolves correctly from service worker context
       iconUrl: chrome.runtime.getURL('icons/icon48.png'),
       title,
       message,
-      requireInteraction: false,
+      requireInteraction: persist,  // true = stays until dismissed (match found, hold)
     }, createdId => {
       if (chrome.runtime.lastError) {
         console.error('[CampSniper] Notification failed:', chrome.runtime.lastError.message)
