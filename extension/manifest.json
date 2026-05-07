@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "CampSniper",
+  "version": "0.1.0",
+  "description": "Scan BC Parks for campsite cancellations and auto-reserve when found.",
+  "permissions": ["alarms", "cookies", "notifications", "storage", "tabs"],
+  "host_permissions": ["https://camping.bcparks.ca/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_icon": { "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "options_page": "options/index.html",
+  "content_scripts": [
+    {
+      "matches": ["https://camping.bcparks.ca/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}
