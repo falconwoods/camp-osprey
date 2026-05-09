@@ -71,8 +71,10 @@
     /* ── Base ────────────────────────────────────────────────── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 13px; max-width: 760px; margin: 0 auto; padding: 32px 24px; }
-    h1 { font-size: 20px; margin-bottom: 4px; }
-    .subtitle { color: var(--text-muted); font-size: 12px; margin-bottom: 24px; }
+    .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+    .page-header img { width: 56px; height: 56px; border-radius: 12px; flex-shrink: 0; }
+    h1 { font-size: 20px; margin-bottom: 2px; }
+    .subtitle { color: var(--text-muted); font-size: 12px; }
 
     /* ── Sections & labels ───────────────────────────────────── */
     .section { margin-bottom: 20px; }
@@ -155,8 +157,13 @@
 </head>
 <body>
   <div id="trips-view">
-    <h1>🏕 CampSniper</h1>
-    <p class="subtitle">Manage your camping trips</p>
+    <div class="page-header">
+      <img src="../icons/icon128.png" alt="CampSniper">
+      <div>
+        <h1>CampSniper</h1>
+        <p class="subtitle">Manage your camping trips</p>
+      </div>
+    </div>
     <div class="tabs">
       <div class="tab active" data-tab="trips">Trips</div>
       <div class="tab" data-tab="payment">Payment</div>

@@ -28,15 +28,14 @@ export function getTripWarnings(trip: Trip): Warning[] {
   return warnings
 }
 
-export function getGlobalWarnings(trips: Trip[], loggedIn: boolean): Warning[] {
+export function getGlobalWarnings(_trips: Trip[], loggedIn: boolean): Warning[] {
   const warnings: Warning[] = []
 
-  const scanningNeedLogin = trips.some(t => t.status === 'scanning' && t.mode !== 'notify')
-  if (!loggedIn && scanningNeedLogin) {
+  if (!loggedIn) {
     warnings.push({
-      level: 'error',
-      message: 'Not logged in to BC Parks — Hold and Auto-pay modes are disabled.',
-      action: { label: 'Log in →', url: 'https://camping.bcparks.ca/login' },
+      level: 'warn',
+      message: 'Not logged in to BC Parks. Hold and Auto-pay modes require a BC Parks account.',
+      action: { label: 'Log in →', url: 'https://camping.bcparks.ca/create-booking/sign-in' },
     })
   }
 

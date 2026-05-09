@@ -132,24 +132,23 @@ class BCParksAPI:
 
     @staticmethod
     def _nights_available(daily: list[dict], num_nights: int) -> bool:
-        # availability=0 means FREE, availability=1 means OCCUPIED (confirmed by live API).
-        # Only check-in nights matter; the check-out day entry is ignored.
-        return all(entry.get("availability", 1) == 0 for entry in daily[:num_nights])
+        # processedAvailability is the true bookability status:
+        #   0 = Available (green) — genuinely reservable
+        #   1 = Occupied (red)
+        #   3 = Restrictions (yellow) — unoccupied but not reservable
+        # availability===0 only means the slot is unbooked, not that it can be reserved.
+        return all(entry.get("processedAvailability", 1) == 0 for entry in daily[:num_nights])
 
     @staticmethod
     def _site_flags(resource: dict, section_is_walkin: bool) -> tuple[bool, bool]:
-        """Return (is_walkin, is_double) using section membership, description, and attributes."""
+        """Return (is_walkin, is_double) using section membership, description, and linkedResources."""
         desc = ((resource.get("localizedValues") or [{}])[0].get("description") or "").lower()
-        # BC Parks uses 'definedAttributes' (NOT 'attributes') — confirmed by API inspection
-        # values[0] == 1 means Yes; 0 or absent means No
-        defined_attrs = resource.get("definedAttributes") or []
-        def is_attr_yes(attr_id: int) -> bool:
-            return any(
-                a.get("attributeDefinitionId") == attr_id and (a.get("values") or [0])[0] != 0
-                for a in defined_attrs
-            )
-        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc or is_attr_yes(-32764)
-        is_double = "double site" in desc or is_attr_yes(-32722) or len(resource.get("linkedResources", [])) > 0
+        # definedAttributes values[0]==1 appears on normal sites for both walk-in (-32764) and
+        # double (-32722) IDs — the encoding is not a simple Yes/No flag, so we don't use it.
+        # Walk-in: rely on section membership (maps API) + description keywords.
+        # Double: rely on description keywords + linkedResources (linked pairs share availability).
+        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc
+        is_double = "double site" in desc or len(resource.get("linkedResources", [])) > 0
         return is_walkin, is_double
 
     @staticmethod

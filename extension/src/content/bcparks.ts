@@ -29,6 +29,8 @@ interface TargetSite {
   mode: 'hold' | 'autopay'
   noDouble: boolean
   noWalkin: boolean
+  checkIn: string   // ISO date — needed to build the attempted key on failure
+  checkOut: string
   setAt: number
 }
 
@@ -194,8 +196,15 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
       ? 'Reserved — proceeding to payment…'
       : 'Reserved ✓ — complete payment in BC Parks')
   } else {
-    setStatus('Click "Details" on a site then click "Reserve" manually.')
-    dbg('FAILED — paste __cs_debug() output to developer')
+    // Site was taken between scan detection and page load — tell background to
+    // mark this specific site as attempted and resume scanning automatically.
+    setStatus('Site no longer available — resuming scan…')
+    dbg('MATCH_FAILED — site taken, notifying background')
+    chrome.runtime.sendMessage({
+      type: 'MATCH_FAILED',
+      tripId: target.tripId,
+      attemptKey: `${target.resourceId}|${target.checkIn}|${target.checkOut}`,
+    })
   }
 }
 
@@ -285,9 +294,26 @@ async function clickCampgroundCategory(): Promise<boolean> {
   return false
 }
 
-// Apply BC Parks native UI filters via the Filters dialog
-// Radio button order (confirmed by Playwright): [0,1,2]=Walk-in, [3,4,5]=Double Site
-// Each group: No Preference(0), Yes(1), No(2)
+// Apply BC Parks native UI filters via the Filters dialog.
+//
+// Confirmed DOM structure (from Playwright inspection across Porteau Cove, Rolley Lake,
+// Alice Lake, Golden Ears):
+//   <app-single-selection-filter>
+//     <h3> Walk In </h3>          ← heading identifies the group
+//     <mat-radio-group>
+//       <mat-radio-button>No Preference</mat-radio-button>
+//       <mat-radio-button>Yes</mat-radio-button>
+//       <mat-radio-button>No</mat-radio-button>   ← we want this one
+//     </mat-radio-group>
+//   </app-single-selection-filter>
+//   <app-single-selection-filter>
+//     <h3> Double Site </h3>
+//     ...same structure...
+//   </app-single-selection-filter>
+//   (Electrical Service uses <p class="filter-option"> + mat-checkbox — different component)
+//
+// Selecting by h3 text → clicking "No" mat-radio-button within that component
+// is robust regardless of how many filter groups the park has.
 async function applyBCParksFilters(noWalkin: boolean, noDouble: boolean): Promise<void> {
   // Dismiss cookie banner if present
   const cookieBtn = Array.from(document.querySelectorAll('button'))
@@ -299,17 +325,32 @@ async function applyBCParksFilters(noWalkin: boolean, noDouble: boolean): Promis
   filterBtn.click()
   await sleep(1000)
 
-  const opts = document.querySelectorAll('[class*="filter-option"]')
-  dbg('filter options in dialog', opts.length)
-  // Walk-in "No" = index 2, Double Site "No" = index 5
-  // Must click the inner <label> — mat-radio-button.click() doesn't trigger Angular change detection
-  // Confirmed by Playwright: label.click() sets input.checked = true correctly
-  const clickRadio = (opt: Element) => {
-    const label = opt.querySelector('label') as HTMLElement | null
-    ;(label ?? opt as HTMLElement).click()
+  // Find the app-single-selection-filter whose <h3> contains the keyword,
+  // then click the mat-radio-button with text "No" inside it.
+  // Must click the inner <label> — mat-radio-button.click() doesn't trigger Angular.
+  const clickNoForGroup = (headingKeyword: string): boolean => {
+    const groups = document.querySelectorAll('app-single-selection-filter')
+    dbg(`filter groups found`, groups.length)
+    for (const group of Array.from(groups)) {
+      const h3 = group.querySelector('h3')
+      const heading = (h3?.textContent ?? '').trim().toLowerCase()
+      if (!heading.includes(headingKeyword.toLowerCase())) continue
+      const radios = Array.from(group.querySelectorAll('mat-radio-button'))
+      const noRadio = radios.find(r => (r.textContent ?? '').trim().toLowerCase() === 'no')
+      dbg(`group "${heading}"`, { radios: radios.length, noFound: !!noRadio })
+      if (noRadio) {
+        const label = noRadio.querySelector('label') as HTMLElement | null
+        ;(label ?? noRadio as HTMLElement).click()
+        dbg(`clicked "No" for "${heading}"`)
+        return true
+      }
+    }
+    dbg(`filter group containing "${headingKeyword}" not found`)
+    return false
   }
-  if (noWalkin && opts[2]) { clickRadio(opts[2]); dbg('Walk-in set to No') }
-  if (noDouble && opts[5]) { clickRadio(opts[5]); dbg('Double Site set to No') }
+
+  if (noWalkin) clickNoForGroup('walk')
+  if (noDouble) clickNoForGroup('double')
   await sleep(300)
 
   const showBtn = Array.from(document.querySelectorAll('button'))
@@ -371,19 +412,41 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
         panelsChecked++
       }
 
-      const panelText = panel.textContent ?? ''
+      // Read collapsed/summary text for pass-0 name matching — "Campsite 50 AvailableDetails"
+      const summaryText = panel.textContent ?? ''
 
       if (pass === 0) {
         const siteRegex = new RegExp(`Campsite\\s*\\n?\\s*${targetSiteName}(?:\\s|$)`, 'i')
-        const matches = siteRegex.test(panelText)
-        dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: panelText.trim().substring(0, 50) })
+        const matches = siteRegex.test(summaryText)
+        dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: summaryText.trim().substring(0, 50) })
         if (!matches) {
           if (!alreadyOpen) header.click()
           continue
         }
       }
 
-      // Enforce filters from the BC Parks UI — site details show "Double Site: Yes" / "Walk In: Yes"
+      // BC Parks list view shows a "Details" button inside the expanded panel before the Reserve
+      // button is visible. Click it to load full site info (may open a sidebar outside the panel).
+      if (!panel.querySelector('button.reserve-button')) {
+        const detailsBtn = Array.from(panel.querySelectorAll('button'))
+          .find(b => (b.textContent ?? '').trim().toLowerCase() === 'details')
+        dbg(`panel ${i} Details btn`, { found: !!detailsBtn })
+        if (detailsBtn) {
+          ;(detailsBtn as HTMLElement).click()
+          await pollUntil(3000, () => !!document.querySelector('button.reserve-button'))
+        }
+      }
+
+      // Reserve button may now be inside the panel OR in a sidebar opened by Details click
+      const reserveBtn = document.querySelector('button.reserve-button') as HTMLButtonElement | null
+      dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
+
+      // Read UI flags from whichever element contains the reserve button.
+      // Falls back to panel if the button is in a sidebar with no mat-expansion-panel ancestor.
+      const contextEl = reserveBtn?.closest('mat-expansion-panel') ?? reserveBtn?.parentElement ?? panel
+      const panelText = contextEl.textContent ?? ''
+
+      // Enforce filters — site details show "Double Site: Yes" / "Walk In: Yes"
       const doubleMatch = panelText.match(/double\s*site\s*:?\s*(\w+)/i)
       const walkinMatch = panelText.match(/walk\s*[-\s]?in\s*:?\s*(\w+)/i)
       const isDoubleInUI = doubleMatch ? doubleMatch[1].toLowerCase() === 'yes' : false
@@ -405,11 +468,8 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
         continue
       }
 
-      const reserveBtn = panel.querySelector('button.reserve-button') as HTMLButtonElement | null
-      dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
-
       if (reserveBtn && !reserveBtn.disabled) {
-        const selectedSite = panelText.match(/Campsite\s*(\d+)/i)?.[1] ?? '?'
+        const selectedSite = summaryText.match(/Campsite\s*(\d+)/i)?.[1] ?? '?'
         dbg(`SELECTED Campsite ${selectedSite}`, {
           pass,
           panelsExpanded: panelsChecked,
@@ -417,17 +477,39 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
           isDouble: isDoubleInUI,
           isWalkin: isWalkinInUI,
         })
+        const urlBefore = window.location.href
         reserveBtn.click()
         dbg(`clicked reserve on panel ${i}`)
-        await sleep(1000)
 
-        // Final safety net: if BC Parks shows "double site" dialog, cancel and skip
-        if (await cancelIfDoubleDialog()) {
-          dbg(`panel ${i} double-site dialog — skipping`)
-          if (!alreadyOpen) { header.click(); await sleep(300) }
-          continue
+        // Poll for outcome (up to 4s):
+        //   - URL changed → navigation succeeded, site is ours
+        //   - "not available" error in panel → site was grabbed by someone else just now
+        //   - double-site dialog → cancel and skip
+        let navigated = false
+        const pollEnd = Date.now() + 4000
+        while (Date.now() < pollEnd) {
+          if (await cancelIfDoubleDialog()) {
+            dbg(`panel ${i} double-site dialog — skipping`)
+            break
+          }
+          if (window.location.href !== urlBefore) {
+            navigated = true
+            break
+          }
+          const liveText = (contextEl.textContent ?? '').toLowerCase()
+          if (
+            liveText.includes('not available for any of the requested') ||
+            liveText.includes('not reservable')
+          ) {
+            dbg(`panel ${i} site not available/reservable — skipping`)
+            break
+          }
+          await sleep(200)
         }
-        return true
+
+        if (navigated) return true
+        if (!alreadyOpen) { header.click(); await sleep(300) }
+        continue
       }
 
       if (!alreadyOpen) { header.click(); await sleep(200) }

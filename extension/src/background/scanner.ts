@@ -20,7 +20,9 @@ export async function scanTrip(
         if (trip.attempted.includes(key)) continue
 
         const sites = await getAvailability(park.id, window.checkIn, window.checkOut, trip.filters)
-        if (sites.length > 0) return { ...sites[0], campgroundName: park.name }
+        // Filter out specific sites that were attempted individually (e.g. were taken at booking time)
+        const fresh = sites.filter(s => !trip.attempted.includes(`${s.resourceId}|${s.checkIn}|${s.checkOut}`))
+        if (fresh.length > 0) return { ...fresh[0], campgroundName: park.name }
       }
     }
   }

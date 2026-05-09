@@ -3,7 +3,7 @@ import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
-import { isLoggedIn } from '../background/login'
+import { isLoggedIn, watchLoginChanges } from '../background/login'
 import type { Trip, DateRange, Park, Theme } from '../types'
 
 // Apply saved theme before anything renders
@@ -82,7 +82,7 @@ async function renderTripList() {
     return `<div class="trip-list-item ${t.status}" data-edit="${t.id}" style="cursor:pointer">
       <div class="trip-list-header">
         <span class="trip-list-name">${t.name} <span style="color:var(--text-dim);font-size:10px">› tap to edit</span></span>
-        <div style="display:flex;align-items:center;gap:10px" onclick="event.stopPropagation()">
+        <div class="trip-action-zone" style="display:flex;align-items:center;gap:10px">
           ${statusTextHTML(t.status)}
           ${actionBtnHTML(t)}
         </div>
@@ -93,7 +93,12 @@ async function renderTripList() {
     </div>`
   }).join('')
 
-  // Whole card → edit (except action button zone which stops propagation inline)
+  // Action zone (status badge + Start/Stop) shouldn't bubble to the card-edit handler
+  list.querySelectorAll('.trip-action-zone').forEach(el => {
+    el.addEventListener('click', e => e.stopPropagation())
+  })
+
+  // Whole card → edit
   list.querySelectorAll('[data-edit]').forEach(el => {
     el.addEventListener('click', () => {
       const trip = trips.find(t => t.id === (el as HTMLElement).dataset['edit'])
@@ -107,14 +112,39 @@ async function renderTripList() {
       e.stopPropagation()
       const id = (btn as HTMLElement).dataset['id']!
       const action = (btn as HTMLElement).dataset['action']!
-      await updateTrip(id, action === 'start'
-        ? { status: 'scanning', lastMatch: null, attempted: [] }
-        : { status: 'paused' })
-      if (action === 'start') chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
+
+      if (action === 'start') {
+        const { trips } = await getStorage()
+        const trip = trips.find(t => t.id === id)
+        if (trip && trip.mode !== 'notify' && !(await isLoggedIn())) {
+          promptLogin()
+          return
+        }
+        await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
+        chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
+      } else {
+        await updateTrip(id, { status: 'paused' })
+      }
       await renderTripList()
     })
   })
 }
+
+// Open BC Parks sign-in tab and tell user to come back
+function promptLogin(): void {
+  const alertsEl = document.getElementById('global-alerts')
+  if (alertsEl) {
+    alertsEl.innerHTML = `<div class="alert-warn" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <span>⚠ Not logged in to BC Parks — required for Hold and Auto-pay modes.</span>
+      <a href="https://camping.bcparks.ca/create-booking/sign-in" target="_blank"
+         style="white-space:nowrap;text-decoration:underline;opacity:0.9;flex-shrink:0">Log in →</a>
+    </div>`
+  }
+  chrome.tabs.create({ url: 'https://camping.bcparks.ca/create-booking/sign-in' })
+}
+
+// Auto-refresh global alerts when BC Parks login state changes
+watchLoginChanges(() => renderTripList())
 
 // Live refresh when service worker updates storage
 chrome.storage.onChanged.addListener((_changes, area) => {
@@ -159,8 +189,22 @@ async function openEditor(trip?: Trip) {
 
   renderParksList()
   renderDatesList()
+
+  // Restore last-used date mode for this trip (falls back to 'specific' for new trips)
+  const savedMode = localStorage.getItem(trip ? `datemode_${trip.id}` : 'datemode_new') as 'specific' | 'recurring' | null
+  applyDateMode(savedMode ?? 'specific')
+
   document.getElementById('trips-view')!.classList.add('hidden')
   document.getElementById('trip-editor')!.classList.remove('hidden')
+}
+
+function applyDateMode(mode: 'specific' | 'recurring'): void {
+  dateMode = mode
+  document.querySelectorAll('.date-mode-btn').forEach(b => {
+    b.classList.toggle('active', (b as HTMLElement).dataset['mode'] === mode)
+  })
+  document.getElementById('specific-inputs')!.classList.toggle('hidden', mode !== 'specific')
+  document.getElementById('recurring-inputs')!.classList.toggle('hidden', mode !== 'recurring')
 }
 
 document.getElementById('back-btn')!.addEventListener('click', () => {
@@ -251,6 +295,9 @@ document.querySelectorAll('.date-mode-btn').forEach(btn => {
     btn.classList.add('active')
     document.getElementById('specific-inputs')!.classList.toggle('hidden', dateMode !== 'specific')
     document.getElementById('recurring-inputs')!.classList.toggle('hidden', dateMode !== 'recurring')
+    // Persist per-trip so the user's preferred mode is restored next time
+    const key = editingTripId ? `datemode_${editingTripId}` : 'datemode_new'
+    localStorage.setItem(key, dateMode)
   })
 })
 
@@ -381,12 +428,21 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
 
   if (hasErrors) return
 
+  if (mode !== 'notify' && !(await isLoggedIn())) {
+    promptLogin()
+    return
+  }
+
   const { trips } = await getStorage()
   if (editingTripId) {
     const idx = trips.findIndex(t => t.id === editingTripId)
     if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [] }
   } else {
-    trips.push({ id: crypto.randomUUID(), name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [], createdAt: Date.now() })
+    const newId = crypto.randomUUID()
+    // Transfer the date mode saved under 'datemode_new' to the real trip ID
+    const savedMode = localStorage.getItem('datemode_new')
+    if (savedMode) localStorage.setItem(`datemode_${newId}`, savedMode)
+    trips.push({ id: newId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [], createdAt: Date.now() })
   }
   await saveTrips(trips)
   document.getElementById('back-btn')!.click()

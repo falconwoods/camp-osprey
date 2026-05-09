@@ -19,6 +19,9 @@ export class BCParksProvider {
   private cartTxUid: string | null = null
   private cartData: Record<string, unknown> | null = null
 
+  // Set this to receive raw daily API responses for available sites
+  onAvailabilityRaw?: (siteId: string, siteName: string, daily: Array<Record<string, number>>) => void
+
   private async api(path: string, params?: Record<string, string>): Promise<unknown> {
     const url = new URL(BASE + path)
     if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
@@ -83,15 +86,12 @@ export class BCParksProvider {
   private siteFlags(resource: Record<string, unknown>, sectionIsWalkin: boolean): [boolean, boolean] {
     const vals = (resource['localizedValues'] as Array<Record<string, string>>)?.[0] ?? {}
     const desc = (vals['description'] ?? '').toLowerCase()
-    // BC Parks uses 'definedAttributes' (NOT 'attributes') — confirmed by API inspection
-    // attributeDefinitionId -32764 = Walk-in, -32722 = Double Site
-    // values[0] === 1 means Yes; values[0] === 0 or absent means No
-    const attrs = (resource['definedAttributes'] as Array<Record<string, unknown>>) ?? []
-    const isAttrYes = (id: number) => attrs.some(a =>
-      a['attributeDefinitionId'] === id && ((a['values'] as number[])?.[0] ?? 0) !== 0
-    )
-    const isWalkin = sectionIsWalkin || desc.includes('first-come') || desc.includes('first come') || isAttrYes(-32764)
-    const isDouble = desc.includes('double site') || isAttrYes(-32722) || ((resource['linkedResources'] as unknown[])?.length ?? 0) > 0
+    // definedAttributes values[0]===1 appears on normal sites for both walk-in (-32764) and
+    // double (-32722) IDs — the encoding is not a simple Yes/No flag, so we don't use it.
+    // Walk-in: rely on section membership (maps API) + description keywords.
+    // Double: rely on description keywords + linkedResources (linked pairs share availability).
+    const isWalkin = sectionIsWalkin || desc.includes('first-come') || desc.includes('first come')
+    const isDouble = desc.includes('double site') || ((resource['linkedResources'] as unknown[])?.length ?? 0) > 0
     return [isWalkin, isDouble]
   }
 
@@ -156,8 +156,15 @@ export class BCParksProvider {
           bookingUid: crypto.randomUUID(),
         }) as Array<Record<string, number>>
 
-        const available = daily.slice(0, numNights).every(d => d['availability'] === 0)
+        // processedAvailability is the true bookability status:
+        //   0 = Available (green)    ← only these are genuinely reservable
+        //   1 = Occupied (red)
+        //   3 = Restrictions (yellow) — unoccupied but not reservable (closure, permit, etc.)
+        // availability===0 only means the slot is unbooked, not that it can be reserved.
+        const available = daily.slice(0, numNights).every(d => d['processedAvailability'] === 0)
         if (!available) return null
+
+        this.onAvailabilityRaw?.(c.resourceId, c.siteName, daily)
 
         return {
           resourceId: c.resourceId,

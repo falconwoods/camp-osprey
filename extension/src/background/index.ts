@@ -7,6 +7,11 @@ import type { AvailableSite, Trip } from '../types'
 const ALARM_NAME = 'scan'
 const provider = new BCParksProvider()
 
+// Log full raw daily API response for every site that passes availability check
+provider.onAvailabilityRaw = (siteId, siteName, daily) => {
+  addDebugLog(`    raw ${siteName} (id=${siteId}): ${JSON.stringify(daily)}`)
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm(60)
 })
@@ -40,7 +45,7 @@ async function runScanCycle(): Promise<void> {
   const scanningTrips = trips.filter(t => t.status === 'scanning')
   const debug = settings.debugMode
 
-  if (debug) await addDebugLog(`Alarm fired — ${scanningTrips.length} trip(s) scanning`)
+  await addDebugLog(`${'─'.repeat(48)}\nAlarm fired — ${scanningTrips.length} trip(s) scanning`)
 
   for (const trip of scanningTrips) {
     const loggedIn = await isLoggedIn()
@@ -58,9 +63,22 @@ async function runScanCycle(): Promise<void> {
 
     try {
       const site = await scanTrip(trip, async (id, ci, co, filters) => {
-        if (debug) await addDebugLog(`  Checking park ${id} | ${ci} → ${co}`)
+        const parkName = trip.parks.find(p => p.id === id)?.name ?? id
+        if (debug) await addDebugLog(`  Checking ${parkName} | ${ci} → ${co}`)
         const results = await provider.getAvailability(id, ci, co, filters)
-        if (debug) await addDebugLog(`  → ${results.length} site(s) available`)
+        if (results.length > 0) {
+          const secW = Math.max(...results.map(s => (s.sectionName || 'no section').length))
+          const siteW = Math.max(...results.map(s => s.siteName.length))
+          const lines = results.map(s => {
+            const sec  = (s.sectionName || 'no section').padEnd(secW)
+            const site = s.siteName.padEnd(siteW)
+            const flags = [s.isWalkin && 'walkin', s.isDouble && 'double'].filter(Boolean).join(' ')
+            return `    • ${sec}  ${site}  id=${s.resourceId}${flags ? `  [${flags}]` : ''}`
+          })
+          await addDebugLog(`  API: ${results.length} available at ${parkName} ${ci}→${co}\n${lines.join('\n')}`)
+        } else if (debug) {
+          await addDebugLog(`  API: 0 available at ${parkName} ${ci}→${co}`)
+        }
         return results
       })
       if (site) {
@@ -117,9 +135,10 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
         parkName: site.campgroundName || site.campgroundId,
         tripId: trip.id,
         mode: trip.mode,
-        // Pass filter settings so content script can enforce them from the BC Parks UI
         noDouble: trip.filters.noDouble,
         noWalkin: trip.filters.noWalkin,
+        checkIn: site.checkIn,
+        checkOut: site.checkOut,
         setAt: Date.now(),
       },
     }, resolve)
@@ -178,10 +197,30 @@ async function notify(title: string, message: string, url?: string, persist = fa
   }
 }
 
-chrome.runtime.onMessage.addListener((msg: { type: string; tripId?: string; confirmationNumber?: string; error?: string }) => {
+chrome.runtime.onMessage.addListener((msg: {
+  type: string
+  tripId?: string
+  confirmationNumber?: string
+  error?: string
+  attemptKey?: string
+}) => {
   if (msg.type === 'SCAN_NOW') {
-    // Triggered when user clicks Start — run a cycle immediately, don't wait for next alarm
     runScanCycle()
+    return
+  }
+  if (msg.type === 'MATCH_FAILED' && msg.tripId) {
+    // Site was available at scan time but taken by the time we opened the page.
+    // Add the specific resource key to attempted so we skip this exact site next
+    // cycle, then resume scanning so other sites/dates can still be found.
+    getStorage().then(({ trips }) => {
+      const trip = trips.find(t => t.id === msg.tripId)
+      if (!trip) return
+      const attempted = [...trip.attempted]
+      if (msg.attemptKey && !attempted.includes(msg.attemptKey)) {
+        attempted.push(msg.attemptKey)
+      }
+      updateTrip(msg.tripId!, { status: 'scanning', lastMatch: null, attempted })
+    })
     return
   }
   if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
