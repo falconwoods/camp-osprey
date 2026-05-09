@@ -138,7 +138,16 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     }
   }
 
-  // Step 3: switch to List view
+  // Step 3: apply BC Parks native filters (Walk-in: No, Double Site: No)
+  if (target.noWalkin || target.noDouble) {
+    setStatus('Applying filters…')
+    await applyBCParksFilters(target.noWalkin, target.noDouble)
+    dbg('filters applied', { noWalkin: target.noWalkin, noDouble: target.noDouble })
+    // Wait for filtered results to reload
+    await pollForToggles(8_000)
+  }
+
+  // Step 4: switch to List view
   setStatus('Switching to list view…')
   const switched = await switchToListView()
   dbg('switchToListView', switched)
@@ -263,6 +272,33 @@ async function clickCampgroundCategory(): Promise<boolean> {
     }
   }
   return false
+}
+
+// Apply BC Parks native UI filters via the Filters dialog
+// Radio button order (confirmed by Playwright): [0,1,2]=Walk-in, [3,4,5]=Double Site
+// Each group: No Preference(0), Yes(1), No(2)
+async function applyBCParksFilters(noWalkin: boolean, noDouble: boolean): Promise<void> {
+  // Dismiss cookie banner if present
+  const cookieBtn = Array.from(document.querySelectorAll('button'))
+    .find(b => (b.textContent ?? '').trim().toLowerCase() === 'i consent')
+  if (cookieBtn) { ;(cookieBtn as HTMLElement).click(); await sleep(400) }
+
+  const filterBtn = document.getElementById('filters-button-desktop') as HTMLElement | null
+  if (!filterBtn) { dbg('filters button not found'); return }
+  filterBtn.click()
+  await sleep(1000)
+
+  const opts = document.querySelectorAll('[class*="filter-option"]')
+  dbg('filter options in dialog', opts.length)
+  // Walk-in "No" = index 2, Double Site "No" = index 5
+  if (noWalkin && opts[2]) { ;(opts[2] as HTMLElement).click(); dbg('Walk-in set to No') }
+  if (noDouble && opts[5]) { ;(opts[5] as HTMLElement).click(); dbg('Double Site set to No') }
+  await sleep(300)
+
+  const showBtn = Array.from(document.querySelectorAll('button'))
+    .find(b => (b.textContent ?? '').trim().toLowerCase().includes('show results'))
+  if (showBtn) { ;(showBtn as HTMLElement).click(); dbg('Show results clicked') }
+  await sleep(2000)
 }
 
 // Switch to List view — confirmed selector from Playwright inspection
