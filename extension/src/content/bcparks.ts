@@ -49,6 +49,15 @@ chrome.storage.local.get('campSnaperTarget', (result: Record<string, unknown>) =
   if (url.includes('/create-booking/results')) {
     dbg('detected: results page')
     handleResultsPage(target)
+  } else if (url.includes('reservation-details') || url.includes('reservationdetails')) {
+    // "Review Reservation Details" page — check acknowledge box and confirm (autopay only)
+    dbg('detected: reservation review page')
+    if (target.mode === 'autopay') handleReservationReview(target.tripId)
+    else {
+      injectBanner(`<span style="font-size:18px">🏕</span>
+        <span><strong style="color:#22c55e">CampSniper</strong> reserved a site —
+        check the box and click <strong>Confirm reservation details</strong>, then complete payment.</span>`)
+    }
   } else if (url.includes('reservationmessages') || url.includes('payment') || url.includes('checkout')) {
     dbg('detected: checkout page')
     if (target.mode === 'autopay') runCheckout(target.tripId)
@@ -344,7 +353,7 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
       const panelText = panel.textContent ?? ''
 
       if (pass === 0) {
-        const siteRegex = new RegExp(`(Campsite|Site|#|^|\\s)\\s*${targetSiteName}(\\s|$)`, 'i')
+        const siteRegex = new RegExp(`Campsite\\s*\\n?\\s*${targetSiteName}(?:\\s|$)`, 'i')
         const matches = siteRegex.test(panelText)
         dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: panelText.trim().substring(0, 50) })
         if (!matches) {
@@ -418,6 +427,40 @@ async function cancelIfDoubleDialog(): Promise<boolean> {
 }
 
 
+
+// ── Reservation review page (after clicking Reserve, before payment) ────────
+
+async function handleReservationReview(tripId: string): Promise<void> {
+  injectBanner(`<span style="font-size:18px">🏕</span>
+    <span><strong style="color:#22c55e">CampSniper</strong> — confirming reservation details…</span>
+    <span id="campsniper-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
+  const setStatus = (msg: string) => {
+    const el = document.getElementById('campsniper-status')
+    if (el) el.textContent = msg
+  }
+  try {
+    // Check the "All reservation details are correct" checkbox
+    await sleep(1000)
+    const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+    if (checkbox && !checkbox.checked) {
+      checkbox.click()
+      dbg('checked acknowledge checkbox')
+      await sleep(500)
+    }
+    // Click "Confirm reservation details"
+    const confirmBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => (b.textContent ?? '').toLowerCase().includes('confirm reservation'))
+    if (confirmBtn) {
+      ;(confirmBtn as HTMLElement).click()
+      dbg('clicked Confirm reservation details')
+      setStatus('Proceeding to surcharges…')
+    } else {
+      setStatus('Could not find Confirm button — click it manually.')
+    }
+  } catch (e) {
+    dbg('handleReservationReview error', String(e))
+  }
+}
 
 // ── Checkout pages: auto-pay ───────────────────────────────────────────────
 
