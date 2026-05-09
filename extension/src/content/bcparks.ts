@@ -1,5 +1,15 @@
 // Content script — injected on all camping.bcparks.ca pages
 
+// ── Debug logging ──────────────────────────────────────────────────────────
+const _dbg: string[] = []
+function dbg(msg: string, data?: unknown): void {
+  const line = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg
+  _dbg.push(`[${new Date().toLocaleTimeString()}] ${line}`)
+  console.log(`[CampSniper] ${line}`)
+}
+// Expose in DevTools: copy(__cs_debug()) to clipboard
+;(window as unknown as Record<string, unknown>)['__cs_debug'] = () => _dbg.join('\n')
+
 interface TargetSite {
   resourceId: string
   siteName: string
@@ -11,17 +21,27 @@ interface TargetSite {
 }
 
 // content scripts can only access chrome.storage.local, not session
+dbg('content script loaded', { url: window.location.pathname })
+
 chrome.storage.local.get('campSnaperTarget', (result: Record<string, unknown>) => {
-  if (chrome.runtime.lastError) return
+  if (chrome.runtime.lastError) {
+    dbg('storage error', chrome.runtime.lastError.message); return
+  }
   const target = result?.['campSnaperTarget'] as TargetSite | undefined
-  if (!target) return
-  if (Date.now() - target.setAt > 5 * 60 * 1000) return  // ignore stale
+  if (!target) { dbg('no campSnaperTarget in storage'); return }
+  const age = Math.round((Date.now() - target.setAt) / 1000)
+  dbg('target loaded', { ...target, ageSeconds: age })
+  if (age > 300) { dbg('target is stale, ignoring'); return }
 
   const url = window.location.href
   if (url.includes('/create-booking/results')) {
+    dbg('detected: results page')
     handleResultsPage(target)
   } else if (url.includes('reservationmessages') || url.includes('payment') || url.includes('checkout')) {
+    dbg('detected: checkout page')
     if (target.mode === 'autopay') runCheckout(target.tripId)
+  } else {
+    dbg('page not matched for auto-action', { url })
   }
 })
 
@@ -65,38 +85,47 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   // Step 1: wait for Angular to render (2s)
   await sleep(2000)
 
-  // Step 2: if BC Parks shows the search form instead of results (happens when
-  // mapId === resourceLocationId), select the park then click Search
-  const hasResults = document.querySelector(
-    'mat-card, .site-card, [class*="campsite-card"], [class*="resource-card"], [class*="site-list"]'
-  )
+  // Step 2: detect if showing search form vs results
+  const panels0 = document.querySelectorAll('mat-expansion-panel.list-entry')
+  const mapMarkers = document.querySelectorAll('mat-button-toggle')
+  dbg('after 2s wait', {
+    expansionPanels: panels0.length,
+    matToggles: mapMarkers.length,
+    bodyClasses: document.body.className.substring(0, 60),
+  })
+
+  const hasResults = panels0.length > 0
   if (!hasResults) {
+    dbg('no results panels — selecting park and clicking Search')
     if (target.parkName) {
       setStatus(`Selecting park "${target.parkName}"…`)
       const selected = await selectParkFromDropdown(target.parkName)
+      dbg('park selected', selected)
       if (selected) await sleep(500)
     }
     setStatus('Clicking Search…')
     const clicked = await clickSearchButton()
+    dbg('search clicked', clicked)
     if (clicked) {
       setStatus('Waiting for results…')
-      await sleep(5000)  // give Angular time to render results
+      await sleep(5000)
     } else {
       setStatus('Search button not found — click Search manually, then Reserve.')
     }
   }
 
-  // Step 3: switch to List view — map view is SVG icons, not clickable
+  // Step 3: switch to List view
   setStatus('Switching to list view…')
-  await switchToListView()
+  const switched = await switchToListView()
+  dbg('switched to list view', switched)
   await sleep(2500)
 
   // Step 4: expand panels and click Reserve
-  // BC Parks list rows are mat-expansion-panel.list-entry
-  // Each has a mat-expansion-panel-header[role=button] to expand
-  // Inside expanded panel: button.reserve-button
-  setStatus('Looking for Reserve button…')
+  const panels1 = document.querySelectorAll('mat-expansion-panel.list-entry')
+  dbg('panels available for reserve', { count: panels1.length, targetSite: target.siteName })
+  setStatus(`Found ${panels1.length} site panels — looking for Reserve…`)
   const reserved = await expandAndReserve(target.siteName)
+  dbg('expandAndReserve result', reserved)
 
   if (reserved) {
     setStatus(target.mode === 'autopay'
@@ -104,16 +133,18 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
       : 'Reserved ✓ — complete payment in BC Parks')
   } else {
     setStatus('Click "Details" on a site then click "Reserve" manually.')
+    dbg('FAILED — paste __cs_debug() output to CampSniper developer')
   }
 }
 
 // Switch to List view — confirmed selector from Playwright inspection
 async function switchToListView(): Promise<boolean> {
-  // mat-button-toggle with text "List" contains a button.mat-button-toggle-button
-  const toggle = document.querySelector("mat-button-toggle:not(.mat-button-toggle-checked)")
   const allToggles = document.querySelectorAll('mat-button-toggle')
+  dbg('mat-button-toggles found', allToggles.length)
   for (const t of allToggles) {
-    if ((t.textContent ?? '').trim() === 'List') {
+    const text = (t.textContent ?? '').trim()
+    dbg('toggle', { text, cls: t.className.substring(0, 40) })
+    if (text === 'List') {
       const btn = t.querySelector('button') as HTMLElement | null
       if (btn) { btn.click(); return true }
     }
@@ -134,31 +165,49 @@ async function expandAndReserve(targetSiteName: string): Promise<boolean> {
   // Pass 0: try panel matching target site name (check text after expand)
   // Pass 1: try any panel with a Reserve button
   for (const pass of [0, 1]) {
-    for (const panel of panels) {
+    dbg(`expandAndReserve pass ${pass}`, { totalPanels: panels.length })
+    for (let i = 0; i < panels.length; i++) {
+      const panel = panels[i]
       const header = panel.querySelector('mat-expansion-panel-header[role="button"]') as HTMLElement | null
+      dbg(`panel ${i}`, {
+        hasHeader: !!header,
+        cls: panel.className.substring(0, 60),
+        headerCls: header?.className.substring(0, 60) ?? 'n/a',
+      })
       if (!header) continue
 
       const alreadyOpen = panel.classList.contains('mat-expanded')
       if (!alreadyOpen) { header.click(); await sleep(600) }
 
       if (pass === 0) {
-        // Check if expanded content contains target site number
         const siteRegex = new RegExp(`(^|\\s|Site\\s*)${targetSiteName}(\\s|$)`, 'i')
-        if (!siteRegex.test(panel.textContent ?? '')) {
+        const matches = siteRegex.test(panel.textContent ?? '')
+        dbg(`panel ${i} site match`, { targetSiteName, matches })
+        if (!matches) {
           if (!alreadyOpen) { header.click(); await sleep(300) }
           continue
         }
       }
 
       const reserveBtn = panel.querySelector('button.reserve-button') as HTMLButtonElement | null
+      const allBtns = Array.from(panel.querySelectorAll('button')).map(b => ({
+        text: b.textContent?.trim().substring(0, 30),
+        cls: b.className.substring(0, 50),
+        disabled: b.disabled,
+      }))
+      dbg(`panel ${i} buttons`, allBtns)
+      dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
+
       if (reserveBtn && !reserveBtn.disabled) {
         reserveBtn.click()
+        dbg(`clicked reserve on panel ${i}`)
         return true
       }
 
       if (!alreadyOpen) { header.click(); await sleep(300) }
     }
   }
+  dbg('no reserve button found in any panel')
   return false
 }
 
