@@ -115,26 +115,31 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     const clicked = await clickSearchButton()
     dbg('search button clicked', clicked)
 
-    // Poll up to 25s for Angular to render results after navigation
+    // Poll up to 25s for Map/List/Calendar view toggles to appear
+    // (panels only exist in List view — toggles appear in ANY view after results load)
     setStatus('Waiting for BC Parks to load results (may take 10–25s)…')
-    panelCount = await pollForPanels(25_000)
-    dbg('panels after search + poll', panelCount)
+    const resultsLoaded = await pollForToggles(25_000)
+    dbg('results loaded (toggles appeared)', resultsLoaded)
+    if (!resultsLoaded) {
+      setStatus('Results not loading — click Search manually, then Reserve.')
+      dbg('FAILED: toggles never appeared. Paste __cs_debug() to developer.')
+      return
+    }
   }
 
-  if (panelCount === 0) {
-    setStatus('Results not loading — click Search manually, then try Reserve.')
-    dbg('FAILED: no panels loaded. Paste __cs_debug() to developer.')
-    return
-  }
-
-  // Step 3: switch to List view and wait for list to settle
+  // Step 3: switch to List view, then poll for list panels
   setStatus('Switching to list view…')
   const switched = await switchToListView()
   dbg('switchToListView', switched)
-  // Poll a few seconds in case List view re-renders the panels
   await sleep(500)
-  panelCount = await pollForPanels(6_000)
+  panelCount = await pollForPanels(10_000)
   dbg('panels after list switch', panelCount)
+
+  if (panelCount === 0) {
+    setStatus('List view not loading — click "List" then "Details" → "Reserve" manually.')
+    dbg('FAILED: panels never appeared after list switch.')
+    return
+  }
 
   // Step 4: expand panels and click Reserve
   setStatus(`${panelCount} sites found — clicking Reserve on first available…`)
@@ -151,13 +156,28 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   }
 }
 
-// Poll for mat-expansion-panel.list-entry to appear (Angular renders async)
+// Poll for Map/List/Calendar toggles — these appear in any results view
+async function pollForToggles(timeoutMs: number): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const t = document.querySelectorAll('mat-button-toggle')
+    if (t.length > 0) {
+      dbg(`pollForToggles: ${t.length} toggles after ${Date.now() - start}ms`)
+      return true
+    }
+    await sleep(500)
+  }
+  dbg(`pollForToggles: timed out after ${timeoutMs}ms`)
+  return false
+}
+
+// Poll for mat-expansion-panel.list-entry — only present in List view
 async function pollForPanels(timeoutMs: number): Promise<number> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     const panels = document.querySelectorAll('mat-expansion-panel.list-entry')
     if (panels.length > 0) {
-      dbg(`pollForPanels: found ${panels.length} after ${Math.round((Date.now() - start) / 100) * 100}ms`)
+      dbg(`pollForPanels: ${panels.length} panels after ${Date.now() - start}ms`)
       return panels.length
     }
     await sleep(500)
