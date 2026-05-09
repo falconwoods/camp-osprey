@@ -98,8 +98,11 @@
     .match-found    { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 6px 8px; margin-top: 6px; font-size: 10px; color: var(--green); }
     .match-booked   { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 6px 8px; margin-top: 6px; font-size: 10px; color: var(--green); }
 
-    /* ── Warnings / misc ─────────────────────────────────────── */
-    .login-warn { background: var(--amber-subtle); border: 1px solid var(--amber-border); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 10px; color: var(--amber); }
+    /* ── Alerts ──────────────────────────────────────────────── */
+    .alert-error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 5px; padding: 6px 9px; font-size: 10px; color: var(--red); margin-bottom: 6px; line-height: 1.5; }
+    .alert-warn  { background: var(--amber-subtle); border: 1px solid var(--amber-border); border-radius: 5px; padding: 6px 9px; font-size: 10px; color: var(--amber); margin-bottom: 6px; line-height: 1.5; }
+    .alert-error a, .alert-warn a { color: inherit; }
+    #global-alerts:empty { display: none; }
     .empty { text-align: center; color: var(--text-muted); padding: 20px 0; font-size: 11px; }
     a { color: inherit; text-decoration: none; }
   </style>
@@ -110,10 +113,7 @@
     <span class="header-title">CampSniper</span>
     <a class="header-settings" id="settings-link" href="#">Settings ›</a>
   </div>
-  <div class="login-warn" id="login-warn" style="display:none">
-    ⚠ Log in to BC Parks to enable Hold / Auto-pay
-    <a href="https://camping.bcparks.ca" target="_blank" style="color:var(--blue);margin-left:6px">Open BC Parks →</a>
-  </div>
+  <div id="global-alerts"></div>
   <div id="trips-container"></div>
   <button class="add-trip" id="add-trip-btn">+ New Trip</button>
   <script type="module" src="../src/popup/index.ts"></script>

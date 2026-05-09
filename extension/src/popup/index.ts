@@ -1,6 +1,7 @@
 import { getStorage, updateTrip } from '../storage'
 import { isLoggedIn } from '../background/login'
 import { applyTheme } from '../theme'
+import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import type { Trip, MatchedSite } from '../types'
 
 // Apply saved theme immediately before render
@@ -49,6 +50,7 @@ function renderTrip(trip: Trip): string {
   const parkNames = trip.parks.map(p => p.name).join(', ') || '—'
   const dateCount = trip.dateRanges.length
   const modeLabel: Record<Trip['mode'], string> = { notify: 'Notify', hold: 'Hold', autopay: 'Auto-pay' }
+  const warnings = getTripWarnings(trip)
 
   const actionBtn = trip.status === 'scanning'
     ? `<button class="btn btn-stop" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
@@ -64,6 +66,7 @@ function renderTrip(trip: Trip): string {
     <div class="trip-summary">
       ${parkNames} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[trip.mode]}
     </div>
+    ${renderWarnings(warnings)}
     ${trip.lastMatch ? renderMatch(trip.lastMatch, trip.mode, trip.status) : ''}
     ${actionBtn}
   </div>`
@@ -73,10 +76,9 @@ async function render() {
   const { trips } = await getStorage()
   const loggedIn = await isLoggedIn()
   const container = document.getElementById('trips-container')!
-  const warn = document.getElementById('login-warn')!
+  const globalAlertsEl = document.getElementById('global-alerts')!
 
-  const needsLogin = trips.some(t => t.status === 'scanning' && t.mode !== 'notify')
-  warn.style.display = !loggedIn && needsLogin ? 'block' : 'none'
+  globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn))
 
   if (trips.length === 0) {
     container.innerHTML = '<div class="empty">No trips yet. Add one to start scanning.</div>'

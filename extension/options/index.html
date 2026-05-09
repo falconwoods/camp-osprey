@@ -136,6 +136,11 @@
     /* ── Debug log ───────────────────────────────────────────── */
     .debug-log-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; color: var(--text-subtle); height: 300px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap; }
 
+    /* ── Alerts ──────────────────────────────────────────────── */
+    .alert-error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 5px; padding: 6px 9px; font-size: 11px; color: var(--red); margin-top: 6px; line-height: 1.5; }
+    .alert-warn  { background: var(--amber-subtle); border: 1px solid var(--amber-border); border-radius: 5px; padding: 6px 9px; font-size: 11px; color: var(--amber); margin-top: 6px; line-height: 1.5; }
+    .alert-error a, .alert-warn a { color: inherit; }
+
     /* ── Misc ────────────────────────────────────────────────── */
     .back-link { color: var(--text-muted); cursor: pointer; font-size: 11px; margin-bottom: 16px; display: inline-block; }
     .hidden { display: none; }

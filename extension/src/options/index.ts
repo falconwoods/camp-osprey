@@ -2,6 +2,7 @@ import { getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebu
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
+import { getTripWarnings, renderWarnings } from '../warnings'
 import type { Trip, DateRange, Park, Theme } from '../types'
 
 // Apply saved theme before anything renders
@@ -71,15 +72,17 @@ async function renderTripList() {
          ${t.lastMatch.bookingUrl ? `<a href="${t.lastMatch.bookingUrl}" target="_blank" style="color:#22c55e;margin-left:8px">Book →</a>` : ''}</div>`
       : ''
 
+    const warnings = getTripWarnings(t)
     return `<div class="trip-list-item ${t.status}" data-edit="${t.id}" style="cursor:pointer">
       <div class="trip-list-header">
-        <span class="trip-list-name">${t.name} <span style="color:#475569;font-size:10px">› tap to edit</span></span>
+        <span class="trip-list-name">${t.name} <span style="color:var(--text-dim);font-size:10px">› tap to edit</span></span>
         <div style="display:flex;align-items:center;gap:10px" onclick="event.stopPropagation()">
           ${statusTextHTML(t.status)}
           ${actionBtnHTML(t)}
         </div>
       </div>
       <div class="trip-list-meta">${parkNames} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[t.mode]}</div>
+      ${renderWarnings(warnings)}
       ${matchHTML}
     </div>`
   }).join('')
