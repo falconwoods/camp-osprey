@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Bash(*.venv/bin/campsite*)",
+      "WebSearch",
+      "WebFetch",
+      "Edit",
+      "Write",
+      "Glob"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(sudo *)",
+      "Bash(git push --force *)"
+    ],
+    "ask": [
+      "Bash(git push *)"
+    ]
+  }
+}
