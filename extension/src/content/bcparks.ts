@@ -1,14 +1,24 @@
 // Content script — injected on all camping.bcparks.ca pages
 
 // ── Debug logging ──────────────────────────────────────────────────────────
+// Content scripts run in an isolated world — window vars aren't visible in DevTools console.
+// We write logs to a hidden DOM element instead, readable from the page context.
 const _dbg: string[] = []
 function dbg(msg: string, data?: unknown): void {
   const line = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg
   _dbg.push(`[${new Date().toLocaleTimeString()}] ${line}`)
   console.log(`[CampSniper] ${line}`)
+  // Write to hidden DOM element so DevTools console can access it:
+  // copy(document.getElementById('__cs_log').textContent)
+  let el = document.getElementById('__cs_log')
+  if (!el) {
+    el = document.createElement('pre')
+    el.id = '__cs_log'
+    el.style.cssText = 'display:none'
+    document.body.appendChild(el)
+  }
+  el.textContent = _dbg.join('\n')
 }
-// Expose in DevTools: copy(__cs_debug()) to clipboard
-;(window as unknown as Record<string, unknown>)['__cs_debug'] = () => _dbg.join('\n')
 
 interface TargetSite {
   resourceId: string
