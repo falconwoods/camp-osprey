@@ -4,6 +4,7 @@ interface TargetSite {
   resourceId: string
   siteName: string
   sectionName: string
+  parkName: string
   tripId: string
   mode: 'hold' | 'autopay'
   setAt: number
@@ -65,18 +66,23 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   await sleep(2000)
 
   // Step 2: if BC Parks shows the search form instead of results (happens when
-  // mapId === resourceLocationId), click Search to navigate to results
+  // mapId === resourceLocationId), select the park then click Search
   const hasResults = document.querySelector(
     'mat-card, .site-card, [class*="campsite-card"], [class*="resource-card"], [class*="site-list"]'
   )
   if (!hasResults) {
+    if (target.parkName) {
+      setStatus(`Selecting park "${target.parkName}"…`)
+      const selected = await selectParkFromDropdown(target.parkName)
+      if (selected) await sleep(500)
+    }
     setStatus('Clicking Search…')
     const clicked = await clickSearchButton()
     if (clicked) {
       setStatus('Waiting for results…')
-      await sleep(4000)  // give Angular time to render results
+      await sleep(5000)  // give Angular time to render results
     } else {
-      setStatus('Could not find results — try clicking Search manually.')
+      setStatus('Search button not found — click Search manually, then Reserve.')
     }
   }
 
@@ -91,6 +97,38 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     setStatus(`Scroll down to find Site ${target.siteName} and click Reserve.`)
     tryHighlightSite(target.siteName)
   }
+}
+
+// Select a park from the Angular Material mat-select dropdown
+async function selectParkFromDropdown(parkName: string): Promise<boolean> {
+  // Find the Park mat-select (first one on the page)
+  const trigger = document.querySelector('mat-select, [role="combobox"]') as HTMLElement | null
+  if (!trigger) return false
+
+  trigger.click()
+  await sleep(800)  // wait for Angular overlay to open
+
+  // mat-option elements render in an overlay appended to document.body
+  const options = document.querySelectorAll('mat-option, [role="option"]')
+  if (options.length === 0) {
+    // Close and give up
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    return false
+  }
+
+  const needle = parkName.toLowerCase()
+  for (const opt of options) {
+    const text = (opt.textContent ?? '').trim().toLowerCase()
+    // Match if either contains the other (handles "Golden Ears" ↔ "Golden Ears Provincial Park")
+    if (text.includes(needle) || needle.includes(text.replace(/\s*(provincial|park|campground)\s*/gi, '').trim())) {
+      ;(opt as HTMLElement).click()
+      return true
+    }
+  }
+
+  // No match — close dropdown and let Search run with "All Parks"
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  return false
 }
 
 // Click the Search button on the BC Parks search form

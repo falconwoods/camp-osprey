@@ -114,9 +114,10 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
         resourceId: site.resourceId,
         siteName: site.siteName,
         sectionName: site.sectionName,
+        parkName: site.campgroundName || site.campgroundId,
         tripId: trip.id,
         mode: trip.mode,
-        setAt: Date.now(),  // freshness check in content script
+        setAt: Date.now(),
       },
     }, resolve)
   )
