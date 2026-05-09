@@ -83,8 +83,11 @@ export class BCParksProvider {
   private siteFlags(resource: Record<string, unknown>, sectionIsWalkin: boolean): [boolean, boolean] {
     const vals = (resource['localizedValues'] as Array<Record<string, string>>)?.[0] ?? {}
     const desc = (vals['description'] ?? '').toLowerCase()
-    const isWalkin = sectionIsWalkin || desc.includes('first-come') || desc.includes('first come')
-    const isDouble = desc.includes('double site') || ((resource['linkedResources'] as unknown[])?.length ?? 0) > 0
+    const attrs = (resource['attributes'] as Array<Record<string, unknown>>) ?? []
+    // attributeDefinitionId -32764 = Walk-in, -32722 = Double Site (BC Parks attribute IDs)
+    const hasAttr = (id: number) => attrs.some(a => a['attributeDefinitionId'] === id)
+    const isWalkin = sectionIsWalkin || desc.includes('first-come') || desc.includes('first come') || hasAttr(-32764)
+    const isDouble = desc.includes('double site') || hasAttr(-32722) || ((resource['linkedResources'] as unknown[])?.length ?? 0) > 0
     return [isWalkin, isDouble]
   }
 

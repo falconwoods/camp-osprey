@@ -138,10 +138,12 @@ class BCParksAPI:
 
     @staticmethod
     def _site_flags(resource: dict, section_is_walkin: bool) -> tuple[bool, bool]:
-        """Return (is_walkin, is_double) using section membership and resource description."""
+        """Return (is_walkin, is_double) using section membership, description, and attributes."""
         desc = ((resource.get("localizedValues") or [{}])[0].get("description") or "").lower()
-        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc
-        is_double = "double site" in desc or len(resource.get("linkedResources", [])) > 0
+        attrs = {a.get("attributeDefinitionId") for a in (resource.get("attributes") or [])}
+        # attributeDefinitionId -32764 = Walk-in, -32722 = Double Site
+        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc or -32764 in attrs
+        is_double = "double site" in desc or -32722 in attrs or len(resource.get("linkedResources", [])) > 0
         return is_walkin, is_double
 
     @staticmethod
@@ -350,7 +352,29 @@ class BCParksAPI:
                 detail = resp2.text
             raise RuntimeError(f"Confirmation commit failed ({resp2.status_code}): {detail}")
 
-        return "https://camping.bcparks.ca/create-booking/reservationmessages"
+        # Transfer our API session cookies to a Playwright browser so the user
+        # sees their held cart and can complete payment without logging in again.
+        checkout_url = "https://camping.bcparks.ca/create-booking/reservationmessages"
+        cookies = [
+            {"name": name, "value": value, "domain": "camping.bcparks.ca", "path": "/"}
+            for name, value in self._client.cookies.items()
+        ]
+        await self._open_checkout_browser(checkout_url, cookies)
+        return checkout_url
+
+    async def _open_checkout_browser(self, url: str, cookies: list[dict]) -> None:
+        """Open a visible browser with the API session cookies so the user can pay."""
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=False)
+            context = await browser.new_context()
+            await context.add_cookies(cookies)
+            page = await context.new_page()
+            await page.goto(url)
+            print("  Browser opened — complete payment and close the window.", flush=True)
+            # Wait until the user closes the browser
+            await page.wait_for_event("close", timeout=0)
+            await browser.close()
 
     async def close(self) -> None:
         await self._client.aclose()
