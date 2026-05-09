@@ -117,6 +117,9 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
         parkName: site.campgroundName || site.campgroundId,
         tripId: trip.id,
         mode: trip.mode,
+        // Pass filter settings so content script can enforce them from the BC Parks UI
+        noDouble: trip.filters.noDouble,
+        noWalkin: trip.filters.noWalkin,
         setAt: Date.now(),
       },
     }, resolve)

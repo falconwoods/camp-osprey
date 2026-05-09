@@ -27,6 +27,8 @@ interface TargetSite {
   parkName: string
   tripId: string
   mode: 'hold' | 'autopay'
+  noDouble: boolean
+  noWalkin: boolean
   setAt: number
 }
 
@@ -163,8 +165,8 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   }
 
   // Step 4: expand panels and click Reserve
-  setStatus(`${panelCount} sites found — clicking Reserve on first available…`)
-  const reserved = await expandAndReserve(target.siteName)
+  setStatus(`${panelCount} sites found — clicking Reserve…`)
+  const reserved = await expandAndReserve(target.siteName, target.noDouble, target.noWalkin)
   dbg('expandAndReserve', reserved)
 
   if (reserved) {
@@ -279,7 +281,7 @@ async function switchToListView(): Promise<boolean> {
 }
 
 // Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
-async function expandAndReserve(targetSiteName: string): Promise<boolean> {
+async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWalkin: boolean): Promise<boolean> {
   // Load all panels first (click "View more" if present)
   await loadAllPanels()
 
@@ -291,8 +293,8 @@ async function expandAndReserve(targetSiteName: string): Promise<boolean> {
   }
   dbg('total panels', panels.length)
 
-  // Pass 0: find panel matching target site name (avoids double sites from the API's filtered list)
-  // Pass 1: any panel, but skip double sites via dialog detection
+  // Pass 0: find panel matching target site name
+  // Pass 1: any panel that passes filters
   for (const pass of [0, 1]) {
     dbg(`expandAndReserve pass ${pass}`)
     for (let i = 0; i < panels.length; i++) {
@@ -303,14 +305,31 @@ async function expandAndReserve(targetSiteName: string): Promise<boolean> {
       const alreadyOpen = panel.classList.contains('mat-expanded')
       if (!alreadyOpen) { header.click(); await sleep(600) }
 
+      const panelText = panel.textContent ?? ''
+
       if (pass === 0) {
         const siteRegex = new RegExp(`(Campsite|Site|#|^|\\s)\\s*${targetSiteName}(\\s|$)`, 'i')
-        const matches = siteRegex.test(panel.textContent ?? '')
-        dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: (panel.textContent??'').trim().substring(0,50) })
+        const matches = siteRegex.test(panelText)
+        dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: panelText.trim().substring(0, 50) })
         if (!matches) {
           if (!alreadyOpen) { header.click(); await sleep(200) }
           continue
         }
+      }
+
+      // Enforce filters from the BC Parks UI — site details show "Double Site: Yes" / "Walk In: Yes"
+      const isDoubleInUI = /double\s*site\s*:?\s*yes/i.test(panelText)
+      const isWalkinInUI = /walk\s*in\s*:?\s*yes/i.test(panelText)
+      dbg(`panel ${i} UI flags`, { isDoubleInUI, isWalkinInUI, noDouble, noWalkin })
+      if (noDouble && isDoubleInUI) {
+        dbg(`panel ${i} skipped — double site (UI)`)
+        if (!alreadyOpen) { header.click(); await sleep(200) }
+        continue
+      }
+      if (noWalkin && isWalkinInUI) {
+        dbg(`panel ${i} skipped — walk-in site (UI)`)
+        if (!alreadyOpen) { header.click(); await sleep(200) }
+        continue
       }
 
       const reserveBtn = panel.querySelector('button.reserve-button') as HTMLButtonElement | null
@@ -319,11 +338,11 @@ async function expandAndReserve(targetSiteName: string): Promise<boolean> {
       if (reserveBtn && !reserveBtn.disabled) {
         reserveBtn.click()
         dbg(`clicked reserve on panel ${i}`)
-        await sleep(1000)  // wait for possible double-site dialog
+        await sleep(1000)
 
-        // If BC Parks shows "double site" dialog, cancel and skip to next panel
+        // Final safety net: if BC Parks shows "double site" dialog, cancel and skip
         if (await cancelIfDoubleDialog()) {
-          dbg(`panel ${i} is a double site — skipping`)
+          dbg(`panel ${i} double-site dialog — skipping`)
           if (!alreadyOpen) { header.click(); await sleep(300) }
           continue
         }
