@@ -50,14 +50,9 @@ chrome.storage.local.get('campSnaperTarget', (result: Record<string, unknown>) =
     dbg('detected: results page')
     handleResultsPage(target)
   } else if (url.includes('reservation-details') || url.includes('reservationdetails')) {
-    // "Review Reservation Details" page — check acknowledge box and confirm (autopay only)
+    // "Review Reservation Details" — MUST check box + confirm to lock site in cart (15-min hold)
     dbg('detected: reservation review page')
-    if (target.mode === 'autopay') handleReservationReview(target.tripId)
-    else {
-      injectBanner(`<span style="font-size:18px">🏕</span>
-        <span><strong style="color:#22c55e">CampSniper</strong> reserved a site —
-        check the box and click <strong>Confirm reservation details</strong>, then complete payment.</span>`)
-    }
+    handleReservationReview(target.tripId, target.mode)
   } else if (url.includes('reservationmessages') || url.includes('payment') || url.includes('checkout')) {
     dbg('detected: checkout page')
     if (target.mode === 'autopay') runCheckout(target.tripId)
@@ -430,35 +425,53 @@ async function cancelIfDoubleDialog(): Promise<boolean> {
 
 // ── Reservation review page (after clicking Reserve, before payment) ────────
 
-async function handleReservationReview(tripId: string): Promise<void> {
+// "Review Reservation Details" page.
+// Checking the box and clicking Confirm is REQUIRED to lock the site into the cart.
+// For hold mode: stops after confirm (15-min hold active, user pays manually).
+// For autopay: continues through surcharges → payment.
+async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay'): Promise<void> {
   injectBanner(`<span style="font-size:18px">🏕</span>
-    <span><strong style="color:#22c55e">CampSniper</strong> — confirming reservation details…</span>
+    <span><strong style="color:#22c55e">CampSniper</strong> — confirming reservation to lock site in cart…</span>
     <span id="campsniper-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
   const setStatus = (msg: string) => {
     const el = document.getElementById('campsniper-status')
     if (el) el.textContent = msg
   }
   try {
-    // Check the "All reservation details are correct" checkbox
-    await sleep(1000)
+    await sleep(1500)  // let page settle
+
+    // Check "All reservation details are correct" checkbox
     const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+    dbg('checkbox found', !!checkbox)
     if (checkbox && !checkbox.checked) {
       checkbox.click()
       dbg('checked acknowledge checkbox')
-      await sleep(500)
+      await sleep(600)
     }
+
     // Click "Confirm reservation details"
     const confirmBtn = Array.from(document.querySelectorAll('button'))
       .find(b => (b.textContent ?? '').toLowerCase().includes('confirm reservation'))
-    if (confirmBtn) {
-      ;(confirmBtn as HTMLElement).click()
-      dbg('clicked Confirm reservation details')
-      setStatus('Proceeding to surcharges…')
+    dbg('confirm button found', !!confirmBtn)
+
+    if (!confirmBtn) {
+      setStatus('Could not find Confirm button — click it manually to hold the site.')
+      return
+    }
+
+    ;(confirmBtn as HTMLElement).click()
+    dbg('clicked Confirm reservation details')
+
+    if (mode === 'hold') {
+      setStatus('Site held for 15 min — complete payment now!')
+      // For hold mode we stop here — site is in cart with 15-min timer
     } else {
-      setStatus('Could not find Confirm button — click it manually.')
+      setStatus('Proceeding to payment…')
+      // autopay continues automatically via runCheckout on the next page
     }
   } catch (e) {
     dbg('handleReservationReview error', String(e))
+    setStatus('Error — confirm the reservation manually.')
   }
 }
 
