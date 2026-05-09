@@ -296,8 +296,14 @@ async function applyBCParksFilters(noWalkin: boolean, noDouble: boolean): Promis
   const opts = document.querySelectorAll('[class*="filter-option"]')
   dbg('filter options in dialog', opts.length)
   // Walk-in "No" = index 2, Double Site "No" = index 5
-  if (noWalkin && opts[2]) { ;(opts[2] as HTMLElement).click(); dbg('Walk-in set to No') }
-  if (noDouble && opts[5]) { ;(opts[5] as HTMLElement).click(); dbg('Double Site set to No') }
+  // Must click the inner <label> — mat-radio-button.click() doesn't trigger Angular change detection
+  // Confirmed by Playwright: label.click() sets input.checked = true correctly
+  const clickRadio = (opt: Element) => {
+    const label = opt.querySelector('label') as HTMLElement | null
+    ;(label ?? opt as HTMLElement).click()
+  }
+  if (noWalkin && opts[2]) { clickRadio(opts[2]); dbg('Walk-in set to No') }
+  if (noDouble && opts[5]) { clickRadio(opts[5]); dbg('Double Site set to No') }
   await sleep(300)
 
   const showBtn = Array.from(document.querySelectorAll('button'))
