@@ -2,7 +2,8 @@ import { getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebu
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
-import { getTripWarnings, renderWarnings } from '../warnings'
+import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
+import { isLoggedIn } from '../background/login'
 import type { Trip, DateRange, Park, Theme } from '../types'
 
 // Apply saved theme before anything renders
@@ -57,6 +58,11 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 async function renderTripList() {
   const { trips } = await getStorage()
+  const loggedIn = await isLoggedIn()
+  const globalAlertsEl = document.getElementById('global-alerts')
+  if (globalAlertsEl) {
+    globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn))
+  }
   const list = document.getElementById('trip-list')!
   if (trips.length === 0) {
     list.innerHTML = '<p style="color:#64748b;font-size:12px;padding:8px 0">No trips yet.</p>'
