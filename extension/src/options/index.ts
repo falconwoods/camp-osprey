@@ -322,14 +322,62 @@ document.getElementById('add-date-btn')!.addEventListener('click', () => {
   renderDatesList()
 })
 
+// ── Field validation helpers ───────────────────────────────────────────────
+
+function fieldError(errorId: string, sectionId: string, message: string): void {
+  const el = document.getElementById(errorId)!
+  el.textContent = '⚠ ' + message
+  el.classList.add('show')
+  document.getElementById(sectionId)?.classList.add('section-invalid')
+}
+
+function clearFieldErrors(): void {
+  document.querySelectorAll('.field-error').forEach(el => {
+    el.textContent = ''
+    el.classList.remove('show')
+  })
+  document.querySelectorAll('.section-invalid').forEach(el => el.classList.remove('section-invalid'))
+  document.querySelectorAll('.input.invalid').forEach(el => el.classList.remove('invalid'))
+}
+
+// Clear individual field error when user starts fixing it
+document.getElementById('trip-name')!.addEventListener('input', () => {
+  document.getElementById('error-name')!.classList.remove('show')
+  document.getElementById('section-name')?.classList.remove('section-invalid')
+  ;(document.getElementById('trip-name') as HTMLInputElement).classList.remove('invalid')
+})
+
 // ── Save / Delete trip ─────────────────────────────────────────────────────
 
 document.getElementById('save-trip-btn')!.addEventListener('click', async () => {
+  clearFieldErrors()
+
   const name = (document.getElementById('trip-name') as HTMLInputElement).value.trim()
-  if (!name) { alert('Trip name is required.'); return }
   const mode = (document.getElementById('trip-mode') as HTMLSelectElement).value as Trip['mode']
   const noWalkin = (document.getElementById('filter-walkin') as HTMLInputElement).checked
   const noDouble = (document.getElementById('filter-double') as HTMLInputElement).checked
+
+  let hasErrors = false
+
+  if (!name) {
+    fieldError('error-name', 'section-name', 'Trip name is required.')
+    ;(document.getElementById('trip-name') as HTMLInputElement).classList.add('invalid')
+    ;(document.getElementById('trip-name') as HTMLInputElement).focus()
+    hasErrors = true
+  }
+
+  if (tripParks.length === 0) {
+    fieldError('error-parks', 'section-parks', 'Add at least one park to scan.')
+    hasErrors = true
+  }
+
+  if (tripDates.length === 0) {
+    fieldError('error-dates', 'section-dates', 'Add at least one date range — configure dates above and click "+ Add This Range".')
+    hasErrors = true
+  }
+
+  if (hasErrors) return
+
   const { trips } = await getStorage()
   if (editingTripId) {
     const idx = trips.findIndex(t => t.id === editingTripId)

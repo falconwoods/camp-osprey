@@ -141,6 +141,12 @@
     .alert-warn  { background: var(--amber-subtle); border: 1px solid var(--amber-border); border-radius: 5px; padding: 6px 9px; font-size: 11px; color: var(--amber); margin-top: 6px; line-height: 1.5; }
     .alert-error a, .alert-warn a { color: inherit; }
 
+    /* ── Field validation ────────────────────────────────────── */
+    .field-error { color: var(--red); font-size: 11px; margin-top: 5px; display: none; }
+    .field-error.show { display: block; }
+    .input.invalid { border-color: var(--red); }
+    .section-invalid > .section-label { color: var(--red); }
+
     /* ── Misc ────────────────────────────────────────────────── */
     .back-link { color: var(--text-muted); cursor: pointer; font-size: 11px; margin-bottom: 16px; display: inline-block; }
     .hidden { display: none; }
@@ -222,19 +228,22 @@
       <span style="font-size:11px;color:var(--text-muted)">Current status:</span>
       <span id="editor-status-badge"></span>
     </div>
-    <div class="section">
+    <div class="section" id="section-name">
       <div class="section-label">Trip Name</div>
       <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
+      <div class="field-error" id="error-name"></div>
     </div>
-    <div class="section">
+    <div class="section" id="section-parks">
       <div class="section-label">Parks (drag to reorder priority)</div>
       <div id="parks-list"></div>
       <input class="input" id="park-search" placeholder="🔍 Search parks..." style="margin-top:6px">
       <div class="search-results" id="park-results"></div>
+      <div class="field-error" id="error-parks"></div>
     </div>
-    <div class="section">
+    <div class="section" id="section-dates">
       <div class="section-label">Date Ranges</div>
       <div id="dates-list"></div>
+      <div class="field-error" id="error-dates"></div>
       <div class="date-form">
         <div class="date-mode-toggle">
           <button class="date-mode-btn active" data-mode="specific">Specific dates</button>
@@ -250,8 +259,8 @@
           <div class="row" style="align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
             <span style="color:var(--text-subtle)">Any</span>
             <select class="select" id="rec-start-day">
-              <option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
-              <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3">Thursday</option>
+              <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
+              <option value="3">Thursday</option><option value="4" selected>Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
             </select>
             <span style="color:var(--text-subtle)">to</span>
             <select class="select" id="rec-end-day"></select>
