@@ -152,23 +152,29 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     await pollForToggles(8_000)
   }
 
-  // Step 4: switch to List view
+  // Step 4: switch to List view, then immediately poll for category buttons
+  // Category buttons (button.map-link-button) appear as soon as List loads —
+  // much faster than waiting for panels which only appear after clicking a category.
   setStatus('Switching to list view…')
   const switched = await switchToListView()
   dbg('switchToListView', switched)
-  await sleep(500)
-  panelCount = await pollForPanels(6_000)
-  dbg('panels after list switch', panelCount)
 
-  // Step 4: if no site panels yet, we're at the category level
-  // (BC Parks shows Campground / Walk-in category rows before individual sites)
-  // Click the non-walk-in category to drill into individual sites
-  if (panelCount === 0) {
+  // Poll for either category buttons OR panels (whichever appears first)
+  const listReady = await pollUntil(6_000, () =>
+    document.querySelectorAll('button.map-link-button, mat-expansion-panel.list-entry').length > 0
+  )
+  dbg('list ready', listReady)
+
+  panelCount = document.querySelectorAll('mat-expansion-panel.list-entry').length
+  const catBtnCount = document.querySelectorAll('button.map-link-button').length
+  dbg('list state', { panelCount, catBtnCount })
+
+  // If we're at category level (Campground / Walk-in rows), click Campground immediately
+  if (panelCount === 0 && catBtnCount > 0) {
     setStatus('Selecting Campground category…')
     const catClicked = await clickCampgroundCategory()
     dbg('campground category clicked', catClicked)
-    await sleep(1000)
-    panelCount = await pollForPanels(8_000)
+    panelCount = await pollForPanels(6_000)
     dbg('panels after category click', panelCount)
   }
 
@@ -358,7 +364,12 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
       if (!header) continue
 
       const alreadyOpen = panel.classList.contains('mat-expanded')
-      if (!alreadyOpen) { header.click(); await sleep(600); panelsChecked++ }
+      if (!alreadyOpen) {
+        header.click()
+        // Poll for panel content instead of fixed sleep (Angular animation ~300ms)
+        await pollUntil(800, () => panel.classList.contains('mat-expanded'))
+        panelsChecked++
+      }
 
       const panelText = panel.textContent ?? ''
 
@@ -367,7 +378,7 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
         const matches = siteRegex.test(panelText)
         dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: panelText.trim().substring(0, 50) })
         if (!matches) {
-          if (!alreadyOpen) { header.click(); await sleep(200) }
+          if (!alreadyOpen) header.click()
           continue
         }
       }
@@ -432,9 +443,13 @@ async function loadAllPanels(): Promise<void> {
     const viewMore = Array.from(document.querySelectorAll('button'))
       .find(b => (b.textContent ?? '').trim().toLowerCase().includes('view more'))
     if (!viewMore) break
+    const prevCount = document.querySelectorAll('mat-expansion-panel.list-entry').length
     dbg('clicking View more')
     ;(viewMore as HTMLElement).click()
-    await sleep(1500)
+    // Wait until panel count increases (new panels loaded) or 2s max
+    await pollUntil(2000, () =>
+      document.querySelectorAll('mat-expansion-panel.list-entry').length > prevCount
+    )
   }
 }
 
