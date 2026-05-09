@@ -190,6 +190,9 @@ class BCParksAPI:
                 continue
             if no_double and is_double:
                 continue
+            # Sites not in any map section are likely walk-in or restricted — exclude when noWalkin
+            if no_walkin and not section_name:
+                continue
             res_vals = (resource.get("localizedValues") or [{}])[0]
             site_name = res_vals.get("name", resource_id)
             candidates.append((resource_id, section_name, is_walkin, is_double, site_name, map_id))

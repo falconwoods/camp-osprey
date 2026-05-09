@@ -113,6 +113,8 @@ export class BCParksProvider {
         const [isWalkin, isDouble] = this.siteFlags(resource, sectionIsWalkin)
         if (filters.noWalkin && isWalkin) return null
         if (filters.noDouble && isDouble) return null
+        // Sites with no section (not in any map) are suspicious — likely walk-in or restricted access
+        if (filters.noWalkin && !sectionName) return null
         const vals = (resource['localizedValues'] as Array<Record<string, string>>)?.[0] ?? {}
         return { resourceId, sectionName, isWalkin, isDouble, siteName: vals['name'] ?? resourceId, mapId }
       })
