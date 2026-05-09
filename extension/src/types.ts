@@ -57,9 +57,12 @@ export interface PaymentConfig {
   partySize: number
 }
 
+export type Theme = 'auto' | 'light' | 'dark'
+
 export interface Settings {
   pollIntervalSeconds: 30 | 60 | 120
   debugMode: boolean
+  theme: Theme
 }
 
 export interface StorageData {

@@ -3,7 +3,7 @@ import type { StorageData, Trip, PaymentConfig, Settings } from './types'
 const DEFAULTS: StorageData = {
   trips: [],
   payment: null,
-  settings: { pollIntervalSeconds: 60, debugMode: false },
+  settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto' },
   debugLog: [],
 }
 

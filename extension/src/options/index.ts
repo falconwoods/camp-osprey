@@ -1,7 +1,11 @@
 import { getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
-import type { Trip, DateRange, Park } from '../types'
+import { applyTheme } from '../theme'
+import type { Trip, DateRange, Park, Theme } from '../types'
+
+// Apply saved theme before anything renders
+getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
 
 const provider = new BCParksProvider()
 let editingTripId: string | null = null
@@ -360,12 +364,30 @@ document.getElementById('save-payment-btn')!.addEventListener('click', async () 
 
 // ── Settings ───────────────────────────────────────────────────────────────
 
+let selectedTheme: Theme = 'auto'
+
+function updateThemeBtns(theme: Theme) {
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset['themeChoice'] === theme)
+  })
+}
+
+document.querySelectorAll('.theme-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedTheme = (btn as HTMLElement).dataset['themeChoice'] as Theme
+    applyTheme(selectedTheme)
+    updateThemeBtns(selectedTheme)
+  })
+})
+
 async function loadSettingsForm() {
   const { settings } = await getStorage()
   ;(document.getElementById('poll-interval') as HTMLSelectElement).value = String(settings.pollIntervalSeconds)
   const debugEl = document.getElementById('debug-mode') as HTMLInputElement
   debugEl.checked = settings.debugMode ?? false
   document.getElementById('debug-section')!.classList.toggle('hidden', !debugEl.checked)
+  selectedTheme = settings.theme ?? 'auto'
+  updateThemeBtns(selectedTheme)
 }
 
 document.getElementById('debug-mode')!.addEventListener('change', () => {
@@ -393,7 +415,7 @@ document.getElementById('test-notif-btn')!.addEventListener('click', () => {
 document.getElementById('save-settings-btn')!.addEventListener('click', async () => {
   const val = parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as 30 | 60 | 120
   const debugMode = (document.getElementById('debug-mode') as HTMLInputElement).checked
-  await saveSettings({ pollIntervalSeconds: val, debugMode })
+  await saveSettings({ pollIntervalSeconds: val, debugMode, theme: selectedTheme })
   alert('Settings saved.')
 })
 

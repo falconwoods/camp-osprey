@@ -1,6 +1,10 @@
 import { getStorage, updateTrip } from '../storage'
 import { isLoggedIn } from '../background/login'
+import { applyTheme } from '../theme'
 import type { Trip, MatchedSite } from '../types'
+
+// Apply saved theme immediately before render
+getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
 
 document.getElementById('settings-link')!.addEventListener('click', e => {
   e.preventDefault()

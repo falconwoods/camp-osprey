@@ -1,34 +1,106 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="auto">
 <head>
   <meta charset="UTF-8">
   <style>
+    /* ── Theme variables ─────────────────────────────────────── */
+    :root, [data-theme="dark"] {
+      --bg:           #0f172a;
+      --bg-card:      #1e293b;
+      --bg-input:     #0f172a;
+      --bg-blue:      #1e3a5f;
+      --border:       #334155;
+      --text:         #e2e8f0;
+      --text-muted:   #64748b;
+      --text-subtle:  #94a3b8;
+      --text-dim:     #475569;
+      --green:        #22c55e;
+      --green-subtle: rgba(34,197,94,0.13);
+      --green-border: rgba(34,197,94,0.27);
+      --blue:         #3b82f6;
+      --amber:        #f59e0b;
+      --amber-subtle: rgba(245,158,11,0.07);
+      --amber-border: rgba(245,158,11,0.2);
+      --red:          #ef4444;
+    }
+    [data-theme="light"] {
+      --bg:           #f8fafc;
+      --bg-card:      #ffffff;
+      --bg-input:     #f1f5f9;
+      --bg-blue:      #eff6ff;
+      --border:       #e2e8f0;
+      --text:         #0f172a;
+      --text-muted:   #64748b;
+      --text-subtle:  #475569;
+      --text-dim:     #334155;
+      --green:        #16a34a;
+      --green-subtle: rgba(22,163,74,0.1);
+      --green-border: rgba(22,163,74,0.25);
+      --blue:         #2563eb;
+      --amber:        #b45309;
+      --amber-subtle: rgba(180,83,9,0.08);
+      --amber-border: rgba(180,83,9,0.2);
+      --red:          #dc2626;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]):not([data-theme="light"]) {
+        --bg:           #f8fafc;
+        --bg-card:      #ffffff;
+        --bg-input:     #f1f5f9;
+        --bg-blue:      #eff6ff;
+        --border:       #e2e8f0;
+        --text:         #0f172a;
+        --text-muted:   #64748b;
+        --text-subtle:  #475569;
+        --text-dim:     #334155;
+        --green:        #16a34a;
+        --green-subtle: rgba(22,163,74,0.1);
+        --green-border: rgba(22,163,74,0.25);
+        --blue:         #2563eb;
+        --amber:        #b45309;
+        --amber-subtle: rgba(180,83,9,0.08);
+        --amber-border: rgba(180,83,9,0.2);
+        --red:          #dc2626;
+      }
+    }
+
+    /* ── Layout ──────────────────────────────────────────────── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { width: 320px; min-height: 200px; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; font-size: 12px; padding: 14px; }
+    body { width: 320px; min-height: 200px; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 12px; padding: 14px; }
     .header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
     .header-title { font-weight: 700; font-size: 14px; flex: 1; }
-    .header-settings { color: #64748b; cursor: pointer; text-decoration: none; font-size: 11px; }
-    .trip-card { background: #1e293b; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid #334155; }
-    .trip-card.scanning { border-left-color: #22c55e; }
-    .trip-card.paused { border-left-color: #f59e0b; opacity: 0.85; }
-    .trip-card.completed { border-left-color: #64748b; opacity: 0.6; }
+    .header-settings { color: var(--text-muted); cursor: pointer; text-decoration: none; font-size: 11px; }
+
+    /* ── Trip cards ──────────────────────────────────────────── */
+    .trip-card { background: var(--bg-card); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid var(--border); }
+    .trip-card.scanning  { border-left-color: var(--green); }
+    .trip-card.paused    { border-left-color: var(--amber); opacity: 0.9; }
+    .trip-card.completed { border-left-color: var(--border); opacity: 0.7; }
     .trip-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .trip-name { font-weight: 600; font-size: 12px; }
+    .trip-summary { color: var(--text-muted); font-size: 10px; line-height: 1.6; }
+
+    /* ── Badges ──────────────────────────────────────────────── */
     .badge { padding: 2px 7px; border-radius: 10px; font-size: 10px; }
-    .badge-scanning { background: #22c55e22; color: #22c55e; }
-    .badge-paused { background: #f59e0b22; color: #f59e0b; }
-    .badge-idle { background: #1e3a5f; color: #64748b; }
-    .badge-completed { background: #33415522; color: #64748b; }
-    .trip-summary { color: #64748b; font-size: 10px; line-height: 1.6; }
-    .match-banner { background: #22c55e15; border: 1px solid #22c55e44; border-radius: 5px; padding: 6px 8px; margin-top: 6px; font-size: 10px; color: #22c55e; }
+    .badge-scanning  { background: var(--green-subtle); color: var(--green); }
+    .badge-paused    { background: var(--amber-subtle); color: var(--amber); }
+    .badge-idle      { background: var(--bg-blue); color: var(--text-muted); }
+    .badge-completed { color: var(--text-subtle); }
+
+    /* ── Buttons ─────────────────────────────────────────────── */
     .btn { border: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; margin-top: 6px; }
-    .btn-stop { background: #1e3a5f; color: #64748b; }
-    .btn-start { background: #1e3a5f; color: #22c55e; }
-    .btn-reserve { background: #22c55e; color: white; font-weight: 600; }
-    .btn-resume { background: #1e3a5f; color: #3b82f6; }
-    .add-trip { width: 100%; background: #1e3a5f; border: 1px dashed #3b82f6; color: #3b82f6; padding: 7px; border-radius: 6px; font-size: 11px; cursor: pointer; margin-top: 4px; }
-    .login-warn { background: #f59e0b11; border: 1px solid #f59e0b33; border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 10px; color: #f59e0b; }
-    .empty { text-align: center; color: #64748b; padding: 20px 0; font-size: 11px; }
+    .btn-stop    { background: var(--bg-blue); color: var(--text-muted); }
+    .btn-start   { background: var(--bg-blue); color: var(--green); }
+    .btn-reserve { background: var(--green); color: #fff; font-weight: 600; }
+    .add-trip { width: 100%; background: var(--bg-blue); border: 1px dashed var(--blue); color: var(--blue); padding: 7px; border-radius: 6px; font-size: 11px; cursor: pointer; margin-top: 4px; }
+
+    /* ── Match banner ────────────────────────────────────────── */
+    .match-found    { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 6px 8px; margin-top: 6px; font-size: 10px; color: var(--green); }
+    .match-booked   { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 6px 8px; margin-top: 6px; font-size: 10px; color: var(--green); }
+
+    /* ── Warnings / misc ─────────────────────────────────────── */
+    .login-warn { background: var(--amber-subtle); border: 1px solid var(--amber-border); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 10px; color: var(--amber); }
+    .empty { text-align: center; color: var(--text-muted); padding: 20px 0; font-size: 11px; }
     a { color: inherit; text-decoration: none; }
   </style>
 </head>
@@ -40,7 +112,7 @@
   </div>
   <div class="login-warn" id="login-warn" style="display:none">
     ⚠ Log in to BC Parks to enable Hold / Auto-pay
-    <a href="https://camping.bcparks.ca" target="_blank" style="color:#3b82f6;margin-left:6px">Open BC Parks →</a>
+    <a href="https://camping.bcparks.ca" target="_blank" style="color:var(--blue);margin-left:6px">Open BC Parks →</a>
   </div>
   <div id="trips-container"></div>
   <button class="add-trip" id="add-trip-btn">+ New Trip</button>
