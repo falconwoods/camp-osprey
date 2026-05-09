@@ -512,18 +512,18 @@ document.getElementById('debug-mode')!.addEventListener('change', () => {
 })
 
 document.getElementById('test-notif-btn')!.addEventListener('click', () => {
-  const id = `campsniper-test-${Date.now()}`
+  const id = `camposprey-test-${Date.now()}`
   chrome.notifications.create(id, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon48.png'),
-    title: 'CampSniper — Notifications working ✓',
+    title: 'CampOsprey — Notifications working ✓',
     message: 'If you see this, notifications are set up correctly.',
     requireInteraction: false,
   }, createdId => {
     if (chrome.runtime.lastError) {
       alert(`Notification failed: ${chrome.runtime.lastError.message}\n\nCheck that Chrome has notification permission in macOS System Settings → Notifications → Google Chrome.`)
     } else {
-      console.log('[CampSniper] Test notification sent:', createdId)
+      console.log('[CampOsprey] Test notification sent:', createdId)
     }
   })
 })

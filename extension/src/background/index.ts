@@ -53,7 +53,7 @@ async function runScanCycle(): Promise<void> {
     if (needsLogin) {
       if (debug) await addDebugLog(`"${trip.name}" — not logged in, skipping hold/autopay`)
       await notify(
-        'CampSniper — Login Required',
+        'CampOsprey — Login Required',
         `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
       )
       continue
@@ -128,7 +128,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
   // Use chrome.storage.local (not session) — content scripts can only access local storage
   await new Promise<void>(resolve =>
     chrome.storage.local.set({
-      campSnaperTarget: {
+      campOspreyTarget: {
         resourceId: site.resourceId,
         siteName: site.siteName,
         sectionName: site.sectionName,
@@ -169,7 +169,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
 }
 
 async function notify(title: string, message: string, url?: string, persist = false): Promise<void> {
-  const id = `campsniper-${Date.now()}`
+  const id = `camposprey-${Date.now()}`
   await new Promise<void>(resolve => {
     chrome.notifications.create(id, {
       type: 'basic',
@@ -179,10 +179,10 @@ async function notify(title: string, message: string, url?: string, persist = fa
       requireInteraction: persist,  // true = stays until dismissed (match found, hold)
     }, createdId => {
       if (chrome.runtime.lastError) {
-        console.error('[CampSniper] Notification failed:', chrome.runtime.lastError.message)
+        console.error('[CampOsprey] Notification failed:', chrome.runtime.lastError.message)
         addDebugLog(`Notification error: ${chrome.runtime.lastError.message}`)
       } else {
-        console.log('[CampSniper] Notification sent:', createdId)
+        console.log('[CampOsprey] Notification sent:', createdId)
       }
       resolve()
     })

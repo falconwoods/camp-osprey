@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "CampSniper",
+  "name": "CampOsprey",
   "version": "0.1.0",
   "description": "Scan BC Parks for campsite cancellations and auto-reserve when found.",
   "permissions": ["alarms", "cookies", "notifications", "storage", "tabs"],

@@ -7,7 +7,7 @@ const _dbg: string[] = []
 function dbg(msg: string, data?: unknown): void {
   const line = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg
   _dbg.push(`[${new Date().toLocaleTimeString()}] ${line}`)
-  console.log(`[CampSniper] ${line}`)
+  console.log(`[CampOsprey] ${line}`)
   // Write to hidden DOM element so DevTools console can access it:
   // copy(document.getElementById('__cs_log').textContent)
   let el = document.getElementById('__cs_log')
@@ -37,12 +37,12 @@ interface TargetSite {
 // content scripts can only access chrome.storage.local, not session
 dbg('content script loaded', { url: window.location.pathname })
 
-chrome.storage.local.get('campSnaperTarget', (result: Record<string, unknown>) => {
+chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) => {
   if (chrome.runtime.lastError) {
     dbg('storage error', chrome.runtime.lastError.message); return
   }
-  const target = result?.['campSnaperTarget'] as TargetSite | undefined
-  if (!target) { dbg('no campSnaperTarget in storage'); return }
+  const target = result?.['campOspreyTarget'] as TargetSite | undefined
+  if (!target) { dbg('no campOspreyTarget in storage'); return }
   const age = Math.round((Date.now() - target.setAt) / 1000)
   dbg('target loaded', { ...target, ageSeconds: age })
   if (age > 300) { dbg('target is stale, ignoring'); return }
@@ -67,10 +67,10 @@ chrome.storage.local.get('campSnaperTarget', (result: Record<string, unknown>) =
 // ── Banner (fixed bottom so it never covers BC Parks nav/cart) ─────────────
 
 function injectBanner(html: string): HTMLElement {
-  const existing = document.getElementById('campsniper-banner')
+  const existing = document.getElementById('camposprey-banner')
   if (existing) existing.remove()
   const banner = document.createElement('div')
-  banner.id = 'campsniper-banner'
+  banner.id = 'camposprey-banner'
   banner.innerHTML = html
   Object.assign(banner.style, {
     position: 'fixed', bottom: '0', left: '0', right: '0', zIndex: '999999',
@@ -89,15 +89,15 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   injectBanner(`
     <span style="font-size:18px">🏕</span>
     <span>
-      <strong style="color:#22c55e">CampSniper</strong> found
+      <strong style="color:#22c55e">CampOsprey</strong> found
       <strong>${target.siteName}</strong>${target.sectionName ? ` (${target.sectionName})` : ''} available —
       ${target.mode === 'autopay' ? 'auto-clicking Reserve…' : 'click <strong>Reserve</strong> to add it to your cart.'}
     </span>
-    <span id="campsniper-status" style="margin-left:auto;color:#94a3b8;font-size:11px;white-space:nowrap">Loading…</span>
+    <span id="camposprey-status" style="margin-left:auto;color:#94a3b8;font-size:11px;white-space:nowrap">Loading…</span>
   `)
 
   const setStatus = (msg: string) => {
-    const el = document.getElementById('campsniper-status')
+    const el = document.getElementById('camposprey-status')
     if (el) el.textContent = msg
   }
 
@@ -561,10 +561,10 @@ async function cancelIfDoubleDialog(): Promise<boolean> {
 // State 2: Surcharges — Continue button (page stays at same URL after confirming)
 async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay'): Promise<void> {
   injectBanner(`<span style="font-size:18px">🏕</span>
-    <span><strong style="color:#22c55e">CampSniper</strong> — locking site in cart…</span>
-    <span id="campsniper-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
+    <span><strong style="color:#22c55e">CampOsprey</strong> — locking site in cart…</span>
+    <span id="camposprey-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
   const setStatus = (msg: string) => {
-    const el = document.getElementById('campsniper-status')
+    const el = document.getElementById('camposprey-status')
     if (el) el.textContent = msg
   }
   try {
@@ -673,7 +673,7 @@ async function runCheckout(tripId: string): Promise<void> {
       const { payment } = await new Promise<Record<string, unknown>>(resolve =>
         chrome.storage.local.get('payment', resolve)
       ) as { payment: { cardNumber: string; cardHolder: string; cardExpiry: string; cardCvv: string } | null }
-      if (!payment) throw new Error('No payment info — add it in CampSniper Settings.')
+      if (!payment) throw new Error('No payment info — add it in CampOsprey Settings.')
       await fillInput('#cardNumber', payment.cardNumber)
       await fillInput('#cardHolderName', payment.cardHolder)
       await fillInput('#cardExpiry', payment.cardExpiry)
@@ -684,7 +684,7 @@ async function runCheckout(tripId: string): Promise<void> {
       )
       const confirmationNumber = confirmEl.textContent?.trim() ?? 'unknown'
       chrome.runtime.sendMessage({ type: 'BOOKING_CONFIRMED', tripId, confirmationNumber })
-      chrome.storage.local.remove('campSnaperTarget')
+      chrome.storage.local.remove('campOspreyTarget')
     }
   } catch (err) {
     chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: String(err) })
