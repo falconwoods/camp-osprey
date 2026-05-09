@@ -1,0 +1,872 @@
+[
+  {
+    "park_id": "-2147483646",
+    "short_name": "Bamberton",
+    "full_name": "Bamberton Provincial Park",
+    "root_map_id": "-2147483643"
+  },
+  {
+    "park_id": "-2147483644",
+    "short_name": "Beatton",
+    "full_name": "Beatton Provincial Park",
+    "root_map_id": "-2147483637"
+  },
+  {
+    "park_id": "-2147483643",
+    "short_name": "Beaumont",
+    "full_name": "Beaumont Provincial Park",
+    "root_map_id": "-2147483636"
+  },
+  {
+    "park_id": "-2147483640",
+    "short_name": "Birkenhead Lake",
+    "full_name": "Birkenhead Lake Provincial Park",
+    "root_map_id": "-2147483631"
+  },
+  {
+    "park_id": "-2147483634",
+    "short_name": "Cape Scott",
+    "full_name": "Cape Scott Provincial Park",
+    "root_map_id": "-2147483367"
+  },
+  {
+    "park_id": "-2147483632",
+    "short_name": "Carp Lake",
+    "full_name": "Carp Lake Provincial Park",
+    "root_map_id": "-2147483623"
+  },
+  {
+    "park_id": "-2147483628",
+    "short_name": "Charlie Lake",
+    "full_name": "Charlie Lake Provincial Park",
+    "root_map_id": "-2147483620"
+  },
+  {
+    "park_id": "-2147483624",
+    "short_name": "Crooked River",
+    "full_name": "Crooked River Provincial Park",
+    "root_map_id": "-2147483611"
+  },
+  {
+    "park_id": "-2147483617",
+    "short_name": "Elk Falls",
+    "full_name": "Elk Falls Provincial Park",
+    "root_map_id": "-2147483593"
+  },
+  {
+    "park_id": "-2147483614",
+    "short_name": "Englishman River Falls",
+    "full_name": "Englishman River Falls Provincial Park",
+    "root_map_id": "-2147483589"
+  },
+  {
+    "park_id": "-2147483613",
+    "short_name": "Fillongley",
+    "full_name": "Fillongley Provincial Park",
+    "root_map_id": "-2147483588"
+  },
+  {
+    "park_id": "-2147483610",
+    "short_name": "French Beach",
+    "full_name": "French Beach Provincial Park",
+    "root_map_id": "-2147483581"
+  },
+  {
+    "park_id": "-2147483605",
+    "short_name": "Goldstream",
+    "full_name": "Goldstream Provincial Park",
+    "root_map_id": "-2147483570"
+  },
+  {
+    "park_id": "-2147483604",
+    "short_name": "Gordon Bay",
+    "full_name": "Gordon Bay Provincial Park",
+    "root_map_id": "-2147483566"
+  },
+  {
+    "park_id": "-2147483498",
+    "short_name": "Gwillim Lake",
+    "full_name": "Gwillim Lake Provincial Park",
+    "root_map_id": "-2147483302"
+  },
+  {
+    "park_id": "-2147483599",
+    "short_name": "Inland Lake",
+    "full_name": "Inland Lake Provincial Park",
+    "root_map_id": "-2147483554"
+  },
+  {
+    "park_id": "-2147483597",
+    "short_name": "Joffre Lakes",
+    "full_name": "Joffre Lakes Provincial Park",
+    "root_map_id": "-2147483548"
+  },
+  {
+    "park_id": "-2147483596",
+    "short_name": "Juan de Fuca",
+    "full_name": "Juan de Fuca Provincial Park",
+    "root_map_id": "-2147483547"
+  },
+  {
+    "park_id": "-2147483590",
+    "short_name": "Kleanza Creek",
+    "full_name": "Kleanza Creek Provincial Park",
+    "root_map_id": "-2147483529"
+  },
+  {
+    "park_id": "-2147483583",
+    "short_name": "Liard River Hot Springs",
+    "full_name": "Liard River Hot Springs Provincial Park",
+    "root_map_id": "-2147483511"
+  },
+  {
+    "park_id": "-2147483582",
+    "short_name": "Little Qualicum Falls",
+    "full_name": "Little Qualicum Falls Provincial Park",
+    "root_map_id": "-2147483510"
+  },
+  {
+    "park_id": "-2147483579",
+    "short_name": "Main Lake",
+    "full_name": "Main Lake Provincial Park",
+    "root_map_id": "-2147483345"
+  },
+  {
+    "park_id": "-2147483576",
+    "short_name": "Meziadin Lake",
+    "full_name": "Meziadin Lake Provincial Park",
+    "root_map_id": "-2147483495"
+  },
+  {
+    "park_id": "-2147483575",
+    "short_name": "Miracle Beach",
+    "full_name": "Miracle Beach Provincial Park",
+    "root_map_id": "-2147483492"
+  },
+  {
+    "park_id": "-2147483574",
+    "short_name": "Moberly Lake",
+    "full_name": "Moberly Lake Provincial Park",
+    "root_map_id": "-2147483487"
+  },
+  {
+    "park_id": "-2147483570",
+    "short_name": "Morton Lake",
+    "full_name": "Morton Lake Provincial Park",
+    "root_map_id": "-2147483481"
+  },
+  {
+    "park_id": "-2147483567",
+    "short_name": "Mount Robson",
+    "full_name": "Mount Robson Provincial Park",
+    "root_map_id": "-2147483478"
+  },
+  {
+    "park_id": "-2147483499",
+    "short_name": "Muncho Lake",
+    "full_name": "Muncho Lake Provincial Park",
+    "root_map_id": "-2147483305"
+  },
+  {
+    "park_id": "-2147483564",
+    "short_name": "Nairn Falls",
+    "full_name": "Nairn Falls Provincial Park",
+    "root_map_id": "-2147483471"
+  },
+  {
+    "park_id": "-2147483558",
+    "short_name": "Paarens Beach",
+    "full_name": "Paarens Beach Provincial Park",
+    "root_map_id": "-2147483458"
+  },
+  {
+    "park_id": "-2147483551",
+    "short_name": "Porpoise Bay",
+    "full_name": "Porpoise Bay Provincial Park",
+    "root_map_id": "-2147483452"
+  },
+  {
+    "park_id": "-2147483550",
+    "short_name": "Porteau Cove",
+    "full_name": "Porteau Cove Provincial Park",
+    "root_map_id": "-2147483449"
+  },
+  {
+    "park_id": "-2147483548",
+    "short_name": "Prudhomme Lake",
+    "full_name": "Prudhomme Lake Provincial Park",
+    "root_map_id": "-2147483441"
+  },
+  {
+    "park_id": "-2147483547",
+    "short_name": "Purden Lake",
+    "full_name": "Purden Lake Provincial Park",
+    "root_map_id": "-2147483439"
+  },
+  {
+    "park_id": "-2147483545",
+    "short_name": "Rathtrevor Beach",
+    "full_name": "Rathtrevor Beach Provincial Park",
+    "root_map_id": "-2147483437"
+  },
+  {
+    "park_id": "-2147483541",
+    "short_name": "Ruckle",
+    "full_name": "Ruckle Provincial Park",
+    "root_map_id": "-2147483426"
+  },
+  {
+    "park_id": "-2147483540",
+    "short_name": "Saltery Bay",
+    "full_name": "Saltery Bay Provincial Park",
+    "root_map_id": "-2147483422"
+  },
+  {
+    "park_id": "-2147483539",
+    "short_name": "Sasquatch",
+    "full_name": "Sasquatch Provincial Park",
+    "root_map_id": "-2147483420"
+  },
+  {
+    "park_id": "-2147483535",
+    "short_name": "Silver Lake",
+    "full_name": "Silver Lake Provincial Park",
+    "root_map_id": "-2147483410"
+  },
+  {
+    "park_id": "-2147483534",
+    "short_name": "Skagit Valley",
+    "full_name": "Skagit Valley Provincial Park",
+    "root_map_id": "-2147483368"
+  },
+  {
+    "park_id": "-2147483533",
+    "short_name": "Smelt Bay",
+    "full_name": "Smelt Bay Provincial Park",
+    "root_map_id": "-2147483404"
+  },
+  {
+    "park_id": "-2147483532",
+    "short_name": "Sowchea Bay",
+    "full_name": "Sowchea Bay Provincial Park",
+    "root_map_id": "-2147483403"
+  },
+  {
+    "park_id": "-2147483531",
+    "short_name": "Sproat Lake",
+    "full_name": "Sproat Lake Provincial Park",
+    "root_map_id": "-2147483402"
+  },
+  {
+    "park_id": "-2147483530",
+    "short_name": "Stamp River",
+    "full_name": "Stamp River Provincial Park",
+    "root_map_id": "-2147483401"
+  },
+  {
+    "park_id": "-2147483527",
+    "short_name": "Strathcona",
+    "full_name": "Strathcona Provincial Park",
+    "root_map_id": "-2147483399"
+  },
+  {
+    "park_id": "-2147483524",
+    "short_name": "Swan Lake",
+    "full_name": "Swan Lake Provincial Park",
+    "root_map_id": "-2147483393"
+  },
+  {
+    "park_id": "-2147483520",
+    "short_name": "Taylor Arm",
+    "full_name": "Taylor Arm Provincial Park",
+    "root_map_id": "-2147483386"
+  },
+  {
+    "park_id": "-2147483515",
+    "short_name": "Tyhee Lake",
+    "full_name": "Tyhee Lake Provincial Park",
+    "root_map_id": "-2147483378"
+  },
+  {
+    "park_id": "-2147483606",
+    "short_name": "Golden Ears",
+    "full_name": "Golden Ears Provincial Park",
+    "root_map_id": "-2147483576"
+  },
+  {
+    "park_id": "-2147483625",
+    "short_name": "Cowichan River",
+    "full_name": "Cowichan River Provincial Park",
+    "root_map_id": "-2147483612"
+  },
+  {
+    "park_id": "-2147483506",
+    "short_name": "Golden Ears Backcountry",
+    "full_name": "Golden Ears Backcountry",
+    "root_map_id": "-2147483326"
+  },
+  {
+    "park_id": "-2147483563",
+    "short_name": "Saysutshun (Newcastle Island Marine)",
+    "full_name": "Saysutshun (Newcastle Island Marine) Park",
+    "root_map_id": "-2147483470"
+  },
+  {
+    "park_id": "-2147483581",
+    "short_name": "Loveland Bay",
+    "full_name": "Loveland Bay Provincial Park",
+    "root_map_id": "-2147483507"
+  },
+  {
+    "park_id": "-2147483627",
+    "short_name": "Sx\u0331\u00f3tsaqel / Chilliwack Lake",
+    "full_name": "Sx\u0331\u00f3tsaqel / Chilliwack Lake Park",
+    "root_map_id": "-2147483619"
+  },
+  {
+    "park_id": "-2147483584",
+    "short_name": "Lakelse Lake",
+    "full_name": "Lakelse Lake Provincial Park",
+    "root_map_id": "-2147483515"
+  },
+  {
+    "park_id": "-2147483566",
+    "short_name": "Mount Seymour",
+    "full_name": "Mount Seymour Provincial Park",
+    "root_map_id": "-2147483474"
+  },
+  {
+    "park_id": "-2147483622",
+    "short_name": "Desolation Sound Marine",
+    "full_name": "Desolation Sound Marine Park",
+    "root_map_id": "-2147483356"
+  },
+  {
+    "park_id": "-2147483621",
+    "short_name": "Dionisio Point",
+    "full_name": "Dionisio Point Provincial Park",
+    "root_map_id": "-2147483355"
+  },
+  {
+    "park_id": "-2147483620",
+    "short_name": "Discovery Island Marine",
+    "full_name": "Discovery Island Marine Park",
+    "root_map_id": "-2147483354"
+  },
+  {
+    "park_id": "-2147483602",
+    "short_name": "Halkett Bay Marine",
+    "full_name": "Halkett Bay Marine Park",
+    "root_map_id": "-2147483350"
+  },
+  {
+    "park_id": "-2147483637",
+    "short_name": "T\u0101 Ch'il\u0101 [a.k.a. Boya Lake]",
+    "full_name": "T\u0101 Ch'il\u0101 Park [a.k.a. Boya Lake Park]",
+    "root_map_id": "-2147483626"
+  },
+  {
+    "park_id": "-2147483598",
+    "short_name": "Jedediah Island Marine",
+    "full_name": "Jedediah Island Marine Park",
+    "root_map_id": "-2147483348"
+  },
+  {
+    "park_id": "-2147483571",
+    "short_name": "Montague Harbour Marine",
+    "full_name": "Montague Harbour Marine Park",
+    "root_map_id": "-2147483482"
+  },
+  {
+    "park_id": "-2147483553",
+    "short_name": "Pirates Cove Marine",
+    "full_name": "Pirates Cove Marine Park",
+    "root_map_id": "-2147483342"
+  },
+  {
+    "park_id": "-2147483552",
+    "short_name": "Plumper Cove Marine",
+    "full_name": "Plumper Cove Marine Park",
+    "root_map_id": "-2147483453"
+  },
+  {
+    "park_id": "-2147483514",
+    "short_name": "Wallace Island Marine",
+    "full_name": "Wallace Island Marine Park",
+    "root_map_id": "-2147483337"
+  },
+  {
+    "park_id": "-2147483509",
+    "short_name": "Whiskers Point",
+    "full_name": "Whiskers Point Provincial Park",
+    "root_map_id": "-2147483370"
+  },
+  {
+    "park_id": "-2147483526",
+    "short_name": "Strathcona Backcountry",
+    "full_name": "Strathcona Backcountry",
+    "root_map_id": "-2147483255"
+  },
+  {
+    "park_id": "-2147483510",
+    "short_name": "West Lake",
+    "full_name": "West Lake Provincial Park",
+    "root_map_id": "-2147483371"
+  },
+  {
+    "park_id": "-2147483556",
+    "short_name": "Peace Arch",
+    "full_name": "Peace Arch Provincial Park",
+    "root_map_id": "-2147483454"
+  },
+  {
+    "park_id": "-2147483543",
+    "short_name": "Rolley Lake",
+    "full_name": "Rolley Lake Provincial Park",
+    "root_map_id": "-2147483430"
+  },
+  {
+    "park_id": "-2147483609",
+    "short_name": "Garibaldi",
+    "full_name": "Garibaldi Provincial Park",
+    "root_map_id": "-2147483578"
+  },
+  {
+    "park_id": "-2147483642",
+    "short_name": "Berg Lake Trail",
+    "full_name": "Berg Lake Trail",
+    "root_map_id": "-2147483635"
+  },
+  {
+    "park_id": "-2147483647",
+    "short_name": "Alice Lake",
+    "full_name": "Alice Lake Provincial Park",
+    "root_map_id": "-2147483648"
+  },
+  {
+    "park_id": "-2147483623",
+    "short_name": "Cultus Lake",
+    "full_name": "Cultus Lake Provincial Park",
+    "root_map_id": "-2147483610"
+  },
+  {
+    "park_id": "-2147483641",
+    "short_name": "Big Bar Lake",
+    "full_name": "Big Bar Lake Provincial Park",
+    "root_map_id": "-2147483634"
+  },
+  {
+    "park_id": "-2147483638",
+    "short_name": "Bowron Lake",
+    "full_name": "Bowron Lake Provincial Park",
+    "root_map_id": "-2147483362"
+  },
+  {
+    "park_id": "-2147483603",
+    "short_name": "Green Lake",
+    "full_name": "Green Lake Provincial Park",
+    "root_map_id": "-2147483562"
+  },
+  {
+    "park_id": "-2147483600",
+    "short_name": "Horsefly Lake",
+    "full_name": "Horsefly Lake Provincial Park",
+    "root_map_id": "-2147483555"
+  },
+  {
+    "park_id": "-2147483586",
+    "short_name": "Lac La Hache",
+    "full_name": "Lac La Hache Provincial Park",
+    "root_map_id": "-2147483518"
+  },
+  {
+    "park_id": "-2147483562",
+    "short_name": "North Thompson River",
+    "full_name": "North Thompson River Provincial Park",
+    "root_map_id": "-2147483468"
+  },
+  {
+    "park_id": "-2147483519",
+    "short_name": "Ten Mile Lake",
+    "full_name": "Ten Mile Lake Provincial Park",
+    "root_map_id": "-2147483385"
+  },
+  {
+    "park_id": "-2147483492",
+    "short_name": "Wells Gray - Clearwater Lake & Falls Creek",
+    "full_name": "Wells Gray Provincial Park - Clearwater Lake & Falls Creek",
+    "root_map_id": "-2147483265"
+  },
+  {
+    "park_id": "-2147483512",
+    "short_name": "Wells Gray - Mahood Lake",
+    "full_name": "Wells Gray Provincial Park - Mahood Lake",
+    "root_map_id": "-2147483374"
+  },
+  {
+    "park_id": "-2147483511",
+    "short_name": "Wells Gray - Murtle Lake",
+    "full_name": "Wells Gray Provincial Park - Murtle Lake",
+    "root_map_id": "-2147483335"
+  },
+  {
+    "park_id": "-2147483516",
+    "short_name": "Tweedsmuir South",
+    "full_name": "Tweedsmuir Provincial Park \u2013 South",
+    "root_map_id": "-2147483381"
+  },
+  {
+    "park_id": "-2147483593",
+    "short_name": "Kentucky Alleyne",
+    "full_name": "Kentucky-Alleyne Provincial Park",
+    "root_map_id": "-2147483541"
+  },
+  {
+    "park_id": "-2147483585",
+    "short_name": "Lac Le Jeune",
+    "full_name": "Lac Le Jeune Provincial Park",
+    "root_map_id": "-2147483516"
+  },
+  {
+    "park_id": "-2147483572",
+    "short_name": "Monck",
+    "full_name": "Monck Provincial Park",
+    "root_map_id": "-2147483486"
+  },
+  {
+    "park_id": "-2147483601",
+    "short_name": "Herald",
+    "full_name": "Herald Provincial Park",
+    "root_map_id": "-2147483557"
+  },
+  {
+    "park_id": "-2147483557",
+    "short_name": "Paul Lake",
+    "full_name": "Paul Lake Provincial Park",
+    "root_map_id": "-2147483457"
+  },
+  {
+    "park_id": "-2147483536",
+    "short_name": "Shuswap Lake",
+    "full_name": "Shuswap Lake Provincial Park",
+    "root_map_id": "-2147483414"
+  },
+  {
+    "park_id": "-2147483595",
+    "short_name": "Juniper Beach",
+    "full_name": "Juniper Beach Provincial Park",
+    "root_map_id": "-2147483545"
+  },
+  {
+    "park_id": "-2147483497",
+    "short_name": "Allison Lake",
+    "full_name": "Allison Lake Provincial Park",
+    "root_map_id": "-2147483306"
+  },
+  {
+    "park_id": "-2147483645",
+    "short_name": "Bear Creek",
+    "full_name": "Bear Creek Provincial Park",
+    "root_map_id": "-2147483641"
+  },
+  {
+    "park_id": "-2147483636",
+    "short_name": "Bromley Rock",
+    "full_name": "Bromley Rock Provincial Park",
+    "root_map_id": "-2147483624"
+  },
+  {
+    "park_id": "-2147483626",
+    "short_name": "Conkle Lake",
+    "full_name": "Conkle Lake Provincial Park",
+    "root_map_id": "-2147483613"
+  },
+  {
+    "park_id": "-2147483618",
+    "short_name": "E. C. Manning",
+    "full_name": "E. C. Manning Provincial Park",
+    "root_map_id": "-2147483601"
+  },
+  {
+    "park_id": "-2147483615",
+    "short_name": "Ellison",
+    "full_name": "Ellison Provincial Park",
+    "root_map_id": "-2147483591"
+  },
+  {
+    "park_id": "-2147483612",
+    "short_name": "Fintry",
+    "full_name": "Fintry Provincial Park",
+    "root_map_id": "-2147483586"
+  },
+  {
+    "park_id": "-2147483607",
+    "short_name": "Gladstone",
+    "full_name": "Gladstone Provincial Park",
+    "root_map_id": "-2147483577"
+  },
+  {
+    "park_id": "-2147483594",
+    "short_name": "Kekuli Bay",
+    "full_name": "Kekuli Bay Provincial Park",
+    "root_map_id": "-2147483542"
+  },
+  {
+    "park_id": "-2147483592",
+    "short_name": "Kettle River",
+    "full_name": "Kettle River Recreation Area",
+    "root_map_id": "-2147483538"
+  },
+  {
+    "park_id": "-2147483580",
+    "short_name": "Mabel Lake",
+    "full_name": "Mabel Lake Provincial Park",
+    "root_map_id": "-2147483506"
+  },
+  {
+    "park_id": "-2147483561",
+    "short_name": "Okanagan Lake North",
+    "full_name": "Okanagan Lake North Provincial Park",
+    "root_map_id": "-2147483464"
+  },
+  {
+    "park_id": "-2147483560",
+    "short_name": "Okanagan Lake South",
+    "full_name": "Okanagan Lake South Provincial Park",
+    "root_map_id": "-2147483463"
+  },
+  {
+    "park_id": "-2147483559",
+    "short_name": "Otter Lake",
+    "full_name": "Otter Lake Provincial Park",
+    "root_map_id": "-2147483459"
+  },
+  {
+    "park_id": "-2147483528",
+    "short_name": "Stemwinder",
+    "full_name": "Stemwinder Provincial Park",
+    "root_map_id": "-2147483400"
+  },
+  {
+    "park_id": "-2147483523",
+    "short_name": "s\u1e81i\u1e81s (Haynes Point)",
+    "full_name": "s\u1e81i\u1e81s Provincial Park (Haynes Point)",
+    "root_map_id": "-2147483558"
+  },
+  {
+    "park_id": "-2147483522",
+    "short_name": "sx\u030c\u02b7\u0259x\u030c\u02b7nitk\u02b7 (Okanagan Falls)",
+    "full_name": "sx\u030c\u02b7\u0259x\u030c\u02b7nitk\u02b7 Provincial Park (Okanagan Falls)",
+    "root_map_id": "-2147483466"
+  },
+  {
+    "park_id": "-2147483648",
+    "short_name": "Akamina-Kishinena",
+    "full_name": "Akamina-Kishinena Provincial Park",
+    "root_map_id": "-2147483361"
+  },
+  {
+    "park_id": "-2147483493",
+    "short_name": "Beaver Creek",
+    "full_name": "Beaver Creek Provincial Park",
+    "root_map_id": "-2147483271"
+  },
+  {
+    "park_id": "-2147483639",
+    "short_name": "Blanket Creek",
+    "full_name": "Blanket Creek Provincial Park",
+    "root_map_id": "-2147483630"
+  },
+  {
+    "park_id": "-2147483629",
+    "short_name": "Champion Lakes",
+    "full_name": "Champion Lakes Provincial Park",
+    "root_map_id": "-2147483622"
+  },
+  {
+    "park_id": "-2147483619",
+    "short_name": "Dry Gulch",
+    "full_name": "Dry Gulch Provincial Park",
+    "root_map_id": "-2147483603"
+  },
+  {
+    "park_id": "-2147483616",
+    "short_name": "Elk Lakes",
+    "full_name": "Elk Lakes Provincial Park",
+    "root_map_id": "-2147483352"
+  },
+  {
+    "park_id": "-2147483503",
+    "short_name": "Jimsmith Lake",
+    "full_name": "Jimsmith Lake Provincial Park",
+    "root_map_id": "-2147483311"
+  },
+  {
+    "park_id": "-2147483591",
+    "short_name": "Kikomun Creek",
+    "full_name": "Kikomun Creek Provincial Park",
+    "root_map_id": "-2147483534"
+  },
+  {
+    "park_id": "-2147483589",
+    "short_name": "Kokanee Creek",
+    "full_name": "Kokanee Creek Provincial Park",
+    "root_map_id": "-2147483528"
+  },
+  {
+    "park_id": "-2147483588",
+    "short_name": "Kokanee Glacier",
+    "full_name": "Kokanee Glacier Provincial Park",
+    "root_map_id": "-2147483346"
+  },
+  {
+    "park_id": "-2147483587",
+    "short_name": "Kootenay Lake",
+    "full_name": "Kootenay Lake Provincial Park",
+    "root_map_id": "-2147483279"
+  },
+  {
+    "park_id": "-2147483502",
+    "short_name": "Lockhart Beach",
+    "full_name": "Lockhart Beach Provincial Park",
+    "root_map_id": "-2147483309"
+  },
+  {
+    "park_id": "-2147483578",
+    "short_name": "Martha Creek",
+    "full_name": "Martha Creek Provincial Park",
+    "root_map_id": "-2147483502"
+  },
+  {
+    "park_id": "-2147483577",
+    "short_name": "McDonald Creek",
+    "full_name": "McDonald Creek Provincial Park",
+    "root_map_id": "-2147483499"
+  },
+  {
+    "park_id": "-2147483569",
+    "short_name": "Mount Assiniboine",
+    "full_name": "Mount Assiniboine Provincial Park",
+    "root_map_id": "-2147483480"
+  },
+  {
+    "park_id": "-2147483568",
+    "short_name": "Mount Fernie",
+    "full_name": "Mount Fernie Provincial Park",
+    "root_map_id": "-2147483479"
+  },
+  {
+    "park_id": "-2147483565",
+    "short_name": "Moyie Lake",
+    "full_name": "Moyie Lake Provincial Park",
+    "root_map_id": "-2147483473"
+  },
+  {
+    "park_id": "-2147483504",
+    "short_name": "Norbury Lake",
+    "full_name": "Norbury Lake Provincial Park",
+    "root_map_id": "-2147483313"
+  },
+  {
+    "park_id": "-2147483555",
+    "short_name": "Pilot Bay",
+    "full_name": "Pilot Bay Provincial Park",
+    "root_map_id": "-2147483343"
+  },
+  {
+    "park_id": "-2147483549",
+    "short_name": "Premier Lake",
+    "full_name": "Premier Lake Provincial Park",
+    "root_map_id": "-2147483444"
+  },
+  {
+    "park_id": "-2147483542",
+    "short_name": "Rosebery",
+    "full_name": "Rosebery Provincial Park",
+    "root_map_id": "-2147483428"
+  },
+  {
+    "park_id": "-2147483525",
+    "short_name": "Summit Lake - Nakusp",
+    "full_name": "Summit Lake Provincial Park",
+    "root_map_id": "-2147483395"
+  },
+  {
+    "park_id": "-2147483521",
+    "short_name": "Syringa",
+    "full_name": "Syringa Provincial Park",
+    "root_map_id": "-2147483391"
+  },
+  {
+    "park_id": "-2147483518",
+    "short_name": "Top of the World",
+    "full_name": "Top of the World Provincial Park",
+    "root_map_id": "-2147483339"
+  },
+  {
+    "park_id": "-2147483513",
+    "short_name": "Wasa Lake",
+    "full_name": "Wasa Lake Provincial Park",
+    "root_map_id": "-2147483376"
+  },
+  {
+    "park_id": "-2147483508",
+    "short_name": "Whiteswan Lake",
+    "full_name": "Whiteswan Lake Provincial Park",
+    "root_map_id": "-2147483334"
+  },
+  {
+    "park_id": "-2147483500",
+    "short_name": "Yahk",
+    "full_name": "Yahk Provincial Park",
+    "root_map_id": "-2147483310"
+  },
+  {
+    "park_id": "-2147483544",
+    "short_name": "Red Bluff",
+    "full_name": "Red Bluff Provincial Park",
+    "root_map_id": "-2147483431"
+  },
+  {
+    "park_id": "-2147483546",
+    "short_name": "Raft Cove",
+    "full_name": "Raft Cove Provincial Park",
+    "root_map_id": "-2147483341"
+  },
+  {
+    "park_id": "-2147483573",
+    "short_name": "Monashee",
+    "full_name": "Monashee Provincial Park",
+    "root_map_id": "-2147483344"
+  },
+  {
+    "park_id": "-2147483635",
+    "short_name": "Bugaboo",
+    "full_name": "Bugaboo - Backcountry Camping",
+    "root_map_id": "-2147483360"
+  },
+  {
+    "park_id": "-2147483630",
+    "short_name": "Cathedral",
+    "full_name": "Cathedral Provincial Park",
+    "root_map_id": "-2147483276"
+  },
+  {
+    "park_id": "-2147483487",
+    "short_name": "Skihist",
+    "full_name": "Skihist Provincial Park",
+    "root_map_id": "-2147483236"
+  },
+  {
+    "park_id": "-2147483488",
+    "short_name": "Tribune Bay",
+    "full_name": "Tribune Bay Provincial Park",
+    "root_map_id": "-2147483242"
+  },
+  {
+    "park_id": "-2147483486",
+    "short_name": "Steelhead",
+    "full_name": "Steelhead Provincial Park",
+    "root_map_id": "-2147483234"
+  }
+]
