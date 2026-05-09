@@ -86,17 +86,55 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     }
   }
 
-  // Step 3: try to auto-click Reserve for the target site
-  const found = await tryClickReserve(target, 12_000)
+  // Step 3: switch to List view — map view shows SVG icons we can't click
+  setStatus('Switching to list view…')
+  await switchToListView()
+  await sleep(2500)  // wait for list to render
+
+  // Step 4: try specific site first, fall back to any available Reserve button
+  const found = await tryClickReserve(target, 8_000) || await clickAnyReserve()
 
   if (found) {
     setStatus(target.mode === 'autopay'
       ? 'Reserved — proceeding to payment…'
       : 'Reserved ✓ — complete payment in BC Parks')
   } else {
-    setStatus(`Scroll down to find Site ${target.siteName} and click Reserve.`)
+    setStatus(`Click "List" then Reserve to add a site to your cart.`)
     tryHighlightSite(target.siteName)
   }
+}
+
+// Switch BC Parks results to List view (map view is SVG, not clickable)
+async function switchToListView(): Promise<boolean> {
+  // Check all buttons/links for "List" text
+  const els = document.querySelectorAll('button, a, [role="button"], [role="tab"]')
+  for (const el of els) {
+    const text = (el.textContent ?? '').trim()
+    if (text === 'List' || text.toLowerCase() === 'list') {
+      ;(el as HTMLElement).click()
+      return true
+    }
+  }
+  // Attribute fallback
+  const byAttr = document.querySelector('[aria-label*="List" i], [title*="List" i]')
+  if (byAttr) { ;(byAttr as HTMLElement).click(); return true }
+  return false
+}
+
+// Click any non-disabled Reserve button on the page (fallback when site-specific search fails)
+async function clickAnyReserve(): Promise<boolean> {
+  // Wait a moment in case list just rendered
+  await sleep(1000)
+  const allBtns = document.querySelectorAll('button, a')
+  for (const btn of allBtns) {
+    const text = (btn.textContent ?? '').trim().toLowerCase()
+    if ((text === 'reserve' || text === 'book' || text === 'add to cart')
+        && !(btn as HTMLButtonElement).disabled) {
+      ;(btn as HTMLElement).click()
+      return true
+    }
+  }
+  return false
 }
 
 // Select a park from the Angular Material mat-select dropdown
@@ -159,17 +197,20 @@ async function clickSearchButton(): Promise<boolean> {
 async function tryClickReserve(target: TargetSite, timeoutMs: number): Promise<boolean> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    // Search by site name text content
+    // Search list rows / cards containing the site name
     const candidates = document.querySelectorAll(
-      'mat-card, [class*="site-card"], [class*="campsite"], [class*="resource-item"], [class*="result-item"]'
+      'mat-card, mat-list-item, tr, li, [class*="site-card"], [class*="campsite"], ' +
+      '[class*="resource-item"], [class*="result-item"], [class*="site-row"]'
     )
     for (const el of candidates) {
-      if ((el.textContent ?? '').includes(target.siteName)) {
+      const text = el.textContent ?? ''
+      // Match site name — use word boundary to avoid "64" matching "640" etc.
+      if (new RegExp(`(^|\\s|#)${target.siteName}(\\s|$)`, 'i').test(text)) {
         const btn = findReserveButton(el)
         if (btn) { ;(btn as HTMLElement).click(); return true }
       }
     }
-    // Also search by data attributes (Angular ng-reflect)
+    // Data attribute fallback
     const byData = document.querySelector(
       `[data-resource-id="${target.resourceId}"], [ng-reflect-resource-id="${target.resourceId}"]`
     )
@@ -183,16 +224,21 @@ async function tryClickReserve(target: TargetSite, timeoutMs: number): Promise<b
 }
 
 function findReserveButton(container: Element): Element | null {
-  // Walk up through parent elements looking for a Reserve/Add-to-cart button
+  // Search within container (and up a few levels) for a Reserve button
   let el: Element | null = container
-  for (let i = 0; i < 6 && el; i++) {
-    const btn = el.querySelector(
-      'button[class*="reserve"], button[class*="Reserve"], ' +
-      'button[class*="book"], button[class*="add-to-cart"], ' +
-      'button[mat-raised-button][color="primary"], button[mat-flat-button][color="primary"], ' +
-      'button:not([disabled])[color="primary"]'
+  for (let i = 0; i < 8 && el; i++) {
+    // Find by text "Reserve" / "Book" first (most reliable across BC Parks updates)
+    const allBtns = el.querySelectorAll('button, a')
+    for (const btn of allBtns) {
+      const t = (btn.textContent ?? '').trim().toLowerCase()
+      if ((t === 'reserve' || t === 'book') && !(btn as HTMLButtonElement).disabled) return btn
+    }
+    // CSS class / attribute fallback
+    const byClass = el.querySelector(
+      'button[class*="reserve" i], button[mat-raised-button][color="primary"], ' +
+      'button[mat-flat-button][color="primary"]'
     )
-    if (btn) return btn
+    if (byClass && !(byClass as HTMLButtonElement).disabled) return byClass
     el = el.parentElement
   }
   return null
