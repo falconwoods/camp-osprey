@@ -340,17 +340,25 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
   }
   dbg('total panels', panels.length)
 
-  // Pass 0: find panel matching target site name
-  // Pass 1: any panel that passes filters
-  for (const pass of [0, 1]) {
-    dbg(`expandAndReserve pass ${pass}`)
+  // Pre-check collapsed text: if target site not visible, skip pass 0 entirely
+  // (saves expanding each panel just to collapse — each expand takes ~800ms)
+  const siteRegex = new RegExp(`Campsite\\s*\\n?\\s*${targetSiteName}(?:\\s|$)`, 'i')
+  const targetVisible = panels.some(p => siteRegex.test(p.textContent ?? ''))
+  dbg('target site visible in collapsed panels', { target: targetSiteName, visible: targetVisible })
+
+  let panelsChecked = 0
+  const startTime = Date.now()
+
+  // Pass 0 only if target site appears in collapsed text; Pass 1 = any eligible site
+  for (const pass of (targetVisible ? [0, 1] : [1])) {
+    dbg(`expandAndReserve pass ${pass}`, { totalPanels: panels.length })
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i]
       const header = panel.querySelector('mat-expansion-panel-header[role="button"]') as HTMLElement | null
       if (!header) continue
 
       const alreadyOpen = panel.classList.contains('mat-expanded')
-      if (!alreadyOpen) { header.click(); await sleep(600) }
+      if (!alreadyOpen) { header.click(); await sleep(600); panelsChecked++ }
 
       const panelText = panel.textContent ?? ''
 
@@ -390,11 +398,13 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
       dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
 
       if (reserveBtn && !reserveBtn.disabled) {
-        dbg(`panel ${i} SELECTED`, {
-          siteName: panelText.match(/Campsite\s*(\d+)/i)?.[1] ?? '?',
+        const selectedSite = panelText.match(/Campsite\s*(\d+)/i)?.[1] ?? '?'
+        dbg(`SELECTED Campsite ${selectedSite}`, {
+          pass,
+          panelsExpanded: panelsChecked,
+          elapsedMs: Date.now() - startTime,
           isDouble: isDoubleInUI,
           isWalkin: isWalkinInUI,
-          pass,
         })
         reserveBtn.click()
         dbg(`clicked reserve on panel ${i}`)
