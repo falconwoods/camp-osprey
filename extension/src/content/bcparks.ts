@@ -143,17 +143,29 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     }
   }
 
-  // Step 3: switch to List view, then poll for list panels
+  // Step 3: switch to List view
   setStatus('Switching to list view…')
   const switched = await switchToListView()
   dbg('switchToListView', switched)
   await sleep(500)
-  panelCount = await pollForPanels(10_000)
+  panelCount = await pollForPanels(6_000)
   dbg('panels after list switch', panelCount)
 
+  // Step 4: if no site panels yet, we're at the category level
+  // (BC Parks shows Campground / Walk-in category rows before individual sites)
+  // Click the non-walk-in category to drill into individual sites
   if (panelCount === 0) {
-    setStatus('List view not loading — click "List" then "Details" → "Reserve" manually.')
-    dbg('FAILED: panels never appeared after list switch.')
+    setStatus('Selecting Campground category…')
+    const catClicked = await clickCampgroundCategory()
+    dbg('campground category clicked', catClicked)
+    await sleep(1000)
+    panelCount = await pollForPanels(8_000)
+    dbg('panels after category click', panelCount)
+  }
+
+  if (panelCount === 0) {
+    setStatus('List view not loading — click "List" → "Campground" → "Details" → "Reserve" manually.')
+    dbg('FAILED: panels never appeared. Paste __cs_debug() to developer.')
     return
   }
 
@@ -210,6 +222,31 @@ async function pollForPanels(timeoutMs: number): Promise<number> {
   }
   dbg(`pollForPanels: timed out after ${timeoutMs}ms`)
   return 0
+}
+
+// Click the Campground category row to drill into individual site panels.
+// BC Parks shows category rows (Campground, Walk-in) before individual sites in List view.
+// Each row has a button.map-link-button — click the Campground one (not Walk-in).
+async function clickCampgroundCategory(): Promise<boolean> {
+  const btns = document.querySelectorAll('button.map-link-button')
+  dbg('map-link-buttons found', btns.length)
+  for (const btn of btns) {
+    const text = (btn.textContent ?? '').trim().toLowerCase()
+    dbg('map-link-button text', text.substring(0, 40))
+    if (text.includes('campground') && !text.includes('walk')) {
+      ;(btn as HTMLElement).click()
+      return true
+    }
+  }
+  // Fallback: any non-walk-in category row
+  for (const btn of btns) {
+    const text = (btn.textContent ?? '').trim().toLowerCase()
+    if (!text.includes('walk')) {
+      ;(btn as HTMLElement).click()
+      return true
+    }
+  }
+  return false
 }
 
 // Switch to List view — confirmed selector from Playwright inspection
