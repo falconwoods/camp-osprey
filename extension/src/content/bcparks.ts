@@ -85,47 +85,51 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   // Step 1: wait for Angular to render (2s)
   await sleep(2000)
 
-  // Step 2: detect if showing search form vs results
-  const panels0 = document.querySelectorAll('mat-expansion-panel.list-entry')
-  const mapMarkers = document.querySelectorAll('mat-button-toggle')
+  // Step 2: check if results already loaded, or need to search first
+  let panelCount = document.querySelectorAll('mat-expansion-panel.list-entry').length
   dbg('after 2s wait', {
-    expansionPanels: panels0.length,
-    matToggles: mapMarkers.length,
-    bodyClasses: document.body.className.substring(0, 60),
+    panels: panelCount,
+    toggles: document.querySelectorAll('mat-button-toggle').length,
+    url: location.pathname + location.search.substring(0, 60),
   })
 
-  const hasResults = panels0.length > 0
-  if (!hasResults) {
-    dbg('no results panels — selecting park and clicking Search')
+  if (panelCount === 0) {
+    dbg('no panels — selecting park and triggering Search')
     if (target.parkName) {
       setStatus(`Selecting park "${target.parkName}"…`)
       const selected = await selectParkFromDropdown(target.parkName)
-      dbg('park selected', selected)
+      dbg('park dropdown selected', selected)
       if (selected) await sleep(500)
     }
     setStatus('Clicking Search…')
     const clicked = await clickSearchButton()
-    dbg('search clicked', clicked)
-    if (clicked) {
-      setStatus('Waiting for results…')
-      await sleep(5000)
-    } else {
-      setStatus('Search button not found — click Search manually, then Reserve.')
-    }
+    dbg('search button clicked', clicked)
+
+    // Poll up to 25s for Angular to render results after navigation
+    setStatus('Waiting for BC Parks to load results (may take 10–25s)…')
+    panelCount = await pollForPanels(25_000)
+    dbg('panels after search + poll', panelCount)
   }
 
-  // Step 3: switch to List view
+  if (panelCount === 0) {
+    setStatus('Results not loading — click Search manually, then try Reserve.')
+    dbg('FAILED: no panels loaded. Paste __cs_debug() to developer.')
+    return
+  }
+
+  // Step 3: switch to List view and wait for list to settle
   setStatus('Switching to list view…')
   const switched = await switchToListView()
-  dbg('switched to list view', switched)
-  await sleep(2500)
+  dbg('switchToListView', switched)
+  // Poll a few seconds in case List view re-renders the panels
+  await sleep(500)
+  panelCount = await pollForPanels(6_000)
+  dbg('panels after list switch', panelCount)
 
   // Step 4: expand panels and click Reserve
-  const panels1 = document.querySelectorAll('mat-expansion-panel.list-entry')
-  dbg('panels available for reserve', { count: panels1.length, targetSite: target.siteName })
-  setStatus(`Found ${panels1.length} site panels — looking for Reserve…`)
+  setStatus(`${panelCount} sites found — clicking Reserve on first available…`)
   const reserved = await expandAndReserve(target.siteName)
-  dbg('expandAndReserve result', reserved)
+  dbg('expandAndReserve', reserved)
 
   if (reserved) {
     setStatus(target.mode === 'autopay'
@@ -133,8 +137,23 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
       : 'Reserved ✓ — complete payment in BC Parks')
   } else {
     setStatus('Click "Details" on a site then click "Reserve" manually.')
-    dbg('FAILED — paste __cs_debug() output to CampSniper developer')
+    dbg('FAILED — paste __cs_debug() output to developer')
   }
+}
+
+// Poll for mat-expansion-panel.list-entry to appear (Angular renders async)
+async function pollForPanels(timeoutMs: number): Promise<number> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const panels = document.querySelectorAll('mat-expansion-panel.list-entry')
+    if (panels.length > 0) {
+      dbg(`pollForPanels: found ${panels.length} after ${Math.round((Date.now() - start) / 100) * 100}ms`)
+      return panels.length
+    }
+    await sleep(500)
+  }
+  dbg(`pollForPanels: timed out after ${timeoutMs}ms`)
+  return 0
 }
 
 // Switch to List view — confirmed selector from Playwright inspection
