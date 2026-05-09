@@ -15,7 +15,7 @@ export function getTripWarnings(trip: Trip): Warning[] {
   }
 
   if (trip.dateRanges.length === 0) {
-    warnings.push({ level: 'error', message: 'No date ranges — tap to edit and add dates.' })
+    warnings.push({ level: 'error', message: 'No date ranges — open the editor, configure dates, then click "+ Add This Range".' })
   } else {
     const hasBookable = trip.dateRanges.some(r =>
       expandDateRange(r).some(w => isBookable(w.checkIn))
