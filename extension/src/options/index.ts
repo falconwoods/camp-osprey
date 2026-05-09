@@ -107,7 +107,9 @@ async function renderTripList() {
       e.stopPropagation()
       const id = (btn as HTMLElement).dataset['id']!
       const action = (btn as HTMLElement).dataset['action']!
-      await updateTrip(id, { status: action === 'start' ? 'scanning' : 'paused' })
+      await updateTrip(id, action === 'start'
+        ? { status: 'scanning', lastMatch: null }
+        : { status: 'paused' })
       await renderTripList()
     })
   })
