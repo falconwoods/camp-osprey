@@ -36,7 +36,7 @@ export function getGlobalWarnings(trips: Trip[], loggedIn: boolean): Warning[] {
     warnings.push({
       level: 'error',
       message: 'Not logged in to BC Parks — Hold and Auto-pay modes are disabled.',
-      action: { label: 'Log in →', url: 'https://camping.bcparks.ca' },
+      action: { label: 'Log in →', url: 'https://camping.bcparks.ca/login' },
     })
   }
 
