@@ -86,52 +86,77 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     }
   }
 
-  // Step 3: switch to List view — map view shows SVG icons we can't click
+  // Step 3: switch to List view — map view is SVG icons, not clickable
   setStatus('Switching to list view…')
   await switchToListView()
-  await sleep(2500)  // wait for list to render
+  await sleep(2500)
 
-  // Step 4: try specific site first, fall back to any available Reserve button
-  const found = await tryClickReserve(target, 8_000) || await clickAnyReserve()
+  // Step 4: expand panels and click Reserve
+  // BC Parks list rows are mat-expansion-panel.list-entry
+  // Each has a mat-expansion-panel-header[role=button] to expand
+  // Inside expanded panel: button.reserve-button
+  setStatus('Looking for Reserve button…')
+  const reserved = await expandAndReserve(target.siteName)
 
-  if (found) {
+  if (reserved) {
     setStatus(target.mode === 'autopay'
       ? 'Reserved — proceeding to payment…'
       : 'Reserved ✓ — complete payment in BC Parks')
   } else {
-    setStatus(`Click "List" then Reserve to add a site to your cart.`)
-    tryHighlightSite(target.siteName)
+    setStatus('Click "Details" on a site then click "Reserve" manually.')
   }
 }
 
-// Switch BC Parks results to List view (map view is SVG, not clickable)
+// Switch to List view — confirmed selector from Playwright inspection
 async function switchToListView(): Promise<boolean> {
-  // Check all buttons/links for "List" text
-  const els = document.querySelectorAll('button, a, [role="button"], [role="tab"]')
-  for (const el of els) {
-    const text = (el.textContent ?? '').trim()
-    if (text === 'List' || text.toLowerCase() === 'list') {
-      ;(el as HTMLElement).click()
-      return true
+  // mat-button-toggle with text "List" contains a button.mat-button-toggle-button
+  const toggle = document.querySelector("mat-button-toggle:not(.mat-button-toggle-checked)")
+  const allToggles = document.querySelectorAll('mat-button-toggle')
+  for (const t of allToggles) {
+    if ((t.textContent ?? '').trim() === 'List') {
+      const btn = t.querySelector('button') as HTMLElement | null
+      if (btn) { btn.click(); return true }
     }
   }
-  // Attribute fallback
-  const byAttr = document.querySelector('[aria-label*="List" i], [title*="List" i]')
-  if (byAttr) { ;(byAttr as HTMLElement).click(); return true }
   return false
 }
 
-// Click any non-disabled Reserve button on the page (fallback when site-specific search fails)
-async function clickAnyReserve(): Promise<boolean> {
-  // Wait a moment in case list just rendered
-  await sleep(1000)
-  const allBtns = document.querySelectorAll('button, a')
-  for (const btn of allBtns) {
-    const text = (btn.textContent ?? '').trim().toLowerCase()
-    if ((text === 'reserve' || text === 'book' || text === 'add to cart')
-        && !(btn as HTMLButtonElement).disabled) {
-      ;(btn as HTMLElement).click()
-      return true
+// Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
+// Two passes: first try to match the target site name, then fall back to first available.
+async function expandAndReserve(targetSiteName: string): Promise<boolean> {
+  let panels = Array.from(document.querySelectorAll('mat-expansion-panel.list-entry'))
+  if (panels.length === 0) {
+    await sleep(2000)
+    panels = Array.from(document.querySelectorAll('mat-expansion-panel.list-entry'))
+    if (panels.length === 0) return false
+  }
+
+  // Pass 0: try panel matching target site name (check text after expand)
+  // Pass 1: try any panel with a Reserve button
+  for (const pass of [0, 1]) {
+    for (const panel of panels) {
+      const header = panel.querySelector('mat-expansion-panel-header[role="button"]') as HTMLElement | null
+      if (!header) continue
+
+      const alreadyOpen = panel.classList.contains('mat-expanded')
+      if (!alreadyOpen) { header.click(); await sleep(600) }
+
+      if (pass === 0) {
+        // Check if expanded content contains target site number
+        const siteRegex = new RegExp(`(^|\\s|Site\\s*)${targetSiteName}(\\s|$)`, 'i')
+        if (!siteRegex.test(panel.textContent ?? '')) {
+          if (!alreadyOpen) { header.click(); await sleep(300) }
+          continue
+        }
+      }
+
+      const reserveBtn = panel.querySelector('button.reserve-button') as HTMLButtonElement | null
+      if (reserveBtn && !reserveBtn.disabled) {
+        reserveBtn.click()
+        return true
+      }
+
+      if (!alreadyOpen) { header.click(); await sleep(300) }
     }
   }
   return false
@@ -169,90 +194,19 @@ async function selectParkFromDropdown(parkName: string): Promise<boolean> {
   return false
 }
 
-// Click the Search button on the BC Parks search form
+// Click the Search button — confirmed class: btn-update-search btn-search
 async function clickSearchButton(): Promise<boolean> {
-  // Try multiple selectors for the Search button
-  const selectors = [
-    'button.search-btn',
-    'button[class*="search"]',
-    'button[color="primary"][mat-raised-button]',
-    'button[mat-raised-button][color="primary"]',
-  ]
-  for (const sel of selectors) {
-    const btn = document.querySelector(sel) as HTMLElement | null
-    if (btn && !btn.disabled) { btn.click(); return true }
-  }
-  // Fallback: find by button text
-  const allBtns = document.querySelectorAll('button')
-  for (const btn of allBtns) {
-    const text = (btn.textContent ?? '').trim().toLowerCase()
-    if (text === 'search' || text.includes('search')) {
-      ;(btn as HTMLElement).click()
-      return true
+  const btn = document.querySelector('button.btn-search, button.btn-update-search') as HTMLElement | null
+  if (btn) { btn.click(); return true }
+  // Fallback: by text
+  for (const b of document.querySelectorAll('button')) {
+    if ((b.textContent ?? '').trim().toLowerCase() === 'search') {
+      ;(b as HTMLElement).click(); return true
     }
   }
   return false
 }
 
-async function tryClickReserve(target: TargetSite, timeoutMs: number): Promise<boolean> {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    // Search list rows / cards containing the site name
-    const candidates = document.querySelectorAll(
-      'mat-card, mat-list-item, tr, li, [class*="site-card"], [class*="campsite"], ' +
-      '[class*="resource-item"], [class*="result-item"], [class*="site-row"]'
-    )
-    for (const el of candidates) {
-      const text = el.textContent ?? ''
-      // Match site name — use word boundary to avoid "64" matching "640" etc.
-      if (new RegExp(`(^|\\s|#)${target.siteName}(\\s|$)`, 'i').test(text)) {
-        const btn = findReserveButton(el)
-        if (btn) { ;(btn as HTMLElement).click(); return true }
-      }
-    }
-    // Data attribute fallback
-    const byData = document.querySelector(
-      `[data-resource-id="${target.resourceId}"], [ng-reflect-resource-id="${target.resourceId}"]`
-    )
-    if (byData) {
-      const btn = findReserveButton(byData)
-      if (btn) { ;(btn as HTMLElement).click(); return true }
-    }
-    await sleep(500)
-  }
-  return false
-}
-
-function findReserveButton(container: Element): Element | null {
-  // Search within container (and up a few levels) for a Reserve button
-  let el: Element | null = container
-  for (let i = 0; i < 8 && el; i++) {
-    // Find by text "Reserve" / "Book" first (most reliable across BC Parks updates)
-    const allBtns = el.querySelectorAll('button, a')
-    for (const btn of allBtns) {
-      const t = (btn.textContent ?? '').trim().toLowerCase()
-      if ((t === 'reserve' || t === 'book') && !(btn as HTMLButtonElement).disabled) return btn
-    }
-    // CSS class / attribute fallback
-    const byClass = el.querySelector(
-      'button[class*="reserve" i], button[mat-raised-button][color="primary"], ' +
-      'button[mat-flat-button][color="primary"]'
-    )
-    if (byClass && !(byClass as HTMLButtonElement).disabled) return byClass
-    el = el.parentElement
-  }
-  return null
-}
-
-function tryHighlightSite(siteName: string): void {
-  document.querySelectorAll('mat-card, [class*="site-card"], [class*="campsite"]').forEach(el => {
-    if ((el.textContent ?? '').includes(siteName)) {
-      ;(el as HTMLElement).style.outline = '3px solid #22c55e'
-      ;(el as HTMLElement).style.boxShadow = '0 0 20px rgba(34,197,94,0.4)'
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  })
-}
 
 // ── Checkout pages: auto-pay ───────────────────────────────────────────────
 
