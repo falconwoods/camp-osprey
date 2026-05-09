@@ -95,50 +95,43 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   // Step 1: wait for Angular to render (2s)
   await sleep(2000)
 
-  // Step 2: check if results already loaded, or need to search first
+  // Step 2: detect if the URL has the "bad" mapId (equals resourceLocationId)
+  // This happens when buildBookingUrl falls back to park ID for mapId.
+  // Fix: fetch the correct transactionLocationId + rootMapId from BC Parks API
+  // and navigate directly — no search form interaction needed.
+  const params = new URLSearchParams(window.location.search)
+  const resourceLocationId = params.get('resourceLocationId') || ''
+  const mapId = params.get('mapId') || ''
+  const checkIn = params.get('startDate') || ''
+  const checkOut = params.get('endDate') || ''
+  const nights = params.get('nights') || '1'
+
+  dbg('URL params', { resourceLocationId, mapId, badUrl: mapId === resourceLocationId })
+
+  if (mapId === resourceLocationId && resourceLocationId) {
+    setStatus('Fixing URL — fetching correct park parameters…')
+    const correctUrl = await buildCorrectResultsUrl(resourceLocationId, checkIn, checkOut, nights)
+    dbg('correct URL', correctUrl?.substring(0, 100) ?? 'failed')
+    if (correctUrl) {
+      setStatus('Navigating to correct results page…')
+      window.location.replace(correctUrl)
+      return  // content script re-runs on the new page
+    }
+    dbg('could not build correct URL — falling back to search form')
+  }
+
+  // Step 3: wait for results view toggles to appear
   let panelCount = document.querySelectorAll('mat-expansion-panel.list-entry').length
-  dbg('after 2s wait', {
-    panels: panelCount,
-    toggles: document.querySelectorAll('mat-button-toggle').length,
-    url: location.pathname + location.search.substring(0, 60),
-  })
+  const toggleCount = document.querySelectorAll('mat-button-toggle').length
+  dbg('after 2s wait', { panels: panelCount, toggles: toggleCount })
 
-  if (panelCount === 0) {
-    dbg('no panels — selecting park and triggering Search')
-    if (target.parkName) {
-      setStatus(`Selecting park "${target.parkName}"…`)
-      const selected = await selectParkFromDropdown(target.parkName)
-      dbg('park dropdown selected', selected)
-      if (selected) await sleep(500)
-    }
-    setStatus('Clicking Search…')
-    const beforeUrl = window.location.href
-    const clicked = await clickSearchButton()
-    dbg('search button clicked', clicked)
-
-    // Wait for Angular pushState navigation (URL should change within ~5s)
-    setStatus('Waiting for BC Parks to navigate…')
-    const urlChanged = await pollUntil(10_000, () => window.location.href !== beforeUrl)
-    const newUrl = window.location.href
-    dbg('URL after search', { changed: urlChanged, newUrl: newUrl.substring(0, 80) })
-
-    if (urlChanged) {
-      // BC Parks' service worker often fails on pushState navigation.
-      // Force a hard reload at the new URL so the browser fetches fresh HTML,
-      // bypassing the failing service worker. The content script will re-run.
-      dbg('forcing hard reload at new URL to bypass service worker failure')
-      setStatus('Reloading results page…')
-      window.location.replace(newUrl)
-      return  // content script restarts on the reloaded page
-    }
-
-    // URL didn't change — search didn't navigate, try toggling anyway
-    setStatus('Waiting for results…')
-    const resultsLoaded = await pollForToggles(15_000)
-    dbg('results loaded (toggles appeared)', resultsLoaded)
-    if (!resultsLoaded) {
-      setStatus('Results not loading — click Search manually, then Reserve.')
-      dbg('FAILED: URL did not change and no toggles. Paste __cs_debug() to developer.')
+  if (panelCount === 0 && toggleCount === 0) {
+    setStatus('Waiting for results to load…')
+    const loaded = await pollForToggles(20_000)
+    dbg('results loaded', loaded)
+    if (!loaded) {
+      setStatus('Results not loading — try refreshing the page.')
+      dbg('FAILED: no toggles appeared. Paste __cs_debug() to developer.')
       return
     }
   }
@@ -222,6 +215,27 @@ async function pollForPanels(timeoutMs: number): Promise<number> {
   }
   dbg(`pollForPanels: timed out after ${timeoutMs}ms`)
   return 0
+}
+
+// Fetch transactionLocationId and rootMapId from BC Parks API, return correct results URL
+async function buildCorrectResultsUrl(resourceLocationId: string, checkIn: string, checkOut: string, nights: string): Promise<string | null> {
+  try {
+    const resp = await fetch('/api/resourceLocation', { credentials: 'include' })
+    if (!resp.ok) { dbg('resourceLocation fetch failed', resp.status); return null }
+    const locs = await resp.json() as Array<Record<string, unknown>>
+    const loc = locs.find(l => String(l['resourceLocationId']) === resourceLocationId)
+    if (!loc) { dbg('location not found', resourceLocationId); return null }
+    const tli = String(loc['transactionLocationId'])
+    const rootMapId = String(loc['rootMapId'])
+    dbg('correct params', { tli, rootMapId })
+    return `https://camping.bcparks.ca/create-booking/results` +
+      `?transactionLocationId=${tli}&resourceLocationId=${resourceLocationId}&mapId=${rootMapId}` +
+      `&searchTabGroupId=0&bookingCategoryId=0&startDate=${checkIn}&endDate=${checkOut}` +
+      `&nights=${nights}&isReserving=true&equipmentId=-32768&subEquipmentId=-32768`
+  } catch (e) {
+    dbg('buildCorrectResultsUrl error', String(e))
+    return null
+  }
 }
 
 // Click the Campground category row to drill into individual site panels.
@@ -323,50 +337,6 @@ async function expandAndReserve(targetSiteName: string): Promise<boolean> {
   return false
 }
 
-// Select a park from the Angular Material mat-select dropdown
-async function selectParkFromDropdown(parkName: string): Promise<boolean> {
-  // Find the Park mat-select (first one on the page)
-  const trigger = document.querySelector('mat-select, [role="combobox"]') as HTMLElement | null
-  if (!trigger) return false
-
-  trigger.click()
-  await sleep(800)  // wait for Angular overlay to open
-
-  // mat-option elements render in an overlay appended to document.body
-  const options = document.querySelectorAll('mat-option, [role="option"]')
-  if (options.length === 0) {
-    // Close and give up
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    return false
-  }
-
-  const needle = parkName.toLowerCase()
-  for (const opt of options) {
-    const text = (opt.textContent ?? '').trim().toLowerCase()
-    // Match if either contains the other (handles "Golden Ears" ↔ "Golden Ears Provincial Park")
-    if (text.includes(needle) || needle.includes(text.replace(/\s*(provincial|park|campground)\s*/gi, '').trim())) {
-      ;(opt as HTMLElement).click()
-      return true
-    }
-  }
-
-  // No match — close dropdown and let Search run with "All Parks"
-  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-  return false
-}
-
-// Click the Search button — confirmed class: btn-update-search btn-search
-async function clickSearchButton(): Promise<boolean> {
-  const btn = document.querySelector('button.btn-search, button.btn-update-search') as HTMLElement | null
-  if (btn) { btn.click(); return true }
-  // Fallback: by text
-  for (const b of document.querySelectorAll('button')) {
-    if ((b.textContent ?? '').trim().toLowerCase() === 'search') {
-      ;(b as HTMLElement).click(); return true
-    }
-  }
-  return false
-}
 
 
 // ── Checkout pages: auto-pay ───────────────────────────────────────────────
