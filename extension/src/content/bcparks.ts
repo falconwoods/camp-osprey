@@ -365,9 +365,16 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
       }
 
       // Enforce filters from the BC Parks UI — site details show "Double Site: Yes" / "Walk In: Yes"
-      const isDoubleInUI = /double\s*site\s*:?\s*yes/i.test(panelText)
-      const isWalkinInUI = /walk\s*in\s*:?\s*yes/i.test(panelText)
-      dbg(`panel ${i} UI flags`, { isDoubleInUI, isWalkinInUI, noDouble, noWalkin })
+      const doubleMatch = panelText.match(/double\s*site\s*:?\s*(\w+)/i)
+      const walkinMatch = panelText.match(/walk\s*[-\s]?in\s*:?\s*(\w+)/i)
+      const isDoubleInUI = doubleMatch ? doubleMatch[1].toLowerCase() === 'yes' : false
+      const isWalkinInUI = walkinMatch ? walkinMatch[1].toLowerCase() === 'yes' : false
+      dbg(`panel ${i} UI flags`, {
+        isDoubleInUI, isWalkinInUI, noDouble, noWalkin,
+        doubleText: doubleMatch?.[0] ?? 'not found',
+        walkinText: walkinMatch?.[0] ?? 'not found',
+        panelSnippet: panelText.replace(/\s+/g, ' ').substring(0, 120),
+      })
       if (noDouble && isDoubleInUI) {
         dbg(`panel ${i} skipped — double site (UI)`)
         if (!alreadyOpen) { header.click(); await sleep(200) }
@@ -383,6 +390,12 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
       dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
 
       if (reserveBtn && !reserveBtn.disabled) {
+        dbg(`panel ${i} SELECTED`, {
+          siteName: panelText.match(/Campsite\s*(\d+)/i)?.[1] ?? '?',
+          isDouble: isDoubleInUI,
+          isWalkin: isWalkinInUI,
+          pass,
+        })
         reserveBtn.click()
         dbg(`clicked reserve on panel ${i}`)
         await sleep(1000)
