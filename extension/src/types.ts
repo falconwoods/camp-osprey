@@ -60,7 +60,7 @@ export interface PaymentConfig {
 export type Theme = 'auto' | 'light' | 'dark'
 
 export interface Settings {
-  pollIntervalSeconds: 30 | 60 | 120
+  pollIntervalSeconds: 10 | 30 | 60 | 120
   debugMode: boolean
   theme: Theme
 }

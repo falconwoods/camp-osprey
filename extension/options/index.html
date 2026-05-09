@@ -192,10 +192,12 @@
       <div class="section">
         <div class="section-label">Check interval</div>
         <select class="select" id="poll-interval">
+          <option value="10">Every 10 seconds</option>
           <option value="30">Every 30 seconds</option>
           <option value="60" selected>Every 60 seconds</option>
           <option value="120">Every 2 minutes</option>
         </select>
+        <div class="hint" style="margin-top:6px">Chrome enforces a 30s minimum for published extensions. 10s works for the unpacked dev version.</div>
       </div>
       <div class="section">
         <label class="checkbox-label" style="width:fit-content">

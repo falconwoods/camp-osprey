@@ -179,6 +179,11 @@ async function notify(title: string, message: string, url?: string, persist = fa
 }
 
 chrome.runtime.onMessage.addListener((msg: { type: string; tripId?: string; confirmationNumber?: string; error?: string }) => {
+  if (msg.type === 'SCAN_NOW') {
+    // Triggered when user clicks Start — run a cycle immediately, don't wait for next alarm
+    runScanCycle()
+    return
+  }
   if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
     updateTrip(msg.tripId, { status: 'completed' }).then(() => {
       notify('Booking Confirmed!', `Confirmation: ${msg.confirmationNumber ?? 'unknown'}`)

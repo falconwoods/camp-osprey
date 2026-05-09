@@ -108,8 +108,9 @@ async function renderTripList() {
       const id = (btn as HTMLElement).dataset['id']!
       const action = (btn as HTMLElement).dataset['action']!
       await updateTrip(id, action === 'start'
-        ? { status: 'scanning', lastMatch: null }
+        ? { status: 'scanning', lastMatch: null, attempted: [] }
         : { status: 'paused' })
+      if (action === 'start') chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
       await renderTripList()
     })
   })
