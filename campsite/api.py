@@ -140,10 +140,16 @@ class BCParksAPI:
     def _site_flags(resource: dict, section_is_walkin: bool) -> tuple[bool, bool]:
         """Return (is_walkin, is_double) using section membership, description, and attributes."""
         desc = ((resource.get("localizedValues") or [{}])[0].get("description") or "").lower()
-        attrs = {a.get("attributeDefinitionId") for a in (resource.get("attributes") or [])}
-        # attributeDefinitionId -32764 = Walk-in, -32722 = Double Site
-        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc or -32764 in attrs
-        is_double = "double site" in desc or -32722 in attrs or len(resource.get("linkedResources", [])) > 0
+        # BC Parks uses 'definedAttributes' (NOT 'attributes') — confirmed by API inspection
+        # values[0] == 1 means Yes; 0 or absent means No
+        defined_attrs = resource.get("definedAttributes") or []
+        def is_attr_yes(attr_id: int) -> bool:
+            return any(
+                a.get("attributeDefinitionId") == attr_id and (a.get("values") or [0])[0] != 0
+                for a in defined_attrs
+            )
+        is_walkin = section_is_walkin or "first-come" in desc or "first come" in desc or is_attr_yes(-32764)
+        is_double = "double site" in desc or is_attr_yes(-32722) or len(resource.get("linkedResources", [])) > 0
         return is_walkin, is_double
 
     @staticmethod

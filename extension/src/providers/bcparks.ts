@@ -83,11 +83,15 @@ export class BCParksProvider {
   private siteFlags(resource: Record<string, unknown>, sectionIsWalkin: boolean): [boolean, boolean] {
     const vals = (resource['localizedValues'] as Array<Record<string, string>>)?.[0] ?? {}
     const desc = (vals['description'] ?? '').toLowerCase()
-    const attrs = (resource['attributes'] as Array<Record<string, unknown>>) ?? []
-    // attributeDefinitionId -32764 = Walk-in, -32722 = Double Site (BC Parks attribute IDs)
-    const hasAttr = (id: number) => attrs.some(a => a['attributeDefinitionId'] === id)
-    const isWalkin = sectionIsWalkin || desc.includes('first-come') || desc.includes('first come') || hasAttr(-32764)
-    const isDouble = desc.includes('double site') || hasAttr(-32722) || ((resource['linkedResources'] as unknown[])?.length ?? 0) > 0
+    // BC Parks uses 'definedAttributes' (NOT 'attributes') — confirmed by API inspection
+    // attributeDefinitionId -32764 = Walk-in, -32722 = Double Site
+    // values[0] === 1 means Yes; values[0] === 0 or absent means No
+    const attrs = (resource['definedAttributes'] as Array<Record<string, unknown>>) ?? []
+    const isAttrYes = (id: number) => attrs.some(a =>
+      a['attributeDefinitionId'] === id && ((a['values'] as number[])?.[0] ?? 0) !== 0
+    )
+    const isWalkin = sectionIsWalkin || desc.includes('first-come') || desc.includes('first come') || isAttrYes(-32764)
+    const isDouble = desc.includes('double site') || isAttrYes(-32722) || ((resource['linkedResources'] as unknown[])?.length ?? 0) > 0
     return [isWalkin, isDouble]
   }
 
