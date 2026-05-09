@@ -279,62 +279,87 @@ async function switchToListView(): Promise<boolean> {
 }
 
 // Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
-// Two passes: first try to match the target site name, then fall back to first available.
 async function expandAndReserve(targetSiteName: string): Promise<boolean> {
+  // Load all panels first (click "View more" if present)
+  await loadAllPanels()
+
   let panels = Array.from(document.querySelectorAll('mat-expansion-panel.list-entry'))
   if (panels.length === 0) {
     await sleep(2000)
     panels = Array.from(document.querySelectorAll('mat-expansion-panel.list-entry'))
     if (panels.length === 0) return false
   }
+  dbg('total panels', panels.length)
 
-  // Pass 0: try panel matching target site name (check text after expand)
-  // Pass 1: try any panel with a Reserve button
+  // Pass 0: find panel matching target site name (avoids double sites from the API's filtered list)
+  // Pass 1: any panel, but skip double sites via dialog detection
   for (const pass of [0, 1]) {
-    dbg(`expandAndReserve pass ${pass}`, { totalPanels: panels.length })
+    dbg(`expandAndReserve pass ${pass}`)
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i]
       const header = panel.querySelector('mat-expansion-panel-header[role="button"]') as HTMLElement | null
-      dbg(`panel ${i}`, {
-        hasHeader: !!header,
-        cls: panel.className.substring(0, 60),
-        headerCls: header?.className.substring(0, 60) ?? 'n/a',
-      })
       if (!header) continue
 
       const alreadyOpen = panel.classList.contains('mat-expanded')
       if (!alreadyOpen) { header.click(); await sleep(600) }
 
       if (pass === 0) {
-        const siteRegex = new RegExp(`(^|\\s|Site\\s*)${targetSiteName}(\\s|$)`, 'i')
+        const siteRegex = new RegExp(`(Campsite|Site|#|^|\\s)\\s*${targetSiteName}(\\s|$)`, 'i')
         const matches = siteRegex.test(panel.textContent ?? '')
-        dbg(`panel ${i} site match`, { targetSiteName, matches })
+        dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: (panel.textContent??'').trim().substring(0,50) })
         if (!matches) {
-          if (!alreadyOpen) { header.click(); await sleep(300) }
+          if (!alreadyOpen) { header.click(); await sleep(200) }
           continue
         }
       }
 
       const reserveBtn = panel.querySelector('button.reserve-button') as HTMLButtonElement | null
-      const allBtns = Array.from(panel.querySelectorAll('button')).map(b => ({
-        text: b.textContent?.trim().substring(0, 30),
-        cls: b.className.substring(0, 50),
-        disabled: b.disabled,
-      }))
-      dbg(`panel ${i} buttons`, allBtns)
       dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
 
       if (reserveBtn && !reserveBtn.disabled) {
         reserveBtn.click()
         dbg(`clicked reserve on panel ${i}`)
+        await sleep(1000)  // wait for possible double-site dialog
+
+        // If BC Parks shows "double site" dialog, cancel and skip to next panel
+        if (await cancelIfDoubleDialog()) {
+          dbg(`panel ${i} is a double site — skipping`)
+          if (!alreadyOpen) { header.click(); await sleep(300) }
+          continue
+        }
         return true
       }
 
-      if (!alreadyOpen) { header.click(); await sleep(300) }
+      if (!alreadyOpen) { header.click(); await sleep(200) }
     }
   }
-  dbg('no reserve button found in any panel')
+  dbg('no usable reserve button found in any panel')
   return false
+}
+
+// Click "View more" until all panels are loaded
+async function loadAllPanels(): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    const viewMore = Array.from(document.querySelectorAll('button'))
+      .find(b => (b.textContent ?? '').trim().toLowerCase().includes('view more'))
+    if (!viewMore) break
+    dbg('clicking View more')
+    ;(viewMore as HTMLElement).click()
+    await sleep(1500)
+  }
+}
+
+// Detect "This is part of a Double Site" dialog and click Cancel
+async function cancelIfDoubleDialog(): Promise<boolean> {
+  const dialog = document.querySelector('mat-dialog-container, [role="dialog"]')
+  if (!dialog) return false
+  const text = (dialog.textContent ?? '').toLowerCase()
+  if (!text.includes('double')) return false
+  dbg('double site dialog — cancelling')
+  const cancelBtn = Array.from(dialog.querySelectorAll('button'))
+    .find(b => (b.textContent ?? '').trim().toLowerCase() === 'cancel')
+  if (cancelBtn) { ;(cancelBtn as HTMLElement).click(); await sleep(500) }
+  return true
 }
 
 
