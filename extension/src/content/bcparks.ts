@@ -112,17 +112,33 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
       if (selected) await sleep(500)
     }
     setStatus('Clicking Search…')
+    const beforeUrl = window.location.href
     const clicked = await clickSearchButton()
     dbg('search button clicked', clicked)
 
-    // Poll up to 25s for Map/List/Calendar view toggles to appear
-    // (panels only exist in List view — toggles appear in ANY view after results load)
-    setStatus('Waiting for BC Parks to load results (may take 10–25s)…')
-    const resultsLoaded = await pollForToggles(25_000)
+    // Wait for Angular pushState navigation (URL should change within ~5s)
+    setStatus('Waiting for BC Parks to navigate…')
+    const urlChanged = await pollUntil(10_000, () => window.location.href !== beforeUrl)
+    const newUrl = window.location.href
+    dbg('URL after search', { changed: urlChanged, newUrl: newUrl.substring(0, 80) })
+
+    if (urlChanged) {
+      // BC Parks' service worker often fails on pushState navigation.
+      // Force a hard reload at the new URL so the browser fetches fresh HTML,
+      // bypassing the failing service worker. The content script will re-run.
+      dbg('forcing hard reload at new URL to bypass service worker failure')
+      setStatus('Reloading results page…')
+      window.location.replace(newUrl)
+      return  // content script restarts on the reloaded page
+    }
+
+    // URL didn't change — search didn't navigate, try toggling anyway
+    setStatus('Waiting for results…')
+    const resultsLoaded = await pollForToggles(15_000)
     dbg('results loaded (toggles appeared)', resultsLoaded)
     if (!resultsLoaded) {
       setStatus('Results not loading — click Search manually, then Reserve.')
-      dbg('FAILED: toggles never appeared. Paste __cs_debug() to developer.')
+      dbg('FAILED: URL did not change and no toggles. Paste __cs_debug() to developer.')
       return
     }
   }
@@ -154,6 +170,16 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     setStatus('Click "Details" on a site then click "Reserve" manually.')
     dbg('FAILED — paste __cs_debug() output to developer')
   }
+}
+
+// Generic poll: call fn every 200ms, return true when fn returns true
+async function pollUntil(timeoutMs: number, fn: () => boolean): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (fn()) return true
+    await sleep(200)
+  }
+  return false
 }
 
 // Poll for Map/List/Calendar toggles — these appear in any results view
