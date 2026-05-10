@@ -94,6 +94,7 @@ async function render() {
         ? { status: 'scanning', lastMatch: null, attempted: [] }
         : { status: 'paused' })
       if (action === 'start') chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
+      if (action === 'stop') chrome.storage.local.remove('campOspreyTarget')
       await render()
     })
   })

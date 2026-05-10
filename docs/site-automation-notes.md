@@ -138,15 +138,17 @@ After "Confirm reservation details", the checkout wizard navigates through these
 | Add-ons | `"Skip add ons"` |
 | Payment | Fill fields, then `"Apply credit card payment,"` |
 
-Payment form field `aria-label` values (confirmed from Playwright recording):
-- Card number: `"Card #"`
-- Name: `"Name on card"`
-- Expiry: `"Expiry date"`
-- CVV: `"Security code"`
-- Street: `"Street Address"`
-- Postal: `"Postal/Zip Code"`
+Payment form field selectors (confirmed from live DOM inspection — fields use `id`, NOT `aria-label`):
+- Card number: `#cardNumber`
+- Name on card: `#cardHolderName`
+- Expiry: `#cardExpiry` (placeholder "MM/YY")
+- CVV: `#cardCvv`
+- Street address: `#street-field-0`
+- Postal/zip: `#postal-code-field-0`
+- Unit (optional): `#unit-field-0`
+- City (optional): `#city-field-0`
 
-Use `[aria-label="Card #"]` CSS selectors to find each field.
+Playwright's `get_by_role("textbox", name="Card #")` finds these via their `<label for="...">` elements, but CSS `[aria-label="Card #"]` returns nothing — the inputs have no `aria-label` attribute.
 
 ---
 

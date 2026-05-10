@@ -39,22 +39,11 @@ dbg('content script loaded', { url: window.location.pathname })
 
 // BC Parks is an Angular SPA — route changes happen via pushState with no page reload.
 // The content script only runs once on initial load, so we poll for URL changes and
-// re-dispatch whenever Angular navigates to a new route.
-function dispatchForUrl(target: TargetSite, url: string): void {
-  if (url.includes('/create-booking/results')) {
-    dbg('detected: results page')
-    handleResultsPage(target)
-  } else if (url.includes('reservationmessages')) {
-    dbg('detected: reservationmessages page')
-    handleReservationReview(target.tripId, target.mode)
-  } else if (url.includes('/create-booking/') && target.mode === 'autopay') {
-    dbg('detected: checkout step')
-    runCheckout(target.tripId)
-  } else {
-    dbg('page not matched for auto-action', { url })
-  }
-}
-
+// re-dispatch when Angular navigates to a new route.
+//
+// The results page is handled ONCE on initial load only — re-triggering it on the
+// same path (e.g. after filter dialog changes query params) causes duplicate handlers.
+// The watcher only dispatches for reservationmessages and checkout steps.
 chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) => {
   if (chrome.runtime.lastError) {
     dbg('storage error', chrome.runtime.lastError.message); return
@@ -65,17 +54,37 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
   dbg('target loaded', { ...target, ageSeconds: age })
   if (age > 300) { dbg('target is stale, ignoring'); return }
 
-  // Handle initial URL
-  dispatchForUrl(target, window.location.href)
+  // Handle initial URL (results page only — other pages handled by watcher below)
+  const initialUrl = window.location.href
+  if (initialUrl.includes('/create-booking/results')) {
+    dbg('detected: results page (initial)')
+    handleResultsPage(target)
+  } else if (initialUrl.includes('reservationmessages')) {
+    dbg('detected: reservationmessages page (initial)')
+    handleReservationReview(target.tripId, target.mode)
+  } else if (initialUrl.includes('/create-booking/') && target.mode === 'autopay') {
+    dbg('detected: checkout step (initial)')
+    runCheckout(target.tripId)
+  }
 
-  // Watch for SPA navigation — poll every 300ms for URL changes
-  let lastUrl = window.location.href
+  // Watch for SPA navigation to new routes (not re-triggers of /results)
+  let lastPath = new URL(window.location.href).pathname
   const watcher = setInterval(() => {
+    const path = new URL(window.location.href).pathname
+    if (path === lastPath) return
+    lastPath = path
     const url = window.location.href
-    if (url === lastUrl) return
-    lastUrl = url
-    dbg('SPA navigation detected', { url: window.location.pathname })
-    dispatchForUrl(target, url)
+    dbg('SPA navigation detected', { url: path })
+
+    if (url.includes('reservationmessages')) {
+      dbg('detected: reservationmessages page')
+      handleReservationReview(target.tripId, target.mode)
+    } else if (url.includes('/create-booking/') && !url.includes('/results') && target.mode === 'autopay') {
+      dbg('detected: checkout step')
+      runCheckout(target.tripId)
+    } else {
+      dbg('SPA: no action for this route', { path })
+    }
   }, 300)
 
   // Stop watching after 15 minutes (cart expires anyway)
@@ -206,23 +215,24 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
 
   // Step 4: expand panels and click Reserve
   setStatus(`${panelCount} sites found — clicking Reserve…`)
-  const reserved = await expandAndReserve(target.siteName, target.noDouble, target.noWalkin)
-  dbg('expandAndReserve', reserved)
+  const reserveResult = await expandAndReserve(target.siteName, target.noDouble, target.noWalkin)
+  dbg('expandAndReserve result', reserveResult)
 
-  if (reserved) {
+  if (reserveResult === true) {
     setStatus(target.mode === 'autopay'
       ? 'Reserved — proceeding to payment…'
       : 'Reserved ✓ — complete payment in BC Parks')
   } else {
-    // Site was taken between scan detection and page load — tell background to
-    // mark this specific site as attempted and resume scanning automatically.
-    setStatus('Site no longer available — resuming scan…')
-    dbg('MATCH_FAILED — site taken, notifying background')
+    // Reserve button not found — likely a panel expansion timing issue, not confirmed unavailable.
+    // Do NOT add to attempted — allow retry next scan cycle.
+    setStatus('Could not click Reserve — will retry next scan (tab closing in 4s)')
+    dbg('MATCH_FAILED — no reserve button found, retrying next cycle')
     chrome.runtime.sendMessage({
       type: 'MATCH_FAILED',
       tripId: target.tripId,
-      attemptKey: `${target.resourceId}|${target.checkIn}|${target.checkOut}`,
+      attemptKey: null,
     })
+    setTimeout(() => window.close(), 4000)
   }
 }
 
@@ -393,7 +403,7 @@ async function switchToListView(): Promise<boolean> {
 }
 
 // Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
-async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWalkin: boolean): Promise<boolean> {
+async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWalkin: boolean): Promise<true | 'no-reserve-btn'> {
   // Load all panels first (click "View more" if present)
   await loadAllPanels()
 
@@ -501,15 +511,39 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
 
         // Poll for outcome (up to 4s):
         //   - URL changed → navigation succeeded, site is ours
-        //   - "not available" error in panel → site was grabbed by someone else just now
-        //   - double-site dialog → cancel and skip
+        //   - "Cannot Reserve" dialog → site unavailable, dismiss and return
+        //   - "not available" / "not reservable" inline text → same
+        //   - double-site dialog → cancel and try next panel
         let navigated = false
         const pollEnd = Date.now() + 4000
         while (Date.now() < pollEnd) {
-          if (await cancelIfDoubleDialog()) {
-            dbg(`panel ${i} double-site dialog — skipping`)
-            break
+          // Check for any error/info dialog first
+          const dialog = document.querySelector('mat-dialog-container, [role="dialog"]')
+          if (dialog) {
+            const dialogText = (dialog.textContent ?? '').toLowerCase()
+            if (dialogText.includes('double')) {
+              dbg(`panel ${i} double-site dialog — cancelling, trying next`)
+              const cancelBtn = Array.from(dialog.querySelectorAll('button'))
+                .find(b => (b.textContent ?? '').trim().toLowerCase() === 'cancel')
+              if (cancelBtn) { ;(cancelBtn as HTMLElement).click(); await sleep(500) }
+              break  // → continue outer loop (try next panel)
+            }
+            if (
+              dialogText.includes('not available for any of the requested') ||
+              dialogText.includes('not reservable') ||
+              dialogText.includes('cannot reserve')
+            ) {
+              dbg(`panel ${i} "Cannot Reserve" dialog — dismissing, trying next`)
+              const closeBtn = Array.from(dialog.querySelectorAll('button'))
+                .find(b => {
+                  const t = (b.textContent ?? '').trim().toLowerCase()
+                  return t === 'ok' || t === 'close' || t === 'dismiss'
+                })
+              if (closeBtn) { ;(closeBtn as HTMLElement).click(); await sleep(300) }
+              break  // → continue outer loop (try next panel)
+            }
           }
+
           if (window.location.href !== urlBefore) {
             navigated = true
             break
@@ -519,22 +553,22 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
             liveText.includes('not available for any of the requested') ||
             liveText.includes('not reservable')
           ) {
-            dbg(`panel ${i} site not available/reservable — skipping`)
-            break
+            dbg(`panel ${i} inline unavailable — trying next`)
+            break  // → continue outer loop (try next panel)
           }
           await sleep(200)
         }
 
         if (navigated) return true
         if (!alreadyOpen) { header.click(); await sleep(300) }
-        continue
+        continue  // any failure — try next panel
       }
 
       if (!alreadyOpen) { header.click(); await sleep(200) }
     }
   }
   dbg('no usable reserve button found in any panel')
-  return false
+  return 'no-reserve-btn'
 }
 
 // Click "View more" until all panels are loaded
@@ -553,18 +587,6 @@ async function loadAllPanels(): Promise<void> {
   }
 }
 
-// Detect "This is part of a Double Site" dialog and click Cancel
-async function cancelIfDoubleDialog(): Promise<boolean> {
-  const dialog = document.querySelector('mat-dialog-container, [role="dialog"]')
-  if (!dialog) return false
-  const text = (dialog.textContent ?? '').toLowerCase()
-  if (!text.includes('double')) return false
-  dbg('double site dialog — cancelling')
-  const cancelBtn = Array.from(dialog.querySelectorAll('button'))
-    .find(b => (b.textContent ?? '').trim().toLowerCase() === 'cancel')
-  if (cancelBtn) { ;(cancelBtn as HTMLElement).click(); await sleep(500) }
-  return true
-}
 
 
 
@@ -688,15 +710,26 @@ async function runCheckout(tripId: string): Promise<void> {
     Array.from(document.querySelectorAll('button'))
       .find(b => (b.textContent ?? '').toLowerCase().includes(text.toLowerCase())) as HTMLElement | null
 
+  // Log all button texts visible on the current step (always useful for debugging)
+  const allBtnTexts = Array.from(document.querySelectorAll('button'))
+    .map(b => (b.textContent ?? '').trim().replace(/\s+/g, ' '))
+    .filter(t => t.length > 0 && t.length < 60)
+  dbg('buttons on page', allBtnTexts)
+
   try {
     // ── Acknowledgements ──────────────────────────────────────────────────
-    // Check all unchecked checkboxes (group acknowledgement), then confirm
     if (btn('confirm acknowledgements')) {
-      dbg('step: acknowledgements')
-      document.querySelectorAll('input[type="checkbox"]:not(:checked)')
-        .forEach(cb => (cb as HTMLElement).click())
+      const unchecked = Array.from(document.querySelectorAll('input[type="checkbox"]:not(:checked)'))
+      dbg('step: acknowledgements', { uncheckedBoxes: unchecked.length })
+      unchecked.forEach(cb => {
+        const label = (cb as HTMLInputElement).id
+          ? document.querySelector(`label[for="${(cb as HTMLInputElement).id}"]`) as HTMLElement | null
+          : (cb as HTMLElement).closest('label') as HTMLElement | null
+        ;(label ?? cb as HTMLElement).click()
+      })
       await sleep(400)
       btn('confirm acknowledgements')!.click()
+      dbg('clicked: confirm acknowledgements')
       return
     }
 
@@ -704,6 +737,7 @@ async function runCheckout(tripId: string): Promise<void> {
     if (btn('confirm account details')) {
       dbg('step: account details')
       btn('confirm account details')!.click()
+      dbg('clicked: confirm account details')
       return
     }
 
@@ -711,6 +745,7 @@ async function runCheckout(tripId: string): Promise<void> {
     if (btn('confirm occupant')) {
       dbg('step: occupant')
       btn('confirm occupant')!.click()
+      dbg('clicked: confirm occupant')
       return
     }
 
@@ -718,6 +753,7 @@ async function runCheckout(tripId: string): Promise<void> {
     if (btn('confirm party information')) {
       dbg('step: party information')
       btn('confirm party information')!.click()
+      dbg('clicked: confirm party information')
       return
     }
 
@@ -725,6 +761,7 @@ async function runCheckout(tripId: string): Promise<void> {
     if (btn('confirm additional information')) {
       dbg('step: additional information')
       btn('confirm additional information')!.click()
+      dbg('clicked: confirm additional information')
       return
     }
 
@@ -732,33 +769,46 @@ async function runCheckout(tripId: string): Promise<void> {
     if (btn('skip add ons')) {
       dbg('step: add-ons — skipping')
       btn('skip add ons')!.click()
+      dbg('clicked: skip add ons')
       return
     }
 
     // ── Payment ───────────────────────────────────────────────────────────
-    // Detected by presence of the card number field (aria-label "Card #")
-    const cardField = document.querySelector('[aria-label="Card #"]')
-    if (cardField || btn('apply credit card payment')) {
-      dbg('step: payment')
+    // Field IDs confirmed from live DOM inspection (inputs use id, not aria-label):
+    //   #cardNumber, #cardHolderName, #cardExpiry, #cardCvv
+    //   #street-field-0, #postal-code-field-0
+    const applyBtn = btn('apply payment') ?? btn('apply credit card payment')
+    if (applyBtn) {
+      // Wait up to 15s for Angular to render the card fields
+      dbg('step: payment — waiting for card fields')
+      await pollUntil(15_000, () => !!document.querySelector('#cardNumber'))
+      dbg('card fields ready', { found: !!document.querySelector('#cardNumber') })
+
       const { payment } = await new Promise<Record<string, unknown>>(resolve =>
         chrome.storage.local.get('payment', resolve)
       ) as { payment: import('../types').PaymentConfig | null }
       if (!payment) throw new Error('No payment info — add it in CampOsprey Settings.')
 
-      await fillInput('[aria-label="Card #"]', payment.cardNumber)
-      await fillInput('[aria-label="Name on card"]', payment.cardHolder)
-      await fillInput('[aria-label="Expiry date"]', payment.cardExpiry)
-      await fillInput('[aria-label="Security code"]', payment.cardCvv)
-      if (payment.billingAddress) await fillInput('[aria-label="Street Address"]', payment.billingAddress)
-      if (payment.billingPostal)  await fillInput('[aria-label="Postal/Zip Code"]', payment.billingPostal)
+      const fill = async (selector: string, value: string) => {
+        try {
+          await fillInput(selector, value)
+          dbg(`filled: ${selector}`)
+        } catch {
+          dbg(`fill failed: ${selector}`)
+          throw new Error(`Could not fill "${selector}" — field not found`)
+        }
+      }
+      await fill('#cardNumber', payment.cardNumber)
+      await fill('#cardHolderName', payment.cardHolder)
+      await fill('#cardExpiry', payment.cardExpiry)
+      await fill('#cardCvv', payment.cardCvv)
+      if (payment.billingAddress) await fill('#street-field-0', payment.billingAddress)
+      if (payment.billingPostal)  await fill('#postal-code-field-0', payment.billingPostal)
       await sleep(500)
 
-      const applyBtn = btn('apply credit card payment')
-      if (!applyBtn) throw new Error('Apply payment button not found')
       applyBtn.click()
-      dbg('clicked Apply credit card payment')
+      dbg('clicked: Apply payment')
 
-      // Wait for confirmation page
       const confirmEl = await waitForElement(
         '[class*="confirmation"], [class*="booking-ref"], [class*="reference-number"], [class*="confirm-number"]',
         30_000
@@ -770,7 +820,7 @@ async function runCheckout(tripId: string): Promise<void> {
       return
     }
 
-    dbg('runCheckout: no matching step found on this page')
+    dbg('runCheckout: no matching step — page buttons listed above')
   } catch (err) {
     dbg('runCheckout error', String(err))
     chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: String(err) })

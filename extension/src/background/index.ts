@@ -209,13 +209,12 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.type === 'MATCH_FAILED' && msg.tripId) {
-    // Site was available at scan time but taken by the time we opened the page.
-    // Add the specific resource key to attempted so we skip this exact site next
-    // cycle, then resume scanning so other sites/dates can still be found.
+    chrome.storage.local.remove('campOspreyTarget')
     getStorage().then(({ trips }) => {
       const trip = trips.find(t => t.id === msg.tripId)
       if (!trip) return
       const attempted = [...trip.attempted]
+      // attemptKey is null when the failure was a timing issue — don't mark as attempted
       if (msg.attemptKey && !attempted.includes(msg.attemptKey)) {
         attempted.push(msg.attemptKey)
       }
@@ -224,13 +223,36 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
-    updateTrip(msg.tripId, { status: 'completed' }).then(() => {
-      notify('Booking Confirmed!', `Confirmation: ${msg.confirmationNumber ?? 'unknown'}`)
+    getStorage().then(({ trips }) => {
+      const trip = trips.find(t => t.id === msg.tripId)
+      const m = trip?.lastMatch
+      const detail = m
+        ? `${m.parkName} › ${m.sectionName} › Site ${m.siteName}\n${m.checkIn} → ${m.checkOut}`
+        : ''
+      updateTrip(msg.tripId!, { status: 'completed' }).then(() => {
+        notify(
+          '🎉 Booking Confirmed!',
+          `${detail}${detail ? '\n' : ''}Confirmation: ${msg.confirmationNumber ?? 'unknown'}`,
+          undefined,
+          true,
+        )
+      })
     })
   }
   if (msg.type === 'BOOKING_FAILED' && msg.tripId) {
-    updateTrip(msg.tripId, { status: 'paused' }).then(() => {
-      notify('Payment Failed', msg.error ?? 'Unknown error — check BC Parks tab.')
+    chrome.storage.local.remove('campOspreyTarget')
+    getStorage().then(({ trips }) => {
+      const trip = trips.find(t => t.id === msg.tripId)
+      const m = trip?.lastMatch
+      const detail = m ? `${m.parkName} › Site ${m.siteName}` : ''
+      updateTrip(msg.tripId!, { status: 'paused' }).then(() => {
+        notify(
+          '❌ Payment Failed',
+          `${detail}${detail ? '\n' : ''}${msg.error ?? 'Unknown error — check BC Parks tab.'}`,
+          'https://camping.bcparks.ca/cart',
+          true,
+        )
+      })
     })
   }
 })

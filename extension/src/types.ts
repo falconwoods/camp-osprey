@@ -54,6 +54,8 @@ export interface PaymentConfig {
   cardHolder: string
   cardExpiry: string      // "MM/YY"
   cardCvv: string
+  billingAddress: string  // → #street-field-0
+  billingPostal: string   // → #postal-code-field-0
   partySize: number
 }
 

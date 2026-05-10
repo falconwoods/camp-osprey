@@ -124,6 +124,7 @@ async function renderTripList() {
         chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
       } else {
         await updateTrip(id, { status: 'paused' })
+        chrome.storage.local.remove('campOspreyTarget')
       }
       await renderTripList()
     })
@@ -464,6 +465,8 @@ async function loadPaymentForm() {
   ;(document.getElementById('card-holder') as HTMLInputElement).value = payment.cardHolder
   ;(document.getElementById('card-expiry') as HTMLInputElement).value = payment.cardExpiry
   ;(document.getElementById('card-cvv') as HTMLInputElement).value = payment.cardCvv
+  ;(document.getElementById('billing-address') as HTMLInputElement).value = payment.billingAddress ?? ''
+  ;(document.getElementById('billing-postal') as HTMLInputElement).value = payment.billingPostal ?? ''
   ;(document.getElementById('party-size') as HTMLInputElement).value = String(payment.partySize)
 }
 
@@ -473,6 +476,8 @@ document.getElementById('save-payment-btn')!.addEventListener('click', async () 
     cardHolder: (document.getElementById('card-holder') as HTMLInputElement).value,
     cardExpiry: (document.getElementById('card-expiry') as HTMLInputElement).value,
     cardCvv: (document.getElementById('card-cvv') as HTMLInputElement).value,
+    billingAddress: (document.getElementById('billing-address') as HTMLInputElement).value,
+    billingPostal: (document.getElementById('billing-postal') as HTMLInputElement).value,
     partySize: parseInt((document.getElementById('party-size') as HTMLInputElement).value) || 1,
   })
   alert('Payment info saved.')
