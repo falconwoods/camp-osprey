@@ -37,6 +37,24 @@ interface TargetSite {
 // content scripts can only access chrome.storage.local, not session
 dbg('content script loaded', { url: window.location.pathname })
 
+// BC Parks is an Angular SPA — route changes happen via pushState with no page reload.
+// The content script only runs once on initial load, so we poll for URL changes and
+// re-dispatch whenever Angular navigates to a new route.
+function dispatchForUrl(target: TargetSite, url: string): void {
+  if (url.includes('/create-booking/results')) {
+    dbg('detected: results page')
+    handleResultsPage(target)
+  } else if (url.includes('reservationmessages')) {
+    dbg('detected: reservationmessages page')
+    handleReservationReview(target.tripId, target.mode)
+  } else if (url.includes('/create-booking/') && target.mode === 'autopay') {
+    dbg('detected: checkout step')
+    runCheckout(target.tripId)
+  } else {
+    dbg('page not matched for auto-action', { url })
+  }
+}
+
 chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) => {
   if (chrome.runtime.lastError) {
     dbg('storage error', chrome.runtime.lastError.message); return
@@ -47,21 +65,21 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
   dbg('target loaded', { ...target, ageSeconds: age })
   if (age > 300) { dbg('target is stale, ignoring'); return }
 
-  const url = window.location.href
-  if (url.includes('/create-booking/results')) {
-    dbg('detected: results page')
-    handleResultsPage(target)
-  } else if (url.includes('reservationmessages')) {
-    // "Review Reservation Details" page then surcharges — both at this URL
-    // Must check box + confirm to lock site in cart (15-min hold timer starts here)
-    dbg('detected: reservationmessages page')
-    handleReservationReview(target.tripId, target.mode)
-  } else if (url.includes('payment') || url.includes('checkout') || url.includes('occupant') || url.includes('campsite-details')) {
-    dbg('detected: checkout page')
-    if (target.mode === 'autopay') runCheckout(target.tripId)
-  } else {
-    dbg('page not matched for auto-action', { url })
-  }
+  // Handle initial URL
+  dispatchForUrl(target, window.location.href)
+
+  // Watch for SPA navigation — poll every 300ms for URL changes
+  let lastUrl = window.location.href
+  const watcher = setInterval(() => {
+    const url = window.location.href
+    if (url === lastUrl) return
+    lastUrl = url
+    dbg('SPA navigation detected', { url: window.location.pathname })
+    dispatchForUrl(target, url)
+  }, 300)
+
+  // Stop watching after 15 minutes (cart expires anyway)
+  setTimeout(() => clearInterval(watcher), 15 * 60 * 1000)
 })
 
 // ── Banner (fixed bottom so it never covers BC Parks nav/cart) ─────────────
@@ -570,12 +588,16 @@ async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay')
   try {
     await sleep(1500)
 
-    // State 1: Check "All reservation details are correct" checkbox if present
+    // State 1: Check "All reservation details are correct" checkbox if present.
+    // Must click the <label>, not the <input> — mat-checkbox ignores direct input clicks.
     const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement | null
     dbg('checkbox found', !!checkbox)
     if (checkbox && !checkbox.checked) {
-      checkbox.click()
-      dbg('checked acknowledge checkbox')
+      const label = checkbox.id
+        ? document.querySelector(`label[for="${checkbox.id}"]`) as HTMLElement | null
+        : checkbox.closest('label') as HTMLElement | null
+      ;(label ?? checkbox).click()
+      dbg('checked acknowledge checkbox', { via: label ? 'label' : 'direct' })
       await sleep(600)
     }
 
@@ -597,13 +619,13 @@ async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay')
       return
     }
 
-    // Autopay: State 2 — surcharges Continue button (same URL after confirm)
-    setStatus('Confirming surcharges…')
+    // Autopay: State 2 — surcharges page has "Proceed to checkout" button
+    setStatus('Proceeding to checkout…')
     const continueBtn = Array.from(document.querySelectorAll('button')).find(b => {
       const t = (b.textContent ?? '').trim().toLowerCase()
-      return t === 'continue' || t.includes('continue') || t.includes('proceed')
+      return t.includes('proceed to checkout') || t.includes('continue') || t.includes('proceed')
     })
-    dbg('continue button found', !!continueBtn)
+    dbg('proceed button found', !!continueBtn)
     if (continueBtn) {
       ;(continueBtn as HTMLElement).click()
       setStatus('Proceeding to occupant details…')
@@ -649,44 +671,108 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
 
+// Checkout wizard driver — confirmed selectors from Playwright recording.
+// BC Parks checkout is a multi-step wizard; each step is a separate page load.
+// We detect which step we're on by looking for the step's unique confirm button.
+//
+// Recorded step sequence:
+//   reservationmessages (handled by handleReservationReview) → Proceed to checkout
+//   → Acknowledgements → Account details → Occupant → Party info
+//   → Additional info → Add-ons → Payment
 async function runCheckout(tripId: string): Promise<void> {
-  const url = window.location.href
+  dbg('runCheckout', { url: window.location.pathname })
+  await sleep(1500)  // wait for Angular to render the step
+
+  // Helper: find a button containing the given text (case-insensitive)
+  const btn = (text: string): HTMLElement | null =>
+    Array.from(document.querySelectorAll('button'))
+      .find(b => (b.textContent ?? '').toLowerCase().includes(text.toLowerCase())) as HTMLElement | null
+
   try {
-    if (url.includes('reservationmessages')) {
-      // Step 5 — surcharges / reservation messages
-      // TODO: verify selector by pasting HTML of this step here
-      await clickWhenReady(
-        'button[data-test="continue-button"], .continue-btn, button.mat-raised-button[color="primary"], button[type="submit"]'
-      )
+    // ── Acknowledgements ──────────────────────────────────────────────────
+    // Check all unchecked checkboxes (group acknowledgement), then confirm
+    if (btn('confirm acknowledgements')) {
+      dbg('step: acknowledgements')
+      document.querySelectorAll('input[type="checkbox"]:not(:checked)')
+        .forEach(cb => (cb as HTMLElement).click())
+      await sleep(400)
+      btn('confirm acknowledgements')!.click()
       return
     }
-    if (url.includes('occupant') || url.includes('campsite-details')) {
-      // Step 6 — occupant details
-      // TODO: verify selector by pasting HTML of this step here
-      await clickWhenReady(
-        'button[data-test="continue-button"], .continue-btn, button.mat-raised-button[color="primary"], button[type="submit"]'
-      )
+
+    // ── Account details ───────────────────────────────────────────────────
+    if (btn('confirm account details')) {
+      dbg('step: account details')
+      btn('confirm account details')!.click()
       return
     }
-    if (url.includes('payment') || url.includes('checkout')) {
-      // Step 7 — payment (selectors confirmed from live HTML)
+
+    // ── Occupant ──────────────────────────────────────────────────────────
+    if (btn('confirm occupant')) {
+      dbg('step: occupant')
+      btn('confirm occupant')!.click()
+      return
+    }
+
+    // ── Party information ─────────────────────────────────────────────────
+    if (btn('confirm party information')) {
+      dbg('step: party information')
+      btn('confirm party information')!.click()
+      return
+    }
+
+    // ── Additional information ────────────────────────────────────────────
+    if (btn('confirm additional information')) {
+      dbg('step: additional information')
+      btn('confirm additional information')!.click()
+      return
+    }
+
+    // ── Add-ons ───────────────────────────────────────────────────────────
+    if (btn('skip add ons')) {
+      dbg('step: add-ons — skipping')
+      btn('skip add ons')!.click()
+      return
+    }
+
+    // ── Payment ───────────────────────────────────────────────────────────
+    // Detected by presence of the card number field (aria-label "Card #")
+    const cardField = document.querySelector('[aria-label="Card #"]')
+    if (cardField || btn('apply credit card payment')) {
+      dbg('step: payment')
       const { payment } = await new Promise<Record<string, unknown>>(resolve =>
         chrome.storage.local.get('payment', resolve)
-      ) as { payment: { cardNumber: string; cardHolder: string; cardExpiry: string; cardCvv: string } | null }
+      ) as { payment: import('../types').PaymentConfig | null }
       if (!payment) throw new Error('No payment info — add it in CampOsprey Settings.')
-      await fillInput('#cardNumber', payment.cardNumber)
-      await fillInput('#cardHolderName', payment.cardHolder)
-      await fillInput('#cardExpiry', payment.cardExpiry)
-      await fillInput('#cardCvv', payment.cardCvv)
-      await clickWhenReady('#applyPaymentButton')
+
+      await fillInput('[aria-label="Card #"]', payment.cardNumber)
+      await fillInput('[aria-label="Name on card"]', payment.cardHolder)
+      await fillInput('[aria-label="Expiry date"]', payment.cardExpiry)
+      await fillInput('[aria-label="Security code"]', payment.cardCvv)
+      if (payment.billingAddress) await fillInput('[aria-label="Street Address"]', payment.billingAddress)
+      if (payment.billingPostal)  await fillInput('[aria-label="Postal/Zip Code"]', payment.billingPostal)
+      await sleep(500)
+
+      const applyBtn = btn('apply credit card payment')
+      if (!applyBtn) throw new Error('Apply payment button not found')
+      applyBtn.click()
+      dbg('clicked Apply credit card payment')
+
+      // Wait for confirmation page
       const confirmEl = await waitForElement(
-        '[class*="confirmation"], [class*="booking-ref"], [class*="reference-number"], h1', 20_000
+        '[class*="confirmation"], [class*="booking-ref"], [class*="reference-number"], [class*="confirm-number"]',
+        30_000
       )
       const confirmationNumber = confirmEl.textContent?.trim() ?? 'unknown'
+      dbg('booking confirmed', confirmationNumber)
       chrome.runtime.sendMessage({ type: 'BOOKING_CONFIRMED', tripId, confirmationNumber })
       chrome.storage.local.remove('campOspreyTarget')
+      return
     }
+
+    dbg('runCheckout: no matching step found on this page')
   } catch (err) {
+    dbg('runCheckout error', String(err))
     chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: String(err) })
   }
 }

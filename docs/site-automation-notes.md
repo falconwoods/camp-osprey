@@ -6,6 +6,24 @@ Lessons learned automating specific websites. Useful for debugging, writing cont
 
 ## camping.bcparks.ca
 
+### Angular SPA — content script navigation
+
+BC Parks uses Angular with client-side routing (`pushState`). Clicking Reserve navigates from `/results` to `/reservationmessages` **without a page reload**. Content scripts injected at `document_idle` are NOT re-injected on SPA route changes.
+
+**Fix:** poll for URL changes inside the content script and re-dispatch when the URL changes:
+```typescript
+let lastUrl = window.location.href
+const watcher = setInterval(() => {
+  const url = window.location.href
+  if (url === lastUrl) return
+  lastUrl = url
+  dispatchForUrl(target, url)  // re-run handler for new route
+}, 300)
+setTimeout(() => clearInterval(watcher), 15 * 60 * 1000)
+```
+
+---
+
 ### Angular Material — clicking elements
 
 BC Parks is an Angular app using Angular Material components. Native DOM `.click()` on form controls often bypasses Angular's event binding and has no effect.
