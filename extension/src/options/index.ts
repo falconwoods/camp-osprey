@@ -170,9 +170,9 @@ async function openEditor(trip?: Trip) {
     name = `Trip ${trips.length + 1}`
   }
   ;(document.getElementById('trip-name') as HTMLInputElement).value = name
-  ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'notify'
-  ;(document.getElementById('filter-walkin') as HTMLInputElement).checked = trip?.filters.noWalkin ?? false
-  ;(document.getElementById('filter-double') as HTMLInputElement).checked = trip?.filters.noDouble ?? false
+  ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'hold'
+  ;(document.getElementById('filter-walkin') as HTMLInputElement).checked = trip?.filters.noWalkin ?? true
+  ;(document.getElementById('filter-double') as HTMLInputElement).checked = trip?.filters.noDouble ?? true
 
   // Status bar (only for existing trips)
   const statusBar = document.getElementById('editor-status-bar')!
