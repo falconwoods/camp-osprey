@@ -25,18 +25,26 @@ export async function POST(request: Request) {
     mode: string;
   };
 
-  const [trip] = await db.insert(trips).values({
-    id:         body.id,
-    userId:     session.user.id,
-    name:       body.name,
-    parks:      body.parks,
-    dateRanges: body.dateRanges,
-    filters:    body.filters,
-    mode:       body.mode,
-    status:     'idle',
-    lastMatch:  null,
-    attempted:  [],
-  }).returning();
+  try {
+    const [trip] = await db.insert(trips).values({
+      id:         body.id,
+      userId:     session.user.id,
+      name:       body.name,
+      parks:      body.parks,
+      dateRanges: body.dateRanges,
+      filters:    body.filters,
+      mode:       body.mode,
+      status:     'idle',
+      lastMatch:  null,
+      attempted:  [],
+    }).returning();
 
-  return NextResponse.json(trip, { status: 201 });
+    return NextResponse.json(trip, { status: 201 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('duplicate key') || msg.includes('unique constraint')) {
+      return NextResponse.json({ error: 'Trip ID already exists' }, { status: 409 });
+    }
+    throw err;
+  }
 }

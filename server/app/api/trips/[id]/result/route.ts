@@ -55,7 +55,7 @@ export async function POST(
       lastMatch: matchedSite ?? trip.lastMatch,
       updatedAt: new Date(),
     })
-    .where(eq(trips.id, id));
+    .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)));
 
   const [result] = await db
     .insert(bookingResults)

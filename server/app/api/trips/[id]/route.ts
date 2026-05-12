@@ -23,9 +23,11 @@ export async function PUT(
     attempted: string[];
   }>;
 
+  const { name, parks, dateRanges, filters, mode, status, lastMatch, attempted } = body;
+
   const [trip] = await db
     .update(trips)
-    .set({ ...body, updatedAt: new Date() })
+    .set({ name, parks, dateRanges, filters, mode, status, lastMatch, attempted, updatedAt: new Date() })
     .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
     .returning();
 
