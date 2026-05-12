@@ -1,0 +1,37 @@
+{
+  "name": "camposprey-server",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "better-auth": "^1.2.0",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.5",
+    "resend": "^4.5.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.0.0",
+    "lucide-react": "^0.503.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0",
+    "drizzle-kit": "^0.31.10",
+    "dotenv": "^16.5.0",
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "vitest": "^3.1.0"
+  }
+}
