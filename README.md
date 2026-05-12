@@ -11,6 +11,7 @@ BC Parks campsites sell out instantly. This tool polls for cancellations on a co
 **1. Install**
 
 ```bash
+cd python
 python -m venv .venv
 source .venv/bin/activate   # or: .venv/bin/activate.fish
 pip install -e ".[dev]"

@@ -39,14 +39,19 @@ config.yaml
 ## File Structure
 
 ```
-campsite/
-  cli.py          # Click entry point — all CLI commands
-  config.py       # Pydantic v2 config loader + env var resolution
-  models.py       # DateRange, SiteFilter, Campground, BookingResult
-  scanner.py      # httpx polling loop + priority iteration
-  booker.py       # Playwright booking flow
-  notifier.py     # terminal / desktop / email dispatch
-  api.py          # BC Parks API client (httpx)
+python/
+  campsite/
+    cli.py          # Click entry point — all CLI commands
+    config.py       # Pydantic v2 config loader + env var resolution
+    models.py       # DateRange, SiteFilter, Campground, BookingResult
+    scanner.py      # httpx polling loop + priority iteration
+    booker.py       # Playwright booking flow
+    notifier.py     # terminal / desktop / email dispatch
+    api.py          # BC Parks API client (httpx)
+  tests/
+  pyproject.toml
+  config.yaml
+extension/
 docs/
   api-notes.md    # discovered API endpoints (populated by campsite discover)
   booking-flow.py # auto-generated Playwright script from discover session
