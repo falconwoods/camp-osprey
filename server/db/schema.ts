@@ -1,6 +1,6 @@
 import {
   pgTable, text, boolean, timestamp, serial,
-  integer, jsonb,
+  integer, jsonb, index,
 } from 'drizzle-orm/pg-core';
 
 // ── better-auth required tables ───────────────────────────────────────────────
@@ -71,7 +71,9 @@ export const trips = pgTable('trips', {
   attempted:   text('attempted').array().notNull().default([]),
   createdAt:   timestamp('createdAt').notNull().defaultNow(),
   updatedAt:   timestamp('updatedAt').notNull().defaultNow(),
-});
+}, (t) => [
+  index('trips_user_idx').on(t.userId),
+]);
 
 export const bookingResults = pgTable('booking_results', {
   id:          serial('id').primaryKey(),
@@ -82,4 +84,7 @@ export const bookingResults = pgTable('booking_results', {
   error:       text('error'),
   emailSent:   boolean('emailSent').notNull().default(false),
   createdAt:   timestamp('createdAt').notNull().defaultNow(),
-});
+}, (t) => [
+  index('booking_results_trip_idx').on(t.tripId),
+  index('booking_results_user_idx').on(t.userId),
+]);

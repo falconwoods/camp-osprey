@@ -8,6 +8,13 @@
       "when": 1778601312823,
       "tag": "0000_absent_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778601469456,
+      "tag": "0001_omniscient_carnage",
+      "breakpoints": true
     }
   ]
 }
