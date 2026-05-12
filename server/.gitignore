@@ -2,3 +2,5 @@ node_modules/
 .next/
 drizzle/
 .env.local
+.DS_Store
+*.tsbuildinfo
