@@ -95,6 +95,7 @@
     .btn-add { width: 100%; background: var(--bg-blue); border: 1px dashed var(--blue); color: var(--blue); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 4px; }
     .trip-action-btn { padding: 4px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-subtle); }
     .trip-action-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .trip-action-btn:disabled { cursor: default; opacity: 0.65; border-color: var(--border); color: var(--text-dim); }
 
     /* ── Chips ───────────────────────────────────────────────── */
     .chip { background: var(--bg-card); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
@@ -108,8 +109,11 @@
     /* ── Trip list ───────────────────────────────────────────── */
     .trip-list-item { background: var(--bg-card); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; border-left: 3px solid var(--border); }
     .trip-list-item.scanning  { border-left-color: var(--green); }
+    .trip-list-item.reserving { border-left-color: var(--blue); }
+    .trip-list-item.reserved  { border-left-color: var(--green); }
+    .trip-list-item.paid      { border-left-color: var(--green); opacity: 0.9; }
     .trip-list-item.paused    { border-left-color: var(--amber); }
-    .trip-list-item.completed { border-left-color: var(--border); opacity: 0.8; }
+    .trip-list-item.failed    { border-left-color: #ef4444; }
     .trip-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .trip-list-name { font-weight: 600; }
     .trip-list-meta { color: var(--text-muted); font-size: 11px; margin-bottom: 6px; }
@@ -232,7 +236,10 @@
       <div id="debug-section" class="hidden" style="margin-top:24px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="section-label" style="margin-bottom:0">Scan Log</div>
-          <button class="btn-secondary" id="clear-log-btn" style="padding:4px 12px;font-size:11px">Clear</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn-secondary" id="copy-log-btn" style="padding:4px 12px;font-size:11px">Copy</button>
+            <button class="btn-secondary" id="clear-log-btn" style="padding:4px 12px;font-size:11px">Clear</button>
+          </div>
         </div>
         <div class="debug-log-box" id="debug-log-box">No log entries yet — waiting for next scan cycle.</div>
       </div>

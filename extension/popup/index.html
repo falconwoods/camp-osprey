@@ -74,8 +74,11 @@
     /* ── Trip cards ──────────────────────────────────────────── */
     .trip-card { background: var(--bg-card); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid var(--border); }
     .trip-card.scanning  { border-left-color: var(--green); }
+    .trip-card.reserving { border-left-color: var(--blue); }
+    .trip-card.reserved  { border-left-color: var(--green); }
+    .trip-card.paid      { border-left-color: var(--green); opacity: 0.9; }
     .trip-card.paused    { border-left-color: var(--amber); opacity: 0.9; }
-    .trip-card.completed { border-left-color: var(--border); opacity: 0.7; }
+    .trip-card.failed    { border-left-color: #ef4444; }
     .trip-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .trip-name { font-weight: 600; font-size: 12px; }
     .trip-summary { color: var(--text-muted); font-size: 10px; line-height: 1.6; }
@@ -83,14 +86,18 @@
     /* ── Badges ──────────────────────────────────────────────── */
     .badge { padding: 2px 7px; border-radius: 10px; font-size: 10px; }
     .badge-scanning  { background: var(--green-subtle); color: var(--green); }
+    .badge-reserving { background: var(--bg-blue); color: var(--blue); }
+    .badge-reserved  { background: var(--green-subtle); color: var(--green); }
+    .badge-paid      { background: var(--green-subtle); color: var(--green); }
     .badge-paused    { background: var(--amber-subtle); color: var(--amber); }
+    .badge-failed    { background: rgba(239,68,68,0.12); color: #ef4444; }
     .badge-idle      { background: var(--bg-blue); color: var(--text-muted); }
-    .badge-completed { color: var(--text-subtle); }
 
     /* ── Buttons ─────────────────────────────────────────────── */
     .btn { border: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; margin-top: 6px; }
     .btn-stop    { background: var(--bg-blue); color: var(--text-muted); }
     .btn-start   { background: var(--bg-blue); color: var(--green); }
+    .btn:disabled { cursor: default; opacity: 0.65; }
     .btn-reserve { background: var(--green); color: #fff; font-weight: 600; }
     .add-trip { width: 100%; background: var(--bg-blue); border: 1px dashed var(--blue); color: var(--blue); padding: 7px; border-radius: 6px; font-size: 11px; cursor: pointer; margin-top: 4px; }
 

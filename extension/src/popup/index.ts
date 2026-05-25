@@ -18,30 +18,47 @@ document.getElementById('add-trip-btn')!.addEventListener('click', () => {
 
 function badgeClass(status: Trip['status']): string {
   const map: Record<Trip['status'], string> = {
-    scanning: 'badge-scanning', paused: 'badge-paused', idle: 'badge-idle', completed: 'badge-completed',
+    scanning: 'badge-scanning',
+    reserving: 'badge-reserving',
+    reserved: 'badge-reserved',
+    paid: 'badge-paid',
+    paused: 'badge-paused',
+    failed: 'badge-failed',
+    idle: 'badge-idle',
   }
   return map[status] ?? 'badge-idle'
 }
 
 function badgeLabel(status: Trip['status']): string {
   const map: Record<Trip['status'], string> = {
-    scanning: '● Scanning', paused: '⏸ Paused', idle: '— Idle', completed: '✓ Done',
+    scanning: '● Scanning',
+    reserving: '● Reserving',
+    reserved: '✓ Reserved',
+    paid: '✓ Paid',
+    paused: '⏸ Paused',
+    failed: '! Failed',
+    idle: '— Idle',
   }
   return map[status] ?? status
 }
 
 function renderMatch(match: MatchedSite, mode: Trip['mode'], status: Trip['status']): string {
-  const isBooked = status === 'completed'
-  const label = isBooked ? '✓ Booked' : 'Found'
-  const color = isBooked ? '#22c55e' : '#f59e0b'
-  const borderColor = isBooked ? '#22c55e44' : '#f59e0b44'
-  const bg = isBooked ? '#22c55e15' : '#f59e0b11'
+  const isPaid = status === 'paid'
+  const isReserved = status === 'reserved'
+  const label = isPaid ? 'Paid' : isReserved ? 'Reserved' : 'Found'
+  const color = isPaid || isReserved ? '#22c55e' : '#f59e0b'
+  const borderColor = isPaid || isReserved ? '#22c55e44' : '#f59e0b44'
+  const bg = isPaid || isReserved ? '#22c55e15' : '#f59e0b11'
+  const count = match.availableCount ?? 1
+  const matchText = count > 1
+    ? `${match.parkName} › ${count} available sites`
+    : `${match.parkName} › ${match.sectionName || '—'} › Site ${match.siteName}`
 
   return `<div style="background:${bg};border:1px solid ${borderColor};border-radius:5px;padding:6px 8px;margin-top:6px;font-size:10px;color:${color}">
-    ${label}: ${match.parkName} › ${match.sectionName || '—'} › Site ${match.siteName}<br>
+    ${label}: ${matchText}<br>
     ${match.checkIn} → ${match.checkOut}
   </div>
-  ${!isBooked && match.bookingUrl
+  ${!isPaid && match.bookingUrl
     ? `<a href="${match.bookingUrl}" target="_blank"><button class="btn btn-reserve" style="margin-top:4px">Reserve Now →</button></a>`
     : ''}`
 }
@@ -53,8 +70,12 @@ function renderTrip(trip: Trip): string {
   const warnings = getTripWarnings(trip)
 
   const actionBtn = trip.status === 'scanning'
-    ? `<button class="btn btn-stop" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
-    : (trip.status === 'paused' || trip.status === 'idle')
+    ? `<button class="btn btn-stop" data-id="${trip.id}" data-action="pause">⏸ Pause</button>`
+    : trip.status === 'reserving'
+    ? `<button class="btn btn-stop" disabled>Reserving...</button>`
+    : (trip.status === 'reserved' || trip.status === 'paid')
+    ? `<button class="btn btn-start" data-id="${trip.id}" data-action="start">↻ Scan Again</button>`
+    : (trip.status === 'paused' || trip.status === 'idle' || trip.status === 'failed')
     ? `<button class="btn btn-start" data-id="${trip.id}" data-action="start">▶ Start</button>`
     : ''
 
@@ -93,8 +114,14 @@ async function render() {
       await updateTrip(id, action === 'start'
         ? { status: 'scanning', lastMatch: null, attempted: [] }
         : { status: 'paused' })
-      if (action === 'start') chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
-      if (action === 'stop') chrome.storage.local.remove('campOspreyTarget')
+      if (action === 'start') {
+        chrome.storage.local.remove('campOspreyTarget')
+        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id })
+      }
+      if (action === 'pause') {
+        chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
+        chrome.storage.local.remove('campOspreyTarget')
+      }
       await render()
     })
   })

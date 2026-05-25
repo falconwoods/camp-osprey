@@ -43,6 +43,18 @@ describe('scanTrip', () => {
     expect(result).toMatchObject({ resourceId: 'res-1', campgroundName: 'Park 1' })
   })
 
+  it('keeps the available site count on the selected match', async () => {
+    mockGetAvailability.mockResolvedValue([
+      makeSite({ resourceId: 'res-1', siteName: 'A1' }),
+      makeSite({ resourceId: 'res-2', siteName: 'A2' }),
+      makeSite({ resourceId: 'res-3', siteName: 'A3' }),
+    ])
+
+    const result = await scanTrip(makeTrip(), mockGetAvailability)
+
+    expect(result).toMatchObject({ resourceId: 'res-1', availableCount: 3 })
+  })
+
   it('skips already-attempted park/date combinations', async () => {
     mockGetAvailability.mockResolvedValue([makeSite()])
     const trip = makeTrip({ attempted: ['p1|2026-07-04|2026-07-06'] })
@@ -65,5 +77,17 @@ describe('scanTrip', () => {
     const trip = makeTrip({ parks: [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }] })
     await scanTrip(trip, mockGetAvailability)
     expect(callCount).toBe(1)
+  })
+
+  it('stops before the next park/date check when cancellation is requested', async () => {
+    let shouldContinue = true
+    mockGetAvailability.mockImplementation(async () => {
+      shouldContinue = false
+      return []
+    })
+    const trip = makeTrip({ parks: [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }] })
+    const result = await scanTrip(trip, mockGetAvailability, () => shouldContinue)
+    expect(result).toBeNull()
+    expect(mockGetAvailability).toHaveBeenCalledTimes(1)
   })
 })

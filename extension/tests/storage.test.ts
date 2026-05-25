@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { getStorage, saveTrips, updateTrip } from '../src/storage'
+import { addDebugLog, getStorage, saveTrips, updateTrip } from '../src/storage'
 import type { Trip } from '../src/types'
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
@@ -56,5 +56,40 @@ describe('updateTrip', () => {
   it('throws if trip not found', async () => {
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ trips: [] }))
     await expect(updateTrip('missing', {})).rejects.toThrow('not found')
+  })
+})
+
+describe('addDebugLog', () => {
+  it('keeps more than 30 entries so the scan history is not truncated too aggressively', async () => {
+    const existing = Array.from({ length: 40 }, (_, i) => `entry ${i}`)
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: existing }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog('latest')
+
+    const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(setCall.debugLog).toHaveLength(41)
+    expect(setCall.debugLog[0]).toBe('entry 0')
+    expect(setCall.debugLog[40]).toContain('latest')
+  })
+
+  it('serializes concurrent writes so log entries are not lost', async () => {
+    let stored: Record<string, unknown> = { debugLog: [] }
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
+    chrome.storage.local.set.mockImplementation((data, cb) => {
+      stored = { ...stored, ...data }
+      cb?.()
+    })
+
+    await Promise.all([
+      addDebugLog('first'),
+      addDebugLog('second'),
+    ])
+
+    expect(stored.debugLog).toHaveLength(2)
+    expect(stored.debugLog).toEqual([
+      expect.stringContaining('first'),
+      expect.stringContaining('second'),
+    ])
   })
 })

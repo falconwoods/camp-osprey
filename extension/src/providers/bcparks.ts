@@ -1,7 +1,34 @@
 import type { AvailableSite, Filters, Park } from '../types'
 
 const BASE = 'https://camping.bcparks.ca'
-const CONCURRENCY = 10
+const CONCURRENCY = 3
+
+type AvailabilityMapResponse = {
+  resourceAvailabilities?: Record<string, Array<{ availability?: number; processedAvailability?: number }>>
+}
+
+function buildFilterData(filters: Filters): string {
+  const filterData = []
+  if (filters.noWalkin) {
+    filterData.push({
+      attributeDefinitionId: -32764,
+      attributeType: 0,
+      enumValues: [1],
+      attributeDefinitionDecimalValue: 0,
+      filterStrategy: 1,
+    })
+  }
+  if (filters.noDouble) {
+    filterData.push({
+      attributeDefinitionId: -32722,
+      attributeType: 0,
+      enumValues: [1],
+      attributeDefinitionDecimalValue: 0,
+      filterStrategy: 1,
+    })
+  }
+  return JSON.stringify(filterData)
+}
 
 async function getCached<T>(key: string): Promise<T | null> {
   const result = await new Promise<Record<string, unknown>>(resolve =>
@@ -20,19 +47,19 @@ export class BCParksProvider {
   private cartData: Record<string, unknown> | null = null
 
   // Set this to receive raw daily API responses for available sites
-  onAvailabilityRaw?: (siteId: string, siteName: string, daily: Array<Record<string, number>>) => void
+  onAvailabilityRaw?: (siteId: string, siteName: string, daily: Array<Record<string, number>>) => void | Promise<void>
 
-  private async api(path: string, params?: Record<string, string>): Promise<unknown> {
+  private async api(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<unknown> {
     const url = new URL(BASE + path)
     if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-    const resp = await fetch(url.toString(), { credentials: 'include' })
+    const resp = await fetch(url.toString(), { credentials: 'include', signal })
     if (!resp.ok) throw new Error(`BC Parks API error ${resp.status}: ${path}`)
     return resp.json()
   }
 
-  private async ensureCart(): Promise<void> {
+  private async ensureCart(signal?: AbortSignal): Promise<void> {
     if (this.cartUid) return
-    const data = await this.api('/api/cart') as Record<string, unknown>
+    const data = await this.api('/api/cart', undefined, signal) as Record<string, unknown>
     const tx = data['newTransaction'] as Record<string, unknown>
     this.cartUid = data['cartUid'] as string
     this.cartTxUid = tx['cartTransactionUid'] as string
@@ -55,20 +82,20 @@ export class BCParksProvider {
       })
   }
 
-  private async getResources(campgroundId: string): Promise<Record<string, Record<string, unknown>>> {
+  private async getResources(campgroundId: string, signal?: AbortSignal): Promise<Record<string, Record<string, unknown>>> {
     const cacheKey = `resources_${campgroundId}`
     const cached = await getCached<Record<string, Record<string, unknown>>>(cacheKey)
     if (cached) return cached
-    const data = await this.api('/api/resourcelocation/resources', { resourceLocationId: campgroundId })
+    const data = await this.api('/api/resourcelocation/resources', { resourceLocationId: campgroundId }, signal)
     await setCached(cacheKey, data)
     return data as Record<string, Record<string, unknown>>
   }
 
-  private async getSections(campgroundId: string): Promise<Record<string, [string, boolean, string]>> {
+  private async getSections(campgroundId: string, signal?: AbortSignal): Promise<Record<string, [string, boolean, string]>> {
     const cacheKey = `sections_${campgroundId}`
     const cached = await getCached<Record<string, [string, boolean, string]>>(cacheKey)
     if (cached) return cached
-    const maps = await this.api('/api/maps', { resourceLocationId: campgroundId }) as Array<Record<string, unknown>>
+    const maps = await this.api('/api/maps', { resourceLocationId: campgroundId }, signal) as Array<Record<string, unknown>>
     const sections: Record<string, [string, boolean, string]> = {}
     for (const m of maps) {
       const mapId = String(m['mapId'])
@@ -100,16 +127,15 @@ export class BCParksProvider {
     checkIn: string,
     checkOut: string,
     filters: Filters,
+    signal?: AbortSignal,
   ): Promise<AvailableSite[]> {
-    await this.ensureCart()
+    await this.ensureCart(signal)
     const [resources, sections] = await Promise.all([
-      this.getResources(campgroundId),
-      this.getSections(campgroundId),
+      this.getResources(campgroundId, signal),
+      this.getSections(campgroundId, signal),
     ])
 
-    const numNights = Math.round(
-      (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86_400_000
-    )
+    const filterData = buildFilterData(filters)
 
     const candidates = Object.entries(resources)
       .map(([resourceId, resource]) => {
@@ -123,6 +149,8 @@ export class BCParksProvider {
         return { resourceId, sectionName, isWalkin, isDouble, siteName: vals['name'] ?? resourceId, mapId }
       })
       .filter((c): c is NonNullable<typeof c> => c !== null)
+    const candidatesByResourceId = new Map(candidates.map(c => [c.resourceId, c]))
+    const candidateMapIds = [...new Set(candidates.map(c => c.mapId).filter(Boolean))]
 
     let activeCount = 0
     const queue: Array<() => void> = []
@@ -136,56 +164,60 @@ export class BCParksProvider {
       if (next) { activeCount++; next() }
     }
 
-    const results = await Promise.all(candidates.map(async c => {
+    const availableResourceIds = new Set<string>()
+    await Promise.all(candidateMapIds.map(async mapId => {
       await acquire()
       try {
-        const daily = await this.api('/api/availability/resourcedailyavailability', {
-          cartUid: this.cartUid!,
-          resourceId: c.resourceId,
+        const mapAvailability = await this.api('/api/availability/map', {
+          mapId,
           bookingCategoryId: '0',
-          startDate: checkIn,
-          endDate: checkOut,
-          isReserving: 'true',
           equipmentCategoryId: '-32768',
           subEquipmentCategoryId: '-32768',
+          cartUid: this.cartUid!,
+          cartTransactionUid: this.cartTxUid!,
+          bookingUid: crypto.randomUUID(),
+          groupHoldUid: '',
+          startDate: checkIn,
+          endDate: checkOut,
+          getDailyAvailability: 'false',
+          isReserving: 'true',
           boatLength: '0', boatDraft: '0', boatWidth: '0',
           peopleCapacityCategoryCounts: '[]',
           numEquipment: '0',
-          filterData: '[]',
-          groupHoldUid: '',
-          bookingUid: crypto.randomUUID(),
-        }) as Array<Record<string, number>>
+          filterData,
+          seed: new Date().toISOString(),
+        }, signal) as AvailabilityMapResponse
 
-        // processedAvailability is the true bookability status:
-        //   0 = Available (green)    ← only these are genuinely reservable
-        //   1 = Occupied (red)
-        //   3 = Restrictions (yellow) — unoccupied but not reservable (closure, permit, etc.)
-        // availability===0 only means the slot is unbooked, not that it can be reserved.
-        const available = daily.slice(0, numNights).every(d => d['processedAvailability'] === 0)
-        if (!available) return null
-
-        this.onAvailabilityRaw?.(c.resourceId, c.siteName, daily)
-
-        return {
-          resourceId: c.resourceId,
-          campgroundId,
-          campgroundName: '',
-          sectionName: c.sectionName,
-          siteName: c.siteName,
-          mapId: c.mapId,
-          isWalkin: c.isWalkin,
-          isDouble: c.isDouble,
-          checkIn,
-          checkOut,
-        } satisfies AvailableSite
-      } catch {
-        return null
+        for (const [resourceId, availability] of Object.entries(mapAvailability.resourceAvailabilities ?? {})) {
+          if (!candidatesByResourceId.has(resourceId)) continue
+          const available = availability.length > 0 && availability.every(d =>
+            (d.processedAvailability ?? d.availability) === 0
+          )
+          if (available) availableResourceIds.add(resourceId)
+        }
       } finally {
         release()
       }
     }))
 
-    return results.filter((r): r is AvailableSite => r !== null)
+    const sites: AvailableSite[] = []
+    for (const resourceId of availableResourceIds) {
+      const c = candidatesByResourceId.get(resourceId)!
+      await this.onAvailabilityRaw?.(c.resourceId, c.siteName, [{ availability: 0 }])
+      sites.push({
+        resourceId: c.resourceId,
+        campgroundId,
+        campgroundName: '',
+        sectionName: c.sectionName,
+        siteName: c.siteName,
+        mapId: c.mapId,
+        isWalkin: c.isWalkin,
+        isDouble: c.isDouble,
+        checkIn,
+        checkOut,
+      })
+    }
+    return sites
   }
 
   async holdSite(site: AvailableSite, partySize: number): Promise<void> {

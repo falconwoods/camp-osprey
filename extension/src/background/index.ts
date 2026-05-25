@@ -6,6 +6,11 @@ import type { AvailableSite, Trip } from '../types'
 
 const ALARM_NAME = 'scan'
 const provider = new BCParksProvider()
+let scanInProgress = false
+let pendingScanAll = false
+const pendingScanTripIds = new Set<string>()
+const stoppedTripIds = new Set<string>()
+const activeTripControllers = new Map<string, AbortController>()
 
 // Log full raw daily API response for every site that passes availability check
 provider.onAvailabilityRaw = (siteId, siteName, daily) => {
@@ -38,58 +43,101 @@ watchLoginChanges(async loggedIn => {
   await runScanCycle()
 })
 
-async function runScanCycle(): Promise<void> {
-  const { trips, payment, settings } = await getStorage()
-  await setupAlarm(settings.pollIntervalSeconds)
-
-  const scanningTrips = trips.filter(t => t.status === 'scanning')
-  const debug = settings.debugMode
-
-  await addDebugLog(`${'─'.repeat(48)}\nAlarm fired — ${scanningTrips.length} trip(s) scanning`)
-
-  for (const trip of scanningTrips) {
-    const loggedIn = await isLoggedIn()
-    const needsLogin = trip.mode !== 'notify' && !loggedIn
-    if (needsLogin) {
-      if (debug) await addDebugLog(`"${trip.name}" — not logged in, skipping hold/autopay`)
-      await notify(
-        'CampOsprey — Login Required',
-        `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
-      )
-      continue
-    }
-
-    if (debug) await addDebugLog(`Scanning "${trip.name}" (${trip.parks.length} park(s), ${trip.dateRanges.length} date range(s))`)
-
-    try {
-      const site = await scanTrip(trip, async (id, ci, co, filters) => {
-        const parkName = trip.parks.find(p => p.id === id)?.name ?? id
-        if (debug) await addDebugLog(`  Checking ${parkName} | ${ci} → ${co}`)
-        const results = await provider.getAvailability(id, ci, co, filters)
-        if (results.length > 0) {
-          const secW = Math.max(...results.map(s => (s.sectionName || 'no section').length))
-          const siteW = Math.max(...results.map(s => s.siteName.length))
-          const lines = results.map(s => {
-            const sec  = (s.sectionName || 'no section').padEnd(secW)
-            const site = s.siteName.padEnd(siteW)
-            const flags = [s.isWalkin && 'walkin', s.isDouble && 'double'].filter(Boolean).join(' ')
-            return `    • ${sec}  ${site}  id=${s.resourceId}${flags ? `  [${flags}]` : ''}`
-          })
-          await addDebugLog(`  API: ${results.length} available at ${parkName} ${ci}→${co}\n${lines.join('\n')}`)
-        } else if (debug) {
-          await addDebugLog(`  API: 0 available at ${parkName} ${ci}→${co}`)
-        }
-        return results
-      })
-      if (site) {
-        if (debug) await addDebugLog(`Match found: ${site.campgroundName} › Site ${site.siteName}`)
-        await handleMatch(trip, site, payment?.partySize ?? 1)
-      } else {
-        if (debug) await addDebugLog(`"${trip.name}" — no availability this cycle`)
+async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
+  if (scanInProgress) {
+    if (targetTripIds) {
+      for (const id of Array.isArray(targetTripIds) ? targetTripIds : [targetTripIds]) {
+        pendingScanTripIds.add(id)
       }
-    } catch (err) {
-      if (debug) await addDebugLog(`Error scanning "${trip.name}": ${err}`)
-      console.error(`Scan error for trip ${trip.id}:`, err)
+    } else {
+      pendingScanAll = true
+    }
+    const { settings } = await getStorage()
+    if (settings.debugMode) await addDebugLog('Scan skipped — previous scan still running')
+    return
+  }
+
+  scanInProgress = true
+  try {
+    const { trips, payment, settings } = await getStorage()
+    await setupAlarm(settings.pollIntervalSeconds)
+    const targetSet = targetTripIds
+      ? new Set(Array.isArray(targetTripIds) ? targetTripIds : [targetTripIds])
+      : null
+
+    const scanningTrips = trips.filter(t =>
+      t.status === 'scanning' && (!targetSet || targetSet.has(t.id))
+    )
+    const debug = settings.debugMode
+
+    await addDebugLog(`${'─'.repeat(48)}\nAlarm fired — ${scanningTrips.length} trip(s) scanning`)
+
+    for (const trip of scanningTrips) {
+      const loggedIn = await isLoggedIn()
+      const needsLogin = trip.mode !== 'notify' && !loggedIn
+      if (needsLogin) {
+        if (debug) await addDebugLog(`"${trip.name}" — not logged in, skipping hold/autopay`)
+        await notify(
+          'CampOsprey — Login Required',
+          `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
+        )
+        continue
+      }
+
+      if (debug) {
+        const parkNames = trip.parks.map(p => p.name).join(', ')
+        await addDebugLog(`Scanning "${trip.name}" (${trip.parks.length} park(s): ${parkNames}; ${trip.dateRanges.length} date range(s))`)
+      }
+
+      try {
+        const controller = new AbortController()
+        activeTripControllers.set(trip.id, controller)
+        const site = await scanTrip(trip, async (id, ci, co, filters) => {
+          const parkName = trip.parks.find(p => p.id === id)?.name ?? id
+          if (debug) await addDebugLog(`  Checking ${parkName} | ${ci} → ${co}`)
+          const results = await provider.getAvailability(id, ci, co, filters, controller.signal)
+          if (results.length > 0) {
+            const secW = Math.max(...results.map(s => (s.sectionName || 'no section').length))
+            const siteW = Math.max(...results.map(s => s.siteName.length))
+            const lines = results.map(s => {
+              const sec  = (s.sectionName || 'no section').padEnd(secW)
+              const site = s.siteName.padEnd(siteW)
+              const flags = [s.isWalkin && 'walkin', s.isDouble && 'double'].filter(Boolean).join(' ')
+              return `    • ${sec}  ${site}  id=${s.resourceId}${flags ? `  [${flags}]` : ''}`
+            })
+            await addDebugLog(`  API: ${results.length} available at ${parkName} ${ci}→${co}\n${lines.join('\n')}`)
+          } else if (debug) {
+            await addDebugLog(`  API: 0 available at ${parkName} ${ci}→${co}`)
+          }
+          return results
+        }, () => !stoppedTripIds.has(trip.id) && !controller.signal.aborted)
+        if (site) {
+          if (debug) await addDebugLog(`Match found: ${site.campgroundName} › Site ${site.siteName}`)
+          await handleMatch(trip, site, payment?.partySize ?? 1)
+        } else if (stoppedTripIds.has(trip.id) || controller.signal.aborted) {
+          if (debug) await addDebugLog(`"${trip.name}" — scan stopped`)
+        } else {
+          if (debug) await addDebugLog(`"${trip.name}" — no availability this cycle`)
+        }
+      } catch (err) {
+        if (stoppedTripIds.has(trip.id)) {
+          if (debug) await addDebugLog(`"${trip.name}" — scan stopped`)
+        } else {
+          if (debug) await addDebugLog(`Error scanning "${trip.name}": ${err}`)
+          console.error(`Scan error for trip ${trip.id}:`, err)
+        }
+      } finally {
+        activeTripControllers.delete(trip.id)
+      }
+    }
+  } finally {
+    scanInProgress = false
+    const queuedAll = pendingScanAll
+    const queuedTripIds = [...pendingScanTripIds]
+    pendingScanAll = false
+    pendingScanTripIds.clear()
+    if (queuedAll || queuedTripIds.length > 0) {
+      await runScanCycle(queuedAll ? undefined : queuedTripIds)
     }
   }
 }
@@ -100,6 +148,8 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
   )
   const nightStr = `${nights} night${nights !== 1 ? 's' : ''}`
   const bookingUrl = buildBookingUrl(site)
+  const availableCount = site.availableCount ?? 1
+  const availableLabel = `${availableCount} available site${availableCount === 1 ? '' : 's'}`
 
   const matchedSite = {
     parkName: site.campgroundName || site.campgroundId,
@@ -109,12 +159,13 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
     checkOut: site.checkOut,
     bookingUrl,
     resourceId: site.resourceId,
+    availableCount,
   }
 
   if (trip.mode === 'notify') {
     await notify(
       `Campsite Available — ${matchedSite.parkName}`,
-      `${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut} (${nightStr})`,
+      `${availableLabel}\n${site.checkIn} → ${site.checkOut} (${nightStr})`,
       bookingUrl,
       true,
     )
@@ -139,6 +190,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
         noWalkin: trip.filters.noWalkin,
         checkIn: site.checkIn,
         checkOut: site.checkOut,
+        availableCount,
         setAt: Date.now(),
       },
     }, resolve)
@@ -147,24 +199,24 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
   if (trip.mode === 'hold') {
     await notify(
       `Site Available — Reserve Now`,
-      `${matchedSite.parkName} › ${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}\nBC Parks is opening — click Reserve in your browser.`,
+      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nBC Parks is opening — click Reserve in your browser.`,
       bookingUrl,
       true,
     )
     chrome.tabs.create({ url: bookingUrl })
-    await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
+    await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
     return
   }
 
   if (trip.mode === 'autopay') {
     await notify(
       `Site Available — Auto-paying`,
-      `${matchedSite.parkName} › ${matchedSite.sectionName} › Site ${matchedSite.siteName}\n${site.checkIn} → ${site.checkOut}`,
+      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}`,
       bookingUrl,
       true,
     )
     chrome.tabs.create({ url: bookingUrl })
-    await updateTrip(trip.id, { status: 'paused', lastMatch: matchedSite })
+    await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
   }
 }
 
@@ -205,7 +257,14 @@ chrome.runtime.onMessage.addListener((msg: {
   attemptKey?: string
 }) => {
   if (msg.type === 'SCAN_NOW') {
-    runScanCycle()
+    if (msg.tripId) stoppedTripIds.delete(msg.tripId)
+    chrome.storage.local.remove('campOspreyTarget')
+    runScanCycle(msg.tripId)
+    return
+  }
+  if (msg.type === 'STOP_SCAN' && msg.tripId) {
+    stoppedTripIds.add(msg.tripId)
+    activeTripControllers.get(msg.tripId)?.abort()
     return
   }
   if (msg.type === 'MATCH_FAILED' && msg.tripId) {
@@ -222,6 +281,11 @@ chrome.runtime.onMessage.addListener((msg: {
     })
     return
   }
+  if (msg.type === 'BOOKING_RESERVED' && msg.tripId) {
+    chrome.storage.local.remove('campOspreyTarget')
+    updateTrip(msg.tripId, { status: 'reserved' })
+    return
+  }
   if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
     getStorage().then(({ trips }) => {
       const trip = trips.find(t => t.id === msg.tripId)
@@ -229,9 +293,9 @@ chrome.runtime.onMessage.addListener((msg: {
       const detail = m
         ? `${m.parkName} › ${m.sectionName} › Site ${m.siteName}\n${m.checkIn} → ${m.checkOut}`
         : ''
-      updateTrip(msg.tripId!, { status: 'completed' }).then(() => {
+      updateTrip(msg.tripId!, { status: 'paid' }).then(() => {
         notify(
-          '🎉 Booking Confirmed!',
+          'Booking Paid',
           `${detail}${detail ? '\n' : ''}Confirmation: ${msg.confirmationNumber ?? 'unknown'}`,
           undefined,
           true,
@@ -245,7 +309,7 @@ chrome.runtime.onMessage.addListener((msg: {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
       const detail = m ? `${m.parkName} › Site ${m.siteName}` : ''
-      updateTrip(msg.tripId!, { status: 'paused' }).then(() => {
+      updateTrip(msg.tripId!, { status: 'failed' }).then(() => {
         notify(
           '❌ Payment Failed',
           `${detail}${detail ? '\n' : ''}${msg.error ?? 'Unknown error — check BC Parks tab.'}`,

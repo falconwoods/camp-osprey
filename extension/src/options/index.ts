@@ -4,6 +4,7 @@ import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { isLoggedIn, watchLoginChanges } from '../background/login'
+import { formatDebugLog } from '../debugLog'
 import type { Trip, DateRange, Park, Theme } from '../types'
 
 // Apply saved theme before anything renders
@@ -25,9 +26,12 @@ function upcomingWindows(range: DateRange) {
 function statusTextHTML(status: Trip['status']): string {
   const map: Record<Trip['status'], { color: string; label: string }> = {
     scanning:  { color: '#22c55e', label: '● Scanning' },
+    reserving: { color: '#3b82f6', label: '● Reserving' },
+    reserved:  { color: '#22c55e', label: '✓ Reserved' },
+    paid:      { color: '#22c55e', label: '✓ Paid' },
     paused:    { color: '#f59e0b', label: '⏸ Paused' },
+    failed:    { color: '#ef4444', label: '! Failed' },
     idle:      { color: '#64748b', label: '— Idle' },
-    completed: { color: '#94a3b8', label: '✓ Done' },
   }
   const s = map[status] ?? map.idle
   return `<span style="color:${s.color};font-size:11px;font-weight:500">${s.label}</span>`
@@ -35,10 +39,23 @@ function statusTextHTML(status: Trip['status']): string {
 
 function actionBtnHTML(trip: Trip): string {
   if (trip.status === 'scanning')
-    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="stop">⏹ Stop</button>`
-  if (trip.status === 'paused' || trip.status === 'idle')
+    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="pause">⏸ Pause</button>`
+  if (trip.status === 'reserving')
+    return `<button class="trip-action-btn" disabled>Reserving...</button>`
+  if (trip.status === 'reserved' || trip.status === 'paid')
+    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="start">↻ Scan Again</button>`
+  if (trip.status === 'paused' || trip.status === 'idle' || trip.status === 'failed')
     return `<button class="trip-action-btn" data-id="${trip.id}" data-action="start">▶ Start</button>`
   return ''
+}
+
+function matchSummaryHTML(match: Trip['lastMatch']): string {
+  if (!match) return ''
+  const count = match.availableCount ?? 1
+  const label = count > 1
+    ? `${count} available sites`
+    : `${match.sectionName} › Site ${match.siteName}`
+  return `${match.parkName} › ${label} · ${match.checkIn} → ${match.checkOut}`
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -74,7 +91,7 @@ async function renderTripList() {
     const dateCount = t.dateRanges.length
     const modeLabel: Record<Trip['mode'], string> = { notify: 'Notify', hold: 'Hold', autopay: 'Auto-pay' }
     const matchHTML = t.lastMatch
-      ? `<div class="match-info">Found: ${t.lastMatch.parkName} › ${t.lastMatch.sectionName} › Site ${t.lastMatch.siteName} · ${t.lastMatch.checkIn} → ${t.lastMatch.checkOut}
+      ? `<div class="match-info">Found: ${matchSummaryHTML(t.lastMatch)}
          ${t.lastMatch.bookingUrl ? `<a href="${t.lastMatch.bookingUrl}" target="_blank" style="color:#22c55e;margin-left:8px">Book →</a>` : ''}</div>`
       : ''
 
@@ -93,7 +110,7 @@ async function renderTripList() {
     </div>`
   }).join('')
 
-  // Action zone (status badge + Start/Stop) shouldn't bubble to the card-edit handler
+  // Action zone (status badge + Start/Pause) shouldn't bubble to the card-edit handler
   list.querySelectorAll('.trip-action-zone').forEach(el => {
     el.addEventListener('click', e => e.stopPropagation())
   })
@@ -106,7 +123,7 @@ async function renderTripList() {
     })
   })
 
-  // Start/Stop buttons
+  // Start/Pause buttons
   list.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation()
@@ -120,10 +137,12 @@ async function renderTripList() {
           promptLogin()
           return
         }
+        chrome.storage.local.remove('campOspreyTarget')
         await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
-        chrome.runtime.sendMessage({ type: 'SCAN_NOW' })
+        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id })
       } else {
         await updateTrip(id, { status: 'paused' })
+        chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
         chrome.storage.local.remove('campOspreyTarget')
       }
       await renderTripList()
@@ -182,7 +201,7 @@ async function openEditor(trip?: Trip) {
     statusBadge.innerHTML = statusTextHTML(trip.status)
     if (trip.lastMatch) {
       const m = trip.lastMatch
-      statusBadge.innerHTML += `&nbsp;&nbsp;<span style="color:#22c55e;font-size:11px">Match: ${m.parkName} › Site ${m.siteName} · ${m.checkIn} → ${m.checkOut}</span>`
+      statusBadge.innerHTML += `&nbsp;&nbsp;<span style="color:#22c55e;font-size:11px">Match: ${matchSummaryHTML(m)}</span>`
     }
   } else {
     statusBar.classList.add('hidden')
@@ -435,17 +454,20 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
   }
 
   const { trips } = await getStorage()
+  let savedTripId = editingTripId
   if (editingTripId) {
     const idx = trips.findIndex(t => t.id === editingTripId)
     if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [] }
   } else {
     const newId = crypto.randomUUID()
+    savedTripId = newId
     // Transfer the date mode saved under 'datemode_new' to the real trip ID
     const savedMode = localStorage.getItem('datemode_new')
     if (savedMode) localStorage.setItem(`datemode_${newId}`, savedMode)
     trips.push({ id: newId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [], createdAt: Date.now() })
   }
   await saveTrips(trips)
+  chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: savedTripId ?? undefined })
   document.getElementById('back-btn')!.click()
 })
 
@@ -546,14 +568,23 @@ async function refreshDebugLog() {
   section.classList.toggle('hidden', !settings.debugMode)
   if (!settings.debugMode) return
   const box = document.getElementById('debug-log-box')!
-  box.textContent = debugLog.length === 0
-    ? 'No log entries yet — waiting for next scan cycle.'
-    : [...debugLog].reverse().join('\n')
+  box.textContent = formatDebugLog(debugLog)
+  box.scrollTop = box.scrollHeight
 }
 
 document.getElementById('clear-log-btn')!.addEventListener('click', async () => {
   await clearDebugLog()
   await refreshDebugLog()
+})
+
+document.getElementById('copy-log-btn')!.addEventListener('click', async () => {
+  const { debugLog } = await getStorage()
+  const text = formatDebugLog(debugLog)
+  await navigator.clipboard.writeText(text)
+  const btn = document.getElementById('copy-log-btn')!
+  const original = btn.textContent
+  btn.textContent = 'Copied'
+  window.setTimeout(() => { btn.textContent = original }, 1200)
 })
 
 // ── Init ───────────────────────────────────────────────────────────────────

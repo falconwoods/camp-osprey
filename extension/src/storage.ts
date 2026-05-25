@@ -1,5 +1,8 @@
 import type { StorageData, Trip, PaymentConfig, Settings } from './types'
 
+const MAX_DEBUG_LOG_ENTRIES = 500
+let debugLogWriteQueue = Promise.resolve()
+
 const DEFAULTS: StorageData = {
   trips: [],
   payment: null,
@@ -16,7 +19,12 @@ export async function getStorage(): Promise<StorageData> {
   const result = await promisify<Record<string, unknown>>(cb =>
     chrome.storage.local.get(keys, cb)
   )
-  return { ...DEFAULTS, ...result } as StorageData
+  const data = { ...DEFAULTS, ...result } as StorageData
+  data.trips = data.trips.map(trip => ({
+    ...trip,
+    status: (trip.status as string) === 'completed' ? 'paid' : trip.status,
+  }))
+  return data
 }
 
 export async function saveTrips(trips: Trip[]): Promise<void> {
@@ -32,10 +40,15 @@ export async function saveSettings(settings: Settings): Promise<void> {
 }
 
 export async function addDebugLog(entry: string): Promise<void> {
-  const { debugLog } = await getStorage()
-  const timestamp = new Date().toLocaleTimeString()
-  const newLog = [...debugLog, `${timestamp} — ${entry}`].slice(-30)
-  await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
+  const write = async () => {
+    const { debugLog } = await getStorage()
+    const timestamp = new Date().toLocaleTimeString()
+    const newLog = [...debugLog, `${timestamp} — ${entry}`].slice(-MAX_DEBUG_LOG_ENTRIES)
+    await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
+  }
+  const result = debugLogWriteQueue.then(write, write)
+  debugLogWriteQueue = result.catch(() => undefined)
+  await result
 }
 
 export async function clearDebugLog(): Promise<void> {

@@ -1,4 +1,5 @@
 // Content script — injected on all camping.bcparks.ca pages
+import { extractCampsiteName, extractSelectedCampsiteName, reservePasses } from './reserveStrategy'
 
 // ── Debug logging ──────────────────────────────────────────────────────────
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
@@ -31,6 +32,7 @@ interface TargetSite {
   noWalkin: boolean
   checkIn: string   // ISO date — needed to build the attempted key on failure
   checkOut: string
+  availableCount?: number
   setAt: number
 }
 
@@ -113,11 +115,13 @@ function injectBanner(html: string): HTMLElement {
 // ── Results page ───────────────────────────────────────────────────────────
 
 async function handleResultsPage(target: TargetSite): Promise<void> {
+  const availableCount = target.availableCount ?? 1
+  const foundLabel = `${availableCount} available site${availableCount === 1 ? '' : 's'}`
   injectBanner(`
     <span style="font-size:18px">🏕</span>
     <span>
       <strong style="color:#22c55e">CampOsprey</strong> found
-      <strong>${target.siteName}</strong>${target.sectionName ? ` (${target.sectionName})` : ''} available —
+      <strong>${foundLabel}</strong> —
       ${target.mode === 'autopay' ? 'auto-clicking Reserve…' : 'click <strong>Reserve</strong> to add it to your cart.'}
     </span>
     <span id="camposprey-status" style="margin-left:auto;color:#94a3b8;font-size:11px;white-space:nowrap">Loading…</span>
@@ -214,8 +218,8 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   }
 
   // Step 4: expand panels and click Reserve
-  setStatus(`${panelCount} sites found — clicking Reserve…`)
-  const reserveResult = await expandAndReserve(target.siteName, target.noDouble, target.noWalkin)
+  setStatus(`${foundLabel} — clicking Reserve…`)
+  const reserveResult = await expandAndReserve(target.noDouble, target.noWalkin)
   dbg('expandAndReserve result', reserveResult)
 
   if (reserveResult === true) {
@@ -403,7 +407,7 @@ async function switchToListView(): Promise<boolean> {
 }
 
 // Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
-async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWalkin: boolean): Promise<true | 'no-reserve-btn'> {
+async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<true | 'no-reserve-btn'> {
   // Load all panels first (click "View more" if present)
   await loadAllPanels()
 
@@ -411,21 +415,16 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
   if (panels.length === 0) {
     await sleep(2000)
     panels = Array.from(document.querySelectorAll('mat-expansion-panel.list-entry'))
-    if (panels.length === 0) return false
+    if (panels.length === 0) return 'no-reserve-btn'
   }
   dbg('total panels', panels.length)
-
-  // Pre-check collapsed text: if target site not visible, skip pass 0 entirely
-  // (saves expanding each panel just to collapse — each expand takes ~800ms)
-  const siteRegex = new RegExp(`Campsite\\s*\\n?\\s*${targetSiteName}(?:\\s|$)`, 'i')
-  const targetVisible = panels.some(p => siteRegex.test(p.textContent ?? ''))
-  dbg('target site visible in collapsed panels', { target: targetSiteName, visible: targetVisible })
 
   let panelsChecked = 0
   const startTime = Date.now()
 
-  // Pass 0 only if target site appears in collapsed text; Pass 1 = any eligible site
-  for (const pass of (targetVisible ? [0, 1] : [1])) {
+  // Speed-first: API already proved eligible availability exists, so try the
+  // first visible eligible site instead of searching for one exact API site.
+  for (const pass of reservePasses()) {
     dbg(`expandAndReserve pass ${pass}`, { totalPanels: panels.length })
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i]
@@ -440,18 +439,9 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
         panelsChecked++
       }
 
-      // Read collapsed/summary text for pass-0 name matching — "Campsite 50 AvailableDetails"
+      // Capture the site label before Details/sidebar updates the DOM.
       const summaryText = panel.textContent ?? ''
-
-      if (pass === 0) {
-        const siteRegex = new RegExp(`Campsite\\s*\\n?\\s*${targetSiteName}(?:\\s|$)`, 'i')
-        const matches = siteRegex.test(summaryText)
-        dbg(`panel ${i} name match`, { target: targetSiteName, matches, text: summaryText.trim().substring(0, 50) })
-        if (!matches) {
-          if (!alreadyOpen) header.click()
-          continue
-        }
-      }
+      const selectedSite = extractSelectedCampsiteName(summaryText, header.textContent ?? '')
 
       // BC Parks list view shows a "Details" button inside the expanded panel before the Reserve
       // button is visible. Click it to load full site info (may open a sidebar outside the panel).
@@ -497,7 +487,6 @@ async function expandAndReserve(targetSiteName: string, noDouble: boolean, noWal
       }
 
       if (reserveBtn && !reserveBtn.disabled) {
-        const selectedSite = summaryText.match(/Campsite\s*(\d+)/i)?.[1] ?? '?'
         dbg(`SELECTED Campsite ${selectedSite}`, {
           pass,
           panelsExpanded: panelsChecked,
@@ -636,8 +625,10 @@ async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay')
 
     if (mode === 'hold') {
       // For hold: site is now locked in cart with 15-min timer — user pays manually
-      setStatus('Site held for 15 min — complete payment now!')
-      dbg('hold complete — site in cart')
+      setStatus('Site reserved for 15 min — complete payment now!')
+      dbg('reserved complete — site in cart')
+      chrome.runtime.sendMessage({ type: 'BOOKING_RESERVED', tripId })
+      chrome.storage.local.remove('campOspreyTarget')
       return
     }
 

@@ -5,7 +5,7 @@ export interface Trip {
   dateRanges: DateRange[]
   filters: Filters
   mode: 'notify' | 'hold' | 'autopay'
-  status: 'idle' | 'scanning' | 'paused' | 'completed'
+  status: 'idle' | 'scanning' | 'reserving' | 'reserved' | 'paid' | 'paused' | 'failed'
   lastMatch: MatchedSite | null
   attempted: string[]     // "parkId|checkIn|checkOut" dedup keys
   createdAt: number
@@ -34,6 +34,7 @@ export interface MatchedSite {
   checkOut: string        // ISO date YYYY-MM-DD
   bookingUrl: string
   resourceId: string
+  availableCount?: number
 }
 
 export interface AvailableSite {
@@ -47,6 +48,7 @@ export interface AvailableSite {
   isDouble: boolean
   checkIn: string         // ISO date YYYY-MM-DD
   checkOut: string        // ISO date YYYY-MM-DD
+  availableCount?: number
 }
 
 export interface PaymentConfig {
