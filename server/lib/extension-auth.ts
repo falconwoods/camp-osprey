@@ -42,9 +42,26 @@ export type RequestCodeDeps = {
   sendCode: (email: string, name?: string) => Promise<void>;
 };
 
+export type VerifiedSession = {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string | null;
+    banned: boolean | null;
+  };
+};
+
+export type VerifyCodeDeps = {
+  findUserByEmail: (email: string) => Promise<(UserLookup & { role: string | null }) | null>;
+  verifyCode: (email: string, code: string, name?: string) => Promise<VerifiedSession>;
+  updateUserName: (userId: string, name: string) => Promise<void>;
+};
+
 const pendingOtpNames = new Map<string, { name: string; expiresAt: number }>();
 
-function getRequestCodeBody(body: unknown): { email?: unknown; name?: unknown } {
+function getExtensionAuthBody(body: unknown): { email?: unknown; code?: unknown; name?: unknown } {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
   return body;
 }
@@ -109,7 +126,7 @@ export async function requestExtensionAuthCode(
   body: unknown,
   deps: RequestCodeDeps,
 ): Promise<{ ok: true; isNewUser: boolean }> {
-  const requestBody = getRequestCodeBody(body);
+  const requestBody = getExtensionAuthBody(body);
   const email = normalizeExtensionEmail(requestBody.email);
   const existingUser = await deps.findUserByEmail(email);
 
@@ -128,6 +145,46 @@ export async function requestExtensionAuthCode(
   }
 
   return { ok: true, isNewUser: !existingUser };
+}
+
+export async function verifyExtensionAuthCode(
+  body: unknown,
+  deps: VerifyCodeDeps,
+): Promise<{ token: string; user: { id: string; email: string; name: string; role: string } }> {
+  const requestBody = getExtensionAuthBody(body);
+  const email = normalizeExtensionEmail(requestBody.email);
+  const code = normalizeExtensionCode(requestBody.code);
+  const existingUser = await deps.findUserByEmail(email);
+
+  if (existingUser?.banned) throw extensionAuthError('account_blocked');
+
+  const nameForNewUser = existingUser ? undefined : normalizeExtensionName(requestBody.name);
+
+  let verified: VerifiedSession;
+  try {
+    verified = await deps.verifyCode(email, code, nameForNewUser);
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : '';
+    if (message.includes('expired')) throw extensionAuthError('expired_code');
+    throw extensionAuthError('invalid_code');
+  }
+
+  if (verified.user.banned) throw extensionAuthError('account_blocked');
+
+  const finalName = existingUser?.name ?? nameForNewUser ?? verified.user.name ?? '';
+  if (!existingUser && nameForNewUser) {
+    await deps.updateUserName(verified.user.id, nameForNewUser);
+  }
+
+  return {
+    token: verified.token,
+    user: {
+      id: verified.user.id,
+      email: verified.user.email,
+      name: finalName,
+      role: verified.user.role ?? 'user',
+    },
+  };
 }
 
 export function jsonForExtensionAuthError(err: unknown): Response {
