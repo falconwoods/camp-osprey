@@ -1,6 +1,8 @@
 import type { Trip, AvailableSite, Filters } from '../types'
 import { expandDateRange, isBookable } from '../dates'
 
+const DATE_WINDOW_DELAY_MS = 200
+
 type GetAvailabilityFn = (
   campgroundId: string,
   checkIn: string,
@@ -9,11 +11,17 @@ type GetAvailabilityFn = (
   signal?: AbortSignal,
 ) => Promise<AvailableSite[]>
 
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 export async function scanTrip(
   trip: Trip,
   getAvailability: GetAvailabilityFn,
   shouldContinue: () => boolean = () => true,
 ): Promise<AvailableSite | null> {
+  let hasCheckedAvailability = false
+
   for (const park of trip.parks) {
     for (const dateRange of trip.dateRanges) {
       for (const window of expandDateRange(dateRange)) {
@@ -22,7 +30,13 @@ export async function scanTrip(
         const key = `${park.id}|${window.checkIn}|${window.checkOut}`
         if (trip.attempted.includes(key)) continue
 
+        if (hasCheckedAvailability) {
+          await delay(DATE_WINDOW_DELAY_MS)
+          if (!shouldContinue()) return null
+        }
+
         const sites = await getAvailability(park.id, window.checkIn, window.checkOut, trip.filters)
+        hasCheckedAvailability = true
         // Filter out specific sites that were attempted individually (e.g. were taken at booking time)
         const fresh = sites.filter(s => !trip.attempted.includes(`${s.resourceId}|${s.checkIn}|${s.checkOut}`))
         if (fresh.length > 0) return { ...fresh[0], campgroundName: park.name, availableCount: fresh.length }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { scanTrip } from '../../src/background/scanner'
 import type { Trip, AvailableSite } from '../../src/types'
 
@@ -28,6 +28,10 @@ describe('scanTrip', () => {
 
   beforeEach(() => {
     mockGetAvailability.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('returns null when no sites available', async () => {
@@ -89,5 +93,26 @@ describe('scanTrip', () => {
     const result = await scanTrip(trip, mockGetAvailability, () => shouldContinue)
     expect(result).toBeNull()
     expect(mockGetAvailability).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits briefly between availability checks for separate date windows', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-01T12:00:00'))
+    mockGetAvailability.mockResolvedValue([])
+    const trip = makeTrip({
+      dateRanges: [
+        { type: 'specific', checkIn: '2026-07-04', checkOut: '2026-07-05' },
+        { type: 'specific', checkIn: '2026-07-11', checkOut: '2026-07-12' },
+      ],
+    })
+
+    const scanPromise = scanTrip(trip, mockGetAvailability)
+    await vi.waitFor(() => expect(mockGetAvailability).toHaveBeenCalledTimes(1))
+    await vi.advanceTimersByTimeAsync(199)
+    expect(mockGetAvailability).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    await vi.waitFor(() => expect(mockGetAvailability).toHaveBeenCalledTimes(2))
+    await expect(scanPromise).resolves.toBeNull()
   })
 })

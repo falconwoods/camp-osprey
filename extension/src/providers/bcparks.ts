@@ -2,6 +2,26 @@ import type { AvailableSite, Filters, Park } from '../types'
 
 const BASE = 'https://camping.bcparks.ca'
 const CONCURRENCY = 3
+const AVAILABILITY_400_COOLDOWN_MS = 5 * 60 * 1000
+const AVAILABILITY_400_COOLDOWN_KEY = 'availability_400_cooldown_until'
+
+export class BCParksApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly path: string,
+    public readonly body: string,
+  ) {
+    super(`BC Parks API error ${status}: ${path}`)
+    this.name = 'BCParksApiError'
+  }
+}
+
+export class BCParksCooldownError extends Error {
+  constructor(public readonly cooldownUntil: number) {
+    super(`BC Parks API cooling down until ${new Date(cooldownUntil).toLocaleTimeString()}`)
+    this.name = 'BCParksCooldownError'
+  }
+}
 
 type AvailabilityMapResponse = {
   resourceAvailabilities?: Record<string, Array<{ availability?: number; processedAvailability?: number }>>
@@ -45,6 +65,7 @@ export class BCParksProvider {
   private cartUid: string | null = null
   private cartTxUid: string | null = null
   private cartData: Record<string, unknown> | null = null
+  private availabilityCooldownUntil = 0
 
   // Set this to receive raw daily API responses for available sites
   onAvailabilityRaw?: (siteId: string, siteName: string, daily: Array<Record<string, number>>) => void | Promise<void>
@@ -53,8 +74,17 @@ export class BCParksProvider {
     const url = new URL(BASE + path)
     if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
     const resp = await fetch(url.toString(), { credentials: 'include', signal })
-    if (!resp.ok) throw new Error(`BC Parks API error ${resp.status}: ${path}`)
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '')
+      throw new BCParksApiError(resp.status, path, body)
+    }
     return resp.json()
+  }
+
+  private clearCart(): void {
+    this.cartUid = null
+    this.cartTxUid = null
+    this.cartData = null
   }
 
   private async ensureCart(signal?: AbortSignal): Promise<void> {
@@ -64,6 +94,53 @@ export class BCParksProvider {
     this.cartUid = data['cartUid'] as string
     this.cartTxUid = tx['cartTransactionUid'] as string
     this.cartData = data
+  }
+
+  private async getAvailabilityCooldownUntil(): Promise<number> {
+    const stored = await getCached<number>(AVAILABILITY_400_COOLDOWN_KEY)
+    return Math.max(this.availabilityCooldownUntil, stored ?? 0)
+  }
+
+  private async setAvailabilityCooldownUntil(cooldownUntil: number): Promise<void> {
+    this.availabilityCooldownUntil = cooldownUntil
+    await setCached(AVAILABILITY_400_COOLDOWN_KEY, cooldownUntil)
+  }
+
+  private async assertAvailabilityNotCoolingDown(): Promise<void> {
+    const cooldownUntil = await this.getAvailabilityCooldownUntil()
+    if (Date.now() < cooldownUntil) {
+      throw new BCParksCooldownError(cooldownUntil)
+    }
+  }
+
+  private async getMapAvailability(
+    params: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<AvailabilityMapResponse> {
+    await this.assertAvailabilityNotCoolingDown()
+    try {
+      return await this.api('/api/availability/map', params, signal) as AvailabilityMapResponse
+    } catch (err) {
+      if (!(err instanceof BCParksApiError) || err.status !== 400) throw err
+    }
+
+    this.clearCart()
+    await this.ensureCart(signal)
+    const retryParams = {
+      ...params,
+      cartUid: this.cartUid!,
+      cartTransactionUid: this.cartTxUid!,
+      bookingUid: crypto.randomUUID(),
+    }
+
+    try {
+      return await this.api('/api/availability/map', retryParams, signal) as AvailabilityMapResponse
+    } catch (err) {
+      if (err instanceof BCParksApiError && err.status === 400) {
+        await this.setAvailabilityCooldownUntil(Date.now() + AVAILABILITY_400_COOLDOWN_MS)
+      }
+      throw err
+    }
   }
 
   async searchParks(query: string): Promise<Park[]> {
@@ -129,6 +206,7 @@ export class BCParksProvider {
     filters: Filters,
     signal?: AbortSignal,
   ): Promise<AvailableSite[]> {
+    await this.assertAvailabilityNotCoolingDown()
     await this.ensureCart(signal)
     const [resources, sections] = await Promise.all([
       this.getResources(campgroundId, signal),
@@ -168,7 +246,7 @@ export class BCParksProvider {
     await Promise.all(candidateMapIds.map(async mapId => {
       await acquire()
       try {
-        const mapAvailability = await this.api('/api/availability/map', {
+        const mapAvailability = await this.getMapAvailability({
           mapId,
           bookingCategoryId: '0',
           equipmentCategoryId: '-32768',
