@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  consumePendingOtpName,
   requestExtensionAuthCode,
+  rememberPendingOtpName,
   normalizeExtensionEmail,
   normalizeExtensionName,
   normalizeExtensionCode,
@@ -33,7 +35,36 @@ describe('extension auth validation', () => {
   });
 });
 
+describe('pending OTP names', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('prunes expired pending names when remembering a new name', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    rememberPendingOtpName('expired@example.com', 'Expired User');
+
+    vi.setSystemTime(5 * 60_000 + 1);
+    rememberPendingOtpName('new@example.com', 'New User');
+
+    vi.setSystemTime(1);
+    expect(consumePendingOtpName('expired@example.com')).toBeNull();
+    expect(consumePendingOtpName('new@example.com')).toBe('New User');
+  });
+});
+
 describe('requestExtensionAuthCode', () => {
+  it('returns invalid_email for null body', async () => {
+    const deps = {
+      findUserByEmail: async () => null,
+      sendCode: async () => { throw new Error('should not send'); },
+    };
+
+    await expect(requestExtensionAuthCode(null, deps))
+      .rejects.toMatchObject({ code: 'invalid_email', status: 400 });
+  });
+
   it('returns name_required for a new email without sending a code', async () => {
     const deps = {
       findUserByEmail: async () => null,

@@ -44,6 +44,11 @@ export type RequestCodeDeps = {
 
 const pendingOtpNames = new Map<string, { name: string; expiresAt: number }>();
 
+function getRequestCodeBody(body: unknown): { email?: unknown; name?: unknown } {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
+  return body;
+}
+
 export function extensionAuthError(
   code: ExtensionAuthErrorCode,
   details: Record<string, unknown> = {},
@@ -72,7 +77,14 @@ export function normalizeExtensionCode(value: unknown): string {
   return code;
 }
 
+export function pruneExpiredPendingOtpNames(now = Date.now()): void {
+  for (const [email, pending] of pendingOtpNames) {
+    if (pending.expiresAt < now) pendingOtpNames.delete(email);
+  }
+}
+
 export function rememberPendingOtpName(email: string, name?: string): void {
+  pruneExpiredPendingOtpNames();
   if (!name) return;
   pendingOtpNames.set(email, { name, expiresAt: Date.now() + 5 * 60_000 });
 }
@@ -86,19 +98,20 @@ export function consumePendingOtpName(email: string): string | null {
 }
 
 export async function requestExtensionAuthCode(
-  body: { email?: unknown; name?: unknown },
+  body: unknown,
   deps: RequestCodeDeps,
 ): Promise<{ ok: true; isNewUser: boolean }> {
-  const email = normalizeExtensionEmail(body.email);
+  const requestBody = getRequestCodeBody(body);
+  const email = normalizeExtensionEmail(requestBody.email);
   const existingUser = await deps.findUserByEmail(email);
 
   if (existingUser?.banned) throw extensionAuthError('account_blocked');
 
-  if (!existingUser && body.name == null) {
+  if (!existingUser && requestBody.name == null) {
     throw extensionAuthError('name_required', { isNewUser: true });
   }
 
-  const name = existingUser ? undefined : normalizeExtensionName(body.name);
+  const name = existingUser ? undefined : normalizeExtensionName(requestBody.name);
   try {
     await deps.sendCode(email, name);
   } catch (err) {

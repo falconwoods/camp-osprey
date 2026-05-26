@@ -17,11 +17,11 @@ export async function POST(request: Request) {
         return row ?? null;
       },
       sendCode: async (email, name) => {
-        rememberPendingOtpName(email, name);
         await auth.api.sendVerificationOTP({
           body: { email, type: 'sign-in' },
           headers: request.headers,
         });
+        rememberPendingOtpName(email, name);
       },
     });
 
