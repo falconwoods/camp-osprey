@@ -35,6 +35,9 @@ export interface MatchedSite {
   bookingUrl: string
   resourceId: string
   availableCount?: number
+  foundAt?: string        // ISO date-time
+  reservedAt?: string     // ISO date-time
+  paidAt?: string         // ISO date-time
 }
 
 export interface AvailableSite {

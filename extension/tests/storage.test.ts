@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { addDebugLog, getStorage, saveTrips, updateTrip } from '../src/storage'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { addDebugLog, getStorage, saveTrips, updateTrip, MAX_DEBUG_LOG_ENTRIES } from '../src/storage'
 import type { Trip } from '../src/types'
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
@@ -60,6 +60,10 @@ describe('updateTrip', () => {
 })
 
 describe('addDebugLog', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('keeps more than 30 entries so the scan history is not truncated too aggressively', async () => {
     const existing = Array.from({ length: 40 }, (_, i) => `entry ${i}`)
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: existing }))
@@ -71,6 +75,36 @@ describe('addDebugLog', () => {
     expect(setCall.debugLog).toHaveLength(41)
     expect(setCall.debugLog[0]).toBe('entry 0')
     expect(setCall.debugLog[40]).toContain('latest')
+  })
+
+  it('keeps overnight-sized local logs instead of trimming at 500 entries', async () => {
+    const existing = Array.from({ length: 800 }, (_, i) => `entry ${i}`)
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: existing }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog('latest')
+
+    const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(setCall.debugLog).toHaveLength(801)
+    expect(setCall.debugLog[0]).toBe('entry 0')
+    expect(setCall.debugLog[800]).toContain('latest')
+  })
+
+  it('keeps a larger local log history cap for long debug runs', async () => {
+    expect(MAX_DEBUG_LOG_ENTRIES).toBe(100_000)
+  })
+
+  it('adds full date and time to each log entry', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-26T17:42:05-07:00'))
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: [] }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog('found site')
+
+    const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(setCall.debugLog[0]).toContain('May 26, 2026')
+    expect(setCall.debugLog[0]).toContain('found site')
   })
 
   it('serializes concurrent writes so log entries are not lost', async () => {

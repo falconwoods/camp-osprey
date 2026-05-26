@@ -53,10 +53,12 @@ function renderMatch(match: MatchedSite, mode: Trip['mode'], status: Trip['statu
   const matchText = count > 1
     ? `${match.parkName} › ${count} available sites`
     : `${match.parkName} › ${match.sectionName || '—'} › Site ${match.siteName}`
+  const eventTime = isPaid ? match.paidAt : isReserved ? match.reservedAt : match.foundAt
+  const timeLine = eventTime ? `<br>${label} at ${new Date(eventTime).toLocaleString()}` : ''
 
   return `<div style="background:${bg};border:1px solid ${borderColor};border-radius:5px;padding:6px 8px;margin-top:6px;font-size:10px;color:${color}">
     ${label}: ${matchText}<br>
-    ${match.checkIn} → ${match.checkOut}
+    ${match.checkIn} → ${match.checkOut}${timeLine}
   </div>
   ${!isPaid && match.bookingUrl
     ? `<a href="${match.bookingUrl}" target="_blank"><button class="btn btn-reserve" style="margin-top:4px">Reserve Now →</button></a>`
@@ -116,7 +118,7 @@ async function render() {
         : { status: 'paused' })
       if (action === 'start') {
         chrome.storage.local.remove('campOspreyTarget')
-        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id })
+        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
       }
       if (action === 'pause') {
         chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })

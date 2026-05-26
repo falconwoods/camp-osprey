@@ -1,5 +1,5 @@
 // Content script — injected on all camping.bcparks.ca pages
-import { extractCampsiteName, extractSelectedCampsiteName, reservePasses } from './reserveStrategy'
+import { extractCampsiteName, extractSelectedCampsiteName, findDetailsControl, findReserveControl, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
 
 // ── Debug logging ──────────────────────────────────────────────────────────
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
@@ -431,37 +431,42 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
       const header = panel.querySelector('mat-expansion-panel-header[role="button"]') as HTMLElement | null
       if (!header) continue
 
-      const alreadyOpen = panel.classList.contains('mat-expanded')
+      const alreadyOpen = isExpansionPanelOpen(panel, header)
       if (!alreadyOpen) {
         header.click()
         // Poll for panel content instead of fixed sleep (Angular animation ~300ms)
-        await pollUntil(800, () => panel.classList.contains('mat-expanded'))
+        await pollUntil(1500, () => isExpansionPanelOpen(panel, header))
         panelsChecked++
+      }
+      if (isExpansionPanelOpen(panel, header) && !findReserveControl(panel)) {
+        await pollUntil(2000, () => !!findReserveControl(panel))
       }
 
       // Capture the site label before Details/sidebar updates the DOM.
       const summaryText = panel.textContent ?? ''
       const selectedSite = extractSelectedCampsiteName(summaryText, header.textContent ?? '')
 
-      // BC Parks list view shows a "Details" button inside the expanded panel before the Reserve
-      // button is visible. Click it to load full site info (may open a sidebar outside the panel).
-      if (!panel.querySelector('button.reserve-button')) {
-        const detailsBtn = Array.from(panel.querySelectorAll('button'))
-          .find(b => (b.textContent ?? '').trim().toLowerCase() === 'details')
-        dbg(`panel ${i} Details btn`, { found: !!detailsBtn })
-        if (detailsBtn) {
-          ;(detailsBtn as HTMLElement).click()
-          await pollUntil(3000, () => !!document.querySelector('button.reserve-button'))
+      // BC Parks exposes "Details" through the expansion header. Do not click the header again
+      // after it is already open, because that collapses the reserve content.
+      if (!findReserveControl(panel)) {
+        const detailsBtn = findDetailsControl(panel)
+        const detailsInHeader = detailsBtn === header || detailsBtn?.closest('mat-expansion-panel-header') === header
+        dbg(`panel ${i} Details btn`, {
+          found: !!detailsBtn,
+          expanded: isExpansionPanelOpen(panel, header),
+          detailsInHeader,
+        })
+        if (detailsBtn && (!isExpansionPanelOpen(panel, header) || !detailsInHeader)) {
+          detailsBtn.click()
+          await pollUntil(3000, () => isExpansionPanelOpen(panel, header) && !!findReserveControl(panel))
         }
       }
 
-      // Reserve button may now be inside the panel OR in a sidebar opened by Details click
-      const reserveBtn = document.querySelector('button.reserve-button') as HTMLButtonElement | null
+      const reserveBtn = findReserveControl(panel) as HTMLButtonElement | null
       dbg(`panel ${i} reserveBtn`, { found: !!reserveBtn, disabled: reserveBtn?.disabled })
 
-      // Read UI flags from whichever element contains the reserve button.
-      // Falls back to panel if the button is in a sidebar with no mat-expansion-panel ancestor.
-      const contextEl = reserveBtn?.closest('mat-expansion-panel') ?? reserveBtn?.parentElement ?? panel
+      // Read UI flags from the selected panel only. Other panels may have hidden/inert buttons.
+      const contextEl = reserveBtn?.closest('mat-expansion-panel') ?? panel
       const panelText = contextEl.textContent ?? ''
 
       // Enforce filters — site details show "Double Site: Yes" / "Walk In: Yes"

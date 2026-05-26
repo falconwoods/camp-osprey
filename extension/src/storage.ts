@@ -1,6 +1,6 @@
 import type { StorageData, Trip, PaymentConfig, Settings } from './types'
 
-const MAX_DEBUG_LOG_ENTRIES = 500
+export const MAX_DEBUG_LOG_ENTRIES = 100_000
 let debugLogWriteQueue = Promise.resolve()
 
 const DEFAULTS: StorageData = {
@@ -39,10 +39,21 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.set({ settings }, cb))
 }
 
+export function formatDateTime(date: Date | string | number = new Date()): string {
+  return new Date(date).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 export async function addDebugLog(entry: string): Promise<void> {
   const write = async () => {
     const { debugLog } = await getStorage()
-    const timestamp = new Date().toLocaleTimeString()
+    const timestamp = formatDateTime()
     const newLog = [...debugLog, `${timestamp} — ${entry}`].slice(-MAX_DEBUG_LOG_ENTRIES)
     await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
   }

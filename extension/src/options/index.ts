@@ -55,7 +55,9 @@ function matchSummaryHTML(match: Trip['lastMatch']): string {
   const label = count > 1
     ? `${count} available sites`
     : `${match.sectionName} › Site ${match.siteName}`
-  return `${match.parkName} › ${label} · ${match.checkIn} → ${match.checkOut}`
+  const eventAt = match.paidAt ?? match.reservedAt ?? match.foundAt
+  const timeLabel = eventAt ? ` · ${new Date(eventAt).toLocaleString()}` : ''
+  return `${match.parkName} › ${label} · ${match.checkIn} → ${match.checkOut}${timeLabel}`
 }
 
 // ── Tab switching ──────────────────────────────────────────────────────────
@@ -139,7 +141,7 @@ async function renderTripList() {
         }
         chrome.storage.local.remove('campOspreyTarget')
         await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
-        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id })
+        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
       } else {
         await updateTrip(id, { status: 'paused' })
         chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })

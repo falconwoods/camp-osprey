@@ -14,6 +14,14 @@ vi.mock('../../src/storage', () => ({
   getStorage: mocks.getStorage,
   updateTrip: mocks.updateTrip,
   addDebugLog: mocks.addDebugLog,
+  formatDateTime: (date: Date | string | number = new Date()) => new Date(date).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }),
 }))
 
 vi.mock('../../src/background/login', () => ({
@@ -80,6 +88,9 @@ describe('background scanner scheduling', () => {
     mocks.watchLoginChanges.mockReset()
     mocks.getAvailability.mockReset().mockResolvedValue([])
     chrome.runtime.onMessage.addListener.mockClear()
+    chrome.notifications.onClicked.addListener.mockClear()
+    chrome.tabs.create.mockClear()
+    chrome.notifications.create.mockClear()
     chrome.runtime.getURL = vi.fn(() => 'chrome-extension://test/icons/icon48.png')
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({}))
     chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
@@ -142,6 +153,44 @@ describe('background scanner scheduling', () => {
     ))
   })
 
+  it('does not reopen a reservation tab or resend the match notification for the same active match', async () => {
+    const trip = makeTrip({ mode: 'hold' })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.getAvailability.mockResolvedValue([makeSite()])
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+
+    await vi.waitFor(() => expect(chrome.tabs.create).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(1))
+
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(mocks.getAvailability).toHaveBeenCalledTimes(2))
+
+    expect(chrome.tabs.create).toHaveBeenCalledTimes(1)
+    expect(chrome.notifications.create).toHaveBeenCalledTimes(1)
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('already handling active match'))
+  })
+
+  it('includes the discovery time in match notifications', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-26T17:42:05-07:00'))
+    const trip = makeTrip({ mode: 'hold' })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.getAvailability.mockResolvedValue([makeSite()])
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(1))
+    const notificationOptions = chrome.notifications.create.mock.calls[0][1]
+    expect(notificationOptions.message).toContain('Found:')
+    expect(notificationOptions.message).toContain('May 26, 2026')
+    vi.useRealTimers()
+  })
+
   it('marks hold success as reserved', async () => {
     const trip = makeTrip({ mode: 'hold', status: 'reserving' })
     mocks.getStorage.mockResolvedValue(makeStorage([trip]))
@@ -151,6 +200,7 @@ describe('background scanner scheduling', () => {
     listener({ type: 'BOOKING_RESERVED', tripId: trip.id })
 
     await vi.waitFor(() => expect(mocks.updateTrip).toHaveBeenCalledWith(trip.id, { status: 'reserved' }))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reservation held'))
   })
 
   it('marks confirmed autopay booking as paid', async () => {
@@ -162,6 +212,10 @@ describe('background scanner scheduling', () => {
     listener({ type: 'BOOKING_CONFIRMED', tripId: trip.id, confirmationNumber: 'ABC123' })
 
     await vi.waitFor(() => expect(mocks.updateTrip).toHaveBeenCalledWith(trip.id, { status: 'paid' }))
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalled())
+    const notificationOptions = chrome.notifications.create.mock.calls[0][1]
+    expect(notificationOptions.message).toContain('Paid:')
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Booking paid'))
   })
 
   it('marks booking failure as failed', async () => {

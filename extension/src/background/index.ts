@@ -1,8 +1,8 @@
 import { BCParksProvider } from '../providers/bcparks'
-import { getStorage, updateTrip, addDebugLog } from '../storage'
+import { getStorage, updateTrip, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
-import { scanTrip, makeAttemptedKey, buildBookingUrl } from './scanner'
-import type { AvailableSite, Trip } from '../types'
+import { scanTrip, buildBookingUrl } from './scanner'
+import type { AvailableSite, MatchedSite, Trip } from '../types'
 
 const ALARM_NAME = 'scan'
 const provider = new BCParksProvider()
@@ -11,6 +11,7 @@ let pendingScanAll = false
 const pendingScanTripIds = new Set<string>()
 const stoppedTripIds = new Set<string>()
 const activeTripControllers = new Map<string, AbortController>()
+const activeMatchKeys = new Set<string>()
 
 // Log full raw daily API response for every site that passes availability check
 provider.onAvailabilityRaw = (siteId, siteName, daily) => {
@@ -59,7 +60,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
 
   scanInProgress = true
   try {
-    const { trips, payment, settings } = await getStorage()
+    const { trips, settings } = await getStorage()
     await setupAlarm(settings.pollIntervalSeconds)
     const targetSet = targetTripIds
       ? new Set(Array.isArray(targetTripIds) ? targetTripIds : [targetTripIds])
@@ -113,7 +114,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         }, () => !stoppedTripIds.has(trip.id) && !controller.signal.aborted)
         if (site) {
           if (debug) await addDebugLog(`Match found: ${site.campgroundName} › Site ${site.siteName}`)
-          await handleMatch(trip, site, payment?.partySize ?? 1)
+          await handleMatch(trip, site)
         } else if (stoppedTripIds.has(trip.id) || controller.signal.aborted) {
           if (debug) await addDebugLog(`"${trip.name}" — scan stopped`)
         } else {
@@ -142,7 +143,31 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
   }
 }
 
-async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): Promise<void> {
+function activeMatchKey(tripId: string, site: AvailableSite | MatchedSite): string {
+  return `${tripId}|${site.resourceId}|${site.checkIn}|${site.checkOut}`
+}
+
+function clearActiveMatchesForTrip(tripId: string): void {
+  for (const key of [...activeMatchKeys]) {
+    if (key.startsWith(`${tripId}|`)) activeMatchKeys.delete(key)
+  }
+}
+
+function isSameMatch(match: MatchedSite | null, site: AvailableSite): boolean {
+  return !!match &&
+    match.resourceId === site.resourceId &&
+    match.checkIn === site.checkIn &&
+    match.checkOut === site.checkOut
+}
+
+async function handleMatch(trip: Trip, site: AvailableSite): Promise<void> {
+  const key = activeMatchKey(trip.id, site)
+  if (activeMatchKeys.has(key) || isSameMatch(trip.lastMatch, site)) {
+    await addDebugLog(`"${trip.name}" — already handling active match for ${site.campgroundName || site.campgroundId} › Site ${site.siteName} ${site.checkIn}→${site.checkOut}; suppressing duplicate tab/notification`)
+    return
+  }
+
+  activeMatchKeys.add(key)
   const nights = Math.round(
     (new Date(site.checkOut).getTime() - new Date(site.checkIn).getTime()) / 86_400_000
   )
@@ -150,8 +175,10 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
   const bookingUrl = buildBookingUrl(site)
   const availableCount = site.availableCount ?? 1
   const availableLabel = `${availableCount} available site${availableCount === 1 ? '' : 's'}`
+  const foundAt = new Date().toISOString()
+  const foundAtLabel = formatDateTime(foundAt)
 
-  const matchedSite = {
+  const matchedSite: MatchedSite = {
     parkName: site.campgroundName || site.campgroundId,
     siteName: site.siteName,
     sectionName: site.sectionName,
@@ -160,12 +187,15 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
     bookingUrl,
     resourceId: site.resourceId,
     availableCount,
+    foundAt,
   }
+
+  await addDebugLog(`Match found: ${matchedSite.parkName} › Site ${matchedSite.siteName} (${availableLabel}) ${site.checkIn}→${site.checkOut}; found at ${foundAtLabel}`)
 
   if (trip.mode === 'notify') {
     await notify(
       `Campsite Available — ${matchedSite.parkName}`,
-      `${availableLabel}\n${site.checkIn} → ${site.checkOut} (${nightStr})`,
+      `${availableLabel}\n${site.checkIn} → ${site.checkOut} (${nightStr})\nFound: ${foundAtLabel}`,
       bookingUrl,
       true,
     )
@@ -191,32 +221,35 @@ async function handleMatch(trip: Trip, site: AvailableSite, partySize: number): 
         checkIn: site.checkIn,
         checkOut: site.checkOut,
         availableCount,
+        foundAt,
         setAt: Date.now(),
       },
     }, resolve)
   )
 
   if (trip.mode === 'hold') {
+    await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
     await notify(
       `Site Available — Reserve Now`,
-      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nBC Parks is opening — click Reserve in your browser.`,
+      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}\nBC Parks is opening — click Reserve in your browser.`,
       bookingUrl,
       true,
     )
     chrome.tabs.create({ url: bookingUrl })
-    await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
+    await addDebugLog(`Reservation tab opened: ${matchedSite.parkName} › Site ${matchedSite.siteName} ${site.checkIn}→${site.checkOut}`)
     return
   }
 
   if (trip.mode === 'autopay') {
+    await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
     await notify(
       `Site Available — Auto-paying`,
-      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}`,
+      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}`,
       bookingUrl,
       true,
     )
     chrome.tabs.create({ url: bookingUrl })
-    await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
+    await addDebugLog(`Reservation tab opened for auto-pay: ${matchedSite.parkName} › Site ${matchedSite.siteName} ${site.checkIn}→${site.checkOut}`)
   }
 }
 
@@ -255,9 +288,11 @@ chrome.runtime.onMessage.addListener((msg: {
   confirmationNumber?: string
   error?: string
   attemptKey?: string
+  resetActiveMatch?: boolean
 }) => {
   if (msg.type === 'SCAN_NOW') {
     if (msg.tripId) stoppedTripIds.delete(msg.tripId)
+    if (msg.tripId && msg.resetActiveMatch) clearActiveMatchesForTrip(msg.tripId)
     chrome.storage.local.remove('campOspreyTarget')
     runScanCycle(msg.tripId)
     return
@@ -277,26 +312,36 @@ chrome.runtime.onMessage.addListener((msg: {
       if (msg.attemptKey && !attempted.includes(msg.attemptKey)) {
         attempted.push(msg.attemptKey)
       }
-      updateTrip(msg.tripId!, { status: 'scanning', lastMatch: null, attempted })
+      addDebugLog(`Match failed for "${trip.name}"${msg.attemptKey ? `; marked attempted ${msg.attemptKey}` : '; keeping match locked to avoid duplicate reservation tabs'}`)
+      updateTrip(msg.tripId!, { status: 'scanning', lastMatch: msg.attemptKey ? null : trip.lastMatch, attempted })
     })
     return
   }
   if (msg.type === 'BOOKING_RESERVED' && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
-    updateTrip(msg.tripId, { status: 'reserved' })
+    getStorage().then(({ trips }) => {
+      const trip = trips.find(t => t.id === msg.tripId)
+      const reservedAt = new Date().toISOString()
+      const match = trip?.lastMatch ? { ...trip.lastMatch, reservedAt } : undefined
+      addDebugLog(`Reservation held${trip ? ` for "${trip.name}"` : ''} at ${formatDateTime(reservedAt)}`)
+      updateTrip(msg.tripId!, match ? { status: 'reserved', lastMatch: match } : { status: 'reserved' })
+    })
     return
   }
   if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
     getStorage().then(({ trips }) => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
+      const paidAt = new Date().toISOString()
       const detail = m
         ? `${m.parkName} › ${m.sectionName} › Site ${m.siteName}\n${m.checkIn} → ${m.checkOut}`
         : ''
-      updateTrip(msg.tripId!, { status: 'paid' }).then(() => {
+      const match = m ? { ...m, paidAt } : undefined
+      addDebugLog(`Booking paid${trip ? ` for "${trip.name}"` : ''} at ${formatDateTime(paidAt)}; confirmation ${msg.confirmationNumber ?? 'unknown'}`)
+      updateTrip(msg.tripId!, match ? { status: 'paid', lastMatch: match } : { status: 'paid' }).then(() => {
         notify(
           'Booking Paid',
-          `${detail}${detail ? '\n' : ''}Confirmation: ${msg.confirmationNumber ?? 'unknown'}`,
+          `${detail}${detail ? '\n' : ''}Paid: ${formatDateTime(paidAt)}\nConfirmation: ${msg.confirmationNumber ?? 'unknown'}`,
           undefined,
           true,
         )
@@ -309,6 +354,7 @@ chrome.runtime.onMessage.addListener((msg: {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
       const detail = m ? `${m.parkName} › Site ${m.siteName}` : ''
+      addDebugLog(`Booking failed${trip ? ` for "${trip.name}"` : ''}: ${msg.error ?? 'Unknown error'}`)
       updateTrip(msg.tripId!, { status: 'failed' }).then(() => {
         notify(
           '❌ Payment Failed',
