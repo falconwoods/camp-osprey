@@ -4,13 +4,14 @@ import { user } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import {
   jsonForExtensionAuthError,
+  readExtensionAuthJson,
   rememberPendingOtpName,
   requestExtensionAuthCode,
 } from '@/lib/extension-auth';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await readExtensionAuthJson(request);
     const result = await requestExtensionAuthCode(body, {
       findUserByEmail: async (email) => {
         const [row] = await db.select().from(user).where(eq(user.email, email));

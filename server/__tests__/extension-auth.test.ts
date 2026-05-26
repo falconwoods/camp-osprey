@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   consumePendingOtpName,
+  readExtensionAuthJson,
   requestExtensionAuthCode,
   rememberPendingOtpName,
   normalizeExtensionEmail,
@@ -55,6 +56,20 @@ describe('pending OTP names', () => {
 });
 
 describe('requestExtensionAuthCode', () => {
+  it('returns invalid_email for malformed JSON route bodies', async () => {
+    const deps = {
+      findUserByEmail: async () => null,
+      sendCode: async () => { throw new Error('should not send'); },
+    };
+    const body = await readExtensionAuthJson(new Request('https://example.test', {
+      method: 'POST',
+      body: '{bad json',
+    }));
+
+    await expect(requestExtensionAuthCode(body, deps))
+      .rejects.toMatchObject({ code: 'invalid_email', status: 400 });
+  });
+
   it('returns invalid_email for null body', async () => {
     const deps = {
       findUserByEmail: async () => null,

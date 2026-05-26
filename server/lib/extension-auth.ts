@@ -49,6 +49,14 @@ function getRequestCodeBody(body: unknown): { email?: unknown; name?: unknown } 
   return body;
 }
 
+export async function readExtensionAuthJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
+}
+
 export function extensionAuthError(
   code: ExtensionAuthErrorCode,
   details: Record<string, unknown> = {},
