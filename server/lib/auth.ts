@@ -4,7 +4,8 @@ import { nextCookies } from 'better-auth/next-js';
 import { admin, emailOTP, bearer } from 'better-auth/plugins';
 import { db } from '@/db';
 import * as schema from '@/db/schema';
-import { sendEmail } from '@/lib/email';
+import { buildOtpEmail, sendEmail } from '@/lib/email';
+import { consumePendingOtpName } from '@/lib/extension-auth';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -28,24 +29,9 @@ export const auth = betterAuth({
     emailOTP({
       expiresIn: 300, // 5 minutes
       sendVerificationOTP: async ({ email, otp }) => {
-        await sendEmail({
-          to: email,
-          subject: 'Your CampOsprey verification code',
-          html: `
-            <div style="font-family:Inter,sans-serif;max-width:480px;margin:32px auto;color:#1a1a1a">
-              <h2 style="color:#16a34a;margin-bottom:8px">Your verification code</h2>
-              <p>Use this 6-digit code to sign in to CampOsprey. It expires in 5 minutes.</p>
-              <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;
-                          padding:16px 24px;text-align:center;font-size:32px;font-weight:700;
-                          letter-spacing:8px;margin:16px 0;color:#1a1a1a">
-                ${otp}
-              </div>
-              <p style="color:#6b7280;font-size:13px">
-                If you didn't request this, you can safely ignore this email.
-              </p>
-            </div>
-          `,
-        });
+        const recipientName = consumePendingOtpName(email);
+        const { subject, html } = buildOtpEmail(otp, recipientName);
+        await sendEmail({ to: email, subject, html });
       },
     }),
     nextCookies(),

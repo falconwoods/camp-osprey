@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { user } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import {
+  consumePendingOtpName,
   jsonForExtensionAuthError,
   readExtensionAuthJson,
   rememberPendingOtpName,
@@ -18,11 +19,16 @@ export async function POST(request: Request) {
         return row ?? null;
       },
       sendCode: async (email, name) => {
-        await auth.api.sendVerificationOTP({
-          body: { email, type: 'sign-in' },
-          headers: request.headers,
-        });
         rememberPendingOtpName(email, name);
+        try {
+          await auth.api.sendVerificationOTP({
+            body: { email, type: 'sign-in' },
+            headers: request.headers,
+          });
+        } catch (err) {
+          consumePendingOtpName(email);
+          throw err;
+        }
       },
     });
 

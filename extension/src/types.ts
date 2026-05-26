@@ -69,9 +69,23 @@ export interface Settings {
   theme: Theme
 }
 
+export interface ServerUser {
+  id: string
+  email: string
+  name: string
+  role: string
+}
+
+export interface AuthState {
+  token: string | null
+  user: ServerUser | null
+  lastEmail: string | null
+}
+
 export interface StorageData {
   trips: Trip[]
   payment: PaymentConfig | null
   settings: Settings
   debugLog: string[]
+  auth: AuthState
 }

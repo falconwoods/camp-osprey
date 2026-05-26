@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { addDebugLog, getStorage, saveTrips, updateTrip } from '../src/storage'
+import { addDebugLog, clearAuthSession, getAuth, getStorage, saveAuth, saveTrips, updateTrip } from '../src/storage'
 import type { Trip } from '../src/types'
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
@@ -37,6 +37,52 @@ describe('saveTrips', () => {
     const trips = [makeTrip()]
     await saveTrips(trips)
     expect(chrome.storage.local.set).toHaveBeenCalledWith({ trips }, expect.any(Function))
+  })
+})
+
+describe('auth storage', () => {
+  beforeEach(() => {
+    let stored: Record<string, unknown> = {}
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
+    chrome.storage.local.set.mockImplementation((data, cb) => {
+      stored = { ...stored, ...data }
+      cb?.()
+    })
+  })
+
+  it('defaults auth to signed out', async () => {
+    const auth = await getAuth()
+    expect(auth).toEqual({ token: null, user: null, lastEmail: null })
+  })
+
+  it('saves token, user, and lastEmail', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      lastEmail: 'user@example.com',
+    })
+
+    await expect(getAuth()).resolves.toEqual({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      lastEmail: 'user@example.com',
+    })
+  })
+
+  it('clears token and user while keeping lastEmail on sign out', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      lastEmail: 'user@example.com',
+    })
+
+    await clearAuthSession()
+
+    await expect(getAuth()).resolves.toEqual({
+      token: null,
+      user: null,
+      lastEmail: 'user@example.com',
+    })
   })
 })
 

@@ -2,6 +2,7 @@ import { BCParksProvider } from '../providers/bcparks'
 import { getStorage, updateTrip, addDebugLog } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, makeAttemptedKey, buildBookingUrl } from './scanner'
+import { validateAuth } from '../auth'
 import type { AvailableSite, Trip } from '../types'
 
 const ALARM_NAME = 'scan'
@@ -73,6 +74,16 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     await addDebugLog(`${'─'.repeat(48)}\nAlarm fired — ${scanningTrips.length} trip(s) scanning`)
 
     for (const trip of scanningTrips) {
+      const serverLoggedIn = await validateAuth()
+      if (!serverLoggedIn) {
+        if (debug) await addDebugLog(`"${trip.name}" — not signed in to server, skipping scan`)
+        await notify(
+          'Sign In Required',
+          `Sign in to start "${trip.name}" and keep booking emails connected to your account.`
+        )
+        continue
+      }
+
       const loggedIn = await isLoggedIn()
       const needsLogin = trip.mode !== 'notify' && !loggedIn
       if (needsLogin) {

@@ -71,7 +71,12 @@ export async function POST(
 
   let emailSent = false;
   try {
-    const { subject, html } = buildResultEmail(outcome, matchedSite ?? null, trip.name);
+    const { subject, html } = buildResultEmail(
+      outcome,
+      matchedSite ?? null,
+      trip.name,
+      session.user.name,
+    );
     await sendEmail({ to: session.user.email, subject, html });
     emailSent = true;
     await db

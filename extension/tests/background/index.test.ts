@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   updateTrip: vi.fn(),
   addDebugLog: vi.fn(),
   isLoggedIn: vi.fn(),
+  validateAuth: vi.fn(),
   watchLoginChanges: vi.fn(),
   getAvailability: vi.fn(),
 }))
@@ -19,6 +20,10 @@ vi.mock('../../src/storage', () => ({
 vi.mock('../../src/background/login', () => ({
   isLoggedIn: mocks.isLoggedIn,
   watchLoginChanges: mocks.watchLoginChanges,
+}))
+
+vi.mock('../../src/auth', () => ({
+  validateAuth: mocks.validateAuth,
 }))
 
 vi.mock('../../src/providers/bcparks', () => ({
@@ -50,6 +55,7 @@ function makeStorage(trips: Trip[]): StorageData {
     payment: null,
     settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto' },
     debugLog: [],
+    auth: { token: null, user: null, lastEmail: null },
   }
 }
 
@@ -77,6 +83,7 @@ describe('background scanner scheduling', () => {
     mocks.updateTrip.mockReset().mockResolvedValue(undefined)
     mocks.addDebugLog.mockReset().mockResolvedValue(undefined)
     mocks.isLoggedIn.mockReset().mockResolvedValue(true)
+    mocks.validateAuth.mockReset().mockResolvedValue(true)
     mocks.watchLoginChanges.mockReset()
     mocks.getAvailability.mockReset().mockResolvedValue([])
     chrome.runtime.onMessage.addListener.mockClear()
@@ -140,6 +147,24 @@ describe('background scanner scheduling', () => {
       trip.id,
       expect.objectContaining({ status: 'reserving' })
     ))
+  })
+
+  it('skips scanning when server auth is invalid', async () => {
+    const trip = makeTrip()
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.validateAuth.mockResolvedValue(false)
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalled())
+    expect(mocks.getAvailability).not.toHaveBeenCalled()
+    expect(chrome.notifications.create).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ title: 'Sign In Required' }),
+      expect.any(Function)
+    )
   })
 
   it('marks hold success as reserved', async () => {
