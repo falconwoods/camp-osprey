@@ -199,4 +199,59 @@ describe('verifyExtensionAuthCode', () => {
     await expect(verifyExtensionAuthCode({ email: 'blocked@example.com', code: '123456' }, deps))
       .rejects.toMatchObject({ code: 'account_blocked', status: 403 });
   });
+
+  it('maps database verification failures to server_error', async () => {
+    const deps = {
+      findUserByEmail: async () => ({ id: 'u1', email: 'old@example.com', name: 'Old User', role: null, banned: false }),
+      verifyCode: async () => { throw new Error('database down'); },
+      updateUserName: async () => undefined,
+    };
+
+    await expect(verifyExtensionAuthCode({ email: 'old@example.com', code: '123456' }, deps))
+      .rejects.toMatchObject({ code: 'server_error', status: 500 });
+  });
+
+  it('maps banned verification failures to account_blocked', async () => {
+    const deps = {
+      findUserByEmail: async () => ({ id: 'u1', email: 'old@example.com', name: 'Old User', role: null, banned: false }),
+      verifyCode: async () => { throw { message: 'BANNED_USER' }; },
+      updateUserName: async () => undefined,
+    };
+
+    await expect(verifyExtensionAuthCode({ email: 'old@example.com', code: '123456' }, deps))
+      .rejects.toMatchObject({ code: 'account_blocked', status: 403 });
+  });
+
+  it('maps rate limited verification failures to rate_limited', async () => {
+    const deps = {
+      findUserByEmail: async () => ({ id: 'u1', email: 'old@example.com', name: 'Old User', role: null, banned: false }),
+      verifyCode: async () => { throw { status: 429, message: 'Too many attempts' }; },
+      updateUserName: async () => undefined,
+    };
+
+    await expect(verifyExtensionAuthCode({ email: 'old@example.com', code: '123456' }, deps))
+      .rejects.toMatchObject({ code: 'rate_limited', status: 429 });
+  });
+
+  it('maps invalid verification failures to invalid_code', async () => {
+    const deps = {
+      findUserByEmail: async () => ({ id: 'u1', email: 'old@example.com', name: 'Old User', role: null, banned: false }),
+      verifyCode: async () => { throw { status: 400, message: 'INVALID_OTP' }; },
+      updateUserName: async () => undefined,
+    };
+
+    await expect(verifyExtensionAuthCode({ email: 'old@example.com', code: '123456' }, deps))
+      .rejects.toMatchObject({ code: 'invalid_code', status: 400 });
+  });
+
+  it('maps expired verification failures to expired_code', async () => {
+    const deps = {
+      findUserByEmail: async () => ({ id: 'u1', email: 'old@example.com', name: 'Old User', role: null, banned: false }),
+      verifyCode: async () => { throw new Error('OTP expired'); },
+      updateUserName: async () => undefined,
+    };
+
+    await expect(verifyExtensionAuthCode({ email: 'old@example.com', code: '123456' }, deps))
+      .rejects.toMatchObject({ code: 'expired_code', status: 400 });
+  });
 });

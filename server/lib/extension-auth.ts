@@ -102,6 +102,57 @@ export function normalizeExtensionCode(value: unknown): string {
   return code;
 }
 
+function getErrorField(err: unknown, field: string): unknown {
+  if (!err || typeof err !== 'object') return undefined;
+  return (err as Record<string, unknown>)[field];
+}
+
+export function extensionAuthErrorForVerifyCodeFailure(err: unknown): ExtensionAuthError {
+  if (err instanceof ExtensionAuthError) return err;
+
+  const message = err instanceof Error
+    ? err.message
+    : String(getErrorField(err, 'message') ?? '');
+  const code = String(getErrorField(err, 'code') ?? '').toLowerCase();
+  const text = `${message} ${code}`.toLowerCase();
+  const rawStatus = getErrorField(err, 'status') ?? getErrorField(err, 'statusCode');
+  const status = typeof rawStatus === 'number' ? rawStatus : Number(rawStatus);
+
+  if (
+    text.includes('banned')
+    || text.includes('blocked')
+    || text.includes('banned_user')
+  ) {
+    return extensionAuthError('account_blocked');
+  }
+
+  if (
+    status === 429
+    || text.includes('rate')
+    || text.includes('too many')
+    || text.includes('too_many')
+  ) {
+    return extensionAuthError('rate_limited');
+  }
+
+  if (text.includes('expired')) {
+    return extensionAuthError('expired_code');
+  }
+
+  if (
+    status === 400
+    || status === 401
+    || status === 403
+    || (text.includes('invalid') && (text.includes('otp') || text.includes('code')))
+    || text.includes('unauthorized')
+    || text.includes('forbidden')
+  ) {
+    return extensionAuthError('invalid_code');
+  }
+
+  return extensionAuthError('server_error');
+}
+
 export function pruneExpiredPendingOtpNames(now = Date.now()): void {
   for (const [email, pending] of pendingOtpNames) {
     if (pending.expiresAt < now) pendingOtpNames.delete(email);
@@ -164,9 +215,7 @@ export async function verifyExtensionAuthCode(
   try {
     verified = await deps.verifyCode(email, code, nameForNewUser);
   } catch (err) {
-    const message = err instanceof Error ? err.message.toLowerCase() : '';
-    if (message.includes('expired')) throw extensionAuthError('expired_code');
-    throw extensionAuthError('invalid_code');
+    throw extensionAuthErrorForVerifyCodeFailure(err);
   }
 
   if (verified.user.banned) throw extensionAuthError('account_blocked');
