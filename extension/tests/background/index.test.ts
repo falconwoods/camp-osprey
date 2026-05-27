@@ -183,7 +183,12 @@ describe('background scanner scheduling', () => {
 
     expect(chrome.tabs.create).toHaveBeenCalledTimes(1)
     expect(chrome.notifications.create).toHaveBeenCalledTimes(1)
-    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('already handling active match'))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warning',
+      event: 'active_match_suppressed',
+      tripId: trip.id,
+      tripName: trip.name,
+    }))
   })
 
   it('skips scanning when server auth is invalid', async () => {
@@ -231,7 +236,15 @@ describe('background scanner scheduling', () => {
     listener({ type: 'BOOKING_RESERVED', tripId: trip.id })
 
     await vi.waitFor(() => expect(mocks.updateTrip).toHaveBeenCalledWith(trip.id, { status: 'reserved' }))
-    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reservation held'))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      event: 'booking_reserved',
+      tripId: trip.id,
+      tripName: trip.name,
+      status: 'reserved',
+      reservedAt: expect.any(String),
+      bookingDate: expect.any(String),
+    }))
   })
 
   it('reports hold success to the server for email notification', async () => {
@@ -316,8 +329,20 @@ describe('background scanner scheduling', () => {
     expect(notificationOptions.message).toContain('Site A1')
     expect(notificationOptions.message).toContain('2026-07-04 → 2026-07-05')
     expect(notificationOptions.message).toContain('Reserved:')
-    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reporting reservation result to server'))
-    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reservation email sent'))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      event: 'server_result_reported',
+      tripId: trip.id,
+      tripName: trip.name,
+      parkName: 'Park 1',
+      siteName: 'A1',
+    }))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      event: 'server_email_sent',
+      tripId: trip.id,
+      tripName: trip.name,
+    }))
     vi.useRealTimers()
   })
 
@@ -333,7 +358,16 @@ describe('background scanner scheduling', () => {
     await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalled())
     const notificationOptions = chrome.notifications.create.mock.calls[0][1]
     expect(notificationOptions.message).toContain('Paid:')
-    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Booking paid'))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      event: 'booking_paid',
+      tripId: trip.id,
+      tripName: trip.name,
+      status: 'paid',
+      paidAt: expect.any(String),
+      bookingDate: expect.any(String),
+      metadata: expect.objectContaining({ confirmationNumber: 'ABC123' }),
+    }))
   })
 
   it('marks booking failure as failed', async () => {
@@ -345,5 +379,14 @@ describe('background scanner scheduling', () => {
     listener({ type: 'BOOKING_FAILED', tripId: trip.id, error: 'card declined' })
 
     await vi.waitFor(() => expect(mocks.updateTrip).toHaveBeenCalledWith(trip.id, { status: 'failed' }))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'error',
+      event: 'booking_failed',
+      tripId: trip.id,
+      tripName: trip.name,
+      status: 'failed',
+      error: 'card declined',
+      bookingDate: expect.any(String),
+    }))
   })
 })
