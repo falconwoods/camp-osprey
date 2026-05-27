@@ -45,6 +45,7 @@ const chrome = {
     query: vi.fn(),
   },
   runtime: {
+    getURL: vi.fn((path: string) => path),
     openOptionsPage: vi.fn(),
     sendMessage: vi.fn(),
     onMessage: mockEvent(),

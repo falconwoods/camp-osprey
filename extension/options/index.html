@@ -79,6 +79,9 @@
     /* ── Sections & labels ───────────────────────────────────── */
     .section { margin-bottom: 20px; }
     .section-label { color: var(--text-subtle); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .account-summary { background: var(--bg-card); border-radius: 8px; padding: 16px; }
+    .account-email { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .account-auth { background: var(--bg-card); border-radius: 8px; padding: 16px; max-width: 420px; }
 
     /* ── Form controls ───────────────────────────────────────── */
     .input { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; color: var(--text); font-size: 13px; }
@@ -172,6 +175,7 @@
       <div class="tab active" data-tab="trips">Trips</div>
       <div class="tab" data-tab="payment">Payment</div>
       <div class="tab" data-tab="settings">Settings</div>
+      <div class="tab" data-tab="account">Account</div>
     </div>
     <div id="tab-trips">
       <div id="global-alerts" style="margin-bottom:8px"></div>
@@ -243,6 +247,9 @@
         </div>
         <div class="debug-log-box" id="debug-log-box">No log entries yet — waiting for next scan cycle.</div>
       </div>
+    </div>
+    <div id="tab-account" class="hidden">
+      <div id="account-root"></div>
     </div>
   </div>
 

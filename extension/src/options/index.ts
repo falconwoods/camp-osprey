@@ -1,12 +1,12 @@
-import { getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
+import { getAuth, getPendingStartTripId, getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { isLoggedIn, watchLoginChanges } from '../background/login'
 import { formatDebugLog } from '../debugLog'
-import { authPanelHTML, bindAuthPanel } from '../authPanel'
-import { requireServerAuthForStart } from '../startAuthGate'
+import { renderAccountPanelHTML, bindAccountPanel } from '../accountPanel'
+import { consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
 import type { Trip, DateRange, Park, Theme } from '../types'
 
 // Apply saved theme before anything renders
@@ -62,31 +62,108 @@ function matchSummaryHTML(match: Trip['lastMatch']): string {
   return `${match.parkName} › ${label} · ${match.checkIn} → ${match.checkOut}${timeLabel}`
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ── Tab switching ──────────────────────────────────────────────────────────
+
+type OptionsTab = 'trips' | 'payment' | 'settings' | 'account'
+const OPTIONS_TABS: OptionsTab[] = ['trips', 'payment', 'settings', 'account']
+
+function selectTab(name: OptionsTab): void {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', (t as HTMLElement).dataset['tab'] === name)
+  })
+  document.getElementById('tab-trips')!.classList.toggle('hidden', name !== 'trips')
+  document.getElementById('tab-payment')!.classList.toggle('hidden', name !== 'payment')
+  document.getElementById('tab-settings')!.classList.toggle('hidden', name !== 'settings')
+  document.getElementById('tab-account')!.classList.toggle('hidden', name !== 'account')
+}
+
+function tabFromHash(): OptionsTab {
+  const hashTab = location.hash.replace('#', '') as OptionsTab
+  return OPTIONS_TABS.includes(hashTab) ? hashTab : 'trips'
+}
+
+async function showAccountTab(): Promise<void> {
+  if (location.hash !== '#account') {
+    history.pushState(null, '', '#account')
+  }
+  selectTab('account')
+  await renderAccount()
+}
+
+async function routeFromHash(): Promise<void> {
+  const tab = tabFromHash()
+  selectTab(tab)
+  if (tab === 'account') await renderAccount()
+}
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
-    tab.classList.add('active')
-    const name = (tab as HTMLElement).dataset['tab']!
-    document.getElementById('tab-trips')!.classList.toggle('hidden', name !== 'trips')
-    document.getElementById('tab-payment')!.classList.toggle('hidden', name !== 'payment')
-    document.getElementById('tab-settings')!.classList.toggle('hidden', name !== 'settings')
+    const name = (tab as HTMLElement).dataset['tab'] as OptionsTab
+    if (name === 'account') {
+      void showAccountTab()
+      return
+    }
+    location.hash = name
+    selectTab(name)
   })
 })
 
+window.addEventListener('hashchange', () => {
+  void routeFromHash()
+})
+
 // ── Trip list ──────────────────────────────────────────────────────────────
+
+function accountCtaHTML(authEmail: string | null): string {
+  if (authEmail) {
+    return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <span>Signed in as ${escapeHtml(authEmail)}</span>
+      <button class="trip-action-btn" id="open-account-btn">Account</button>
+    </div>`
+  }
+  return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <span><strong>Sign in to start trips</strong><br>Get booking emails and keep trips connected to your account.</span>
+    <button class="trip-action-btn" id="open-account-btn">Sign in</button>
+  </div>`
+}
+
+async function bindAccountCta(): Promise<void> {
+  document.getElementById('open-account-btn')?.addEventListener('click', () => {
+    void showAccountTab()
+  })
+}
+
+async function renderAccount(): Promise<void> {
+  const root = document.getElementById('account-root')
+  if (!root) return
+  const auth = await getAuth()
+  const pendingTripId = await getPendingStartTripId()
+  root.innerHTML = renderAccountPanelHTML(auth, pendingTripId)
+  bindAccountPanel(async () => {
+    const tripId = await consumePendingStartTripId()
+    if (tripId) await startTripNow(tripId)
+    await renderAccount()
+    await renderTripList()
+  }, renderAccount)
+}
 
 async function renderTripList() {
   const { trips, auth } = await getStorage()
   const loggedIn = await isLoggedIn()
   const globalAlertsEl = document.getElementById('global-alerts')
   if (globalAlertsEl) {
-    globalAlertsEl.innerHTML = authPanelHTML(auth, 'input', 'trip-action-btn') + renderWarnings(getGlobalWarnings(trips, loggedIn))
-    bindAuthPanel(async pendingTripId => {
-      if (pendingTripId) await startTripNow(pendingTripId)
-      await renderTripList()
-    }, renderTripList)
+    const authEmail = auth.user?.email ?? null
+    globalAlertsEl.innerHTML = accountCtaHTML(authEmail) + renderWarnings(getGlobalWarnings(trips, loggedIn))
+    await bindAccountCta()
   }
   const list = document.getElementById('trip-list')!
   if (trips.length === 0) {
@@ -140,7 +217,7 @@ async function renderTripList() {
 
       if (action === 'start') {
         if (!(await requireServerAuthForStart(id))) {
-          await renderTripList()
+          await showAccountTab()
           return
         }
         await startTripNow(id)
@@ -480,6 +557,7 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
 
   if (!(await requireServerAuthForStart(savedTripId))) {
     document.getElementById('back-btn')!.click()
+    await showAccountTab()
     return
   }
 
@@ -605,6 +683,7 @@ document.getElementById('copy-log-btn')!.addEventListener('click', async () => {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
+void routeFromHash()
 renderTripList()
 loadPaymentForm()
 loadSettingsForm()

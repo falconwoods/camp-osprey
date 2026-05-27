@@ -9,12 +9,12 @@ vi.mock('../src/background/login', () => ({
 
 vi.mock('../src/auth', () => ({
   requestCode: vi.fn(async () => ({ ok: true, isNewUser: false })),
-  verifyCode: vi.fn(async () => ({ token: 'tok', user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' } })),
+  verifyCode: vi.fn(async () => ({ token: 'tok', user: { id: 'u1', email: 'user@example.com', role: 'user' } })),
   validateAuth: vi.fn(),
   signOut: vi.fn(async () => undefined),
 }))
 
-import { validateAuth } from '../src/auth'
+import { requestCode, validateAuth, verifyCode } from '../src/auth'
 
 function trip(): Trip {
   return {
@@ -37,9 +37,11 @@ function renderFixture(): void {
       <div class="tab active" data-tab="trips"></div>
       <div class="tab" data-tab="payment"></div>
       <div class="tab" data-tab="settings"></div>
+      <div class="tab" data-tab="account"></div>
       <div id="tab-trips"><div id="global-alerts"></div><div id="trip-list"></div><button id="new-trip-btn"></button></div>
       <div id="tab-payment" class="hidden"></div>
       <div id="tab-settings" class="hidden"></div>
+      <div id="tab-account" class="hidden"><div id="account-root"></div></div>
       <input id="card-number"><input id="card-holder"><input id="card-expiry"><input id="card-cvv">
       <input id="billing-address"><input id="billing-postal"><input id="party-size">
       <button id="save-payment-btn"></button>
@@ -79,7 +81,14 @@ function renderFixture(): void {
   `
 }
 
+function sentScanNow(): boolean {
+  return vi.mocked(chrome.runtime.sendMessage).mock.calls.some(([message]) =>
+    (message as { type?: string }).type === 'SCAN_NOW'
+  )
+}
+
 beforeEach(async () => {
+  location.hash = ''
   renderFixture()
   let stored: Record<string, unknown> = {}
   chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
@@ -99,16 +108,56 @@ beforeEach(async () => {
 })
 
 describe('options auth gate', () => {
-  it('shows sign-in banner while signed out', async () => {
+  it('shows lightweight sign-in banner without auth inputs while signed out', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.body.textContent).toContain('Sign in to start trips')
-    expect(document.body.textContent).toContain('Check Spam, Junk, or Trash')
+    expect(document.querySelector('#global-alerts #auth-email')).toBeNull()
+    expect(document.querySelector('#global-alerts #auth-code')).toBeNull()
   })
 
-  it('does not send SCAN_NOW when Start is clicked signed out', async () => {
+  it('escapes signed-in email in the Trips account banner', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: '<img src=x onerror=alert(1)>@example.com', role: 'user' },
+      lastEmail: null,
+    })
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('#global-alerts img')).toBeNull()
+    expect(document.querySelector('#global-alerts')!.textContent).toContain('<img src=x onerror=alert(1)>@example.com')
+  })
+
+  it('selects Account tab from hash and renders auth form', async () => {
+    location.hash = '#account'
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
+    expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+  })
+
+  it('routes to Account tab on hash changes after startup', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    location.hash = '#account'
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
+    expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+  })
+
+  it('stores pending trip and resumes it after Account verification', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -116,6 +165,25 @@ describe('options auth gate', () => {
     document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith({ type: 'SCAN_NOW', tripId: 'trip-1' })
+    expect(sentScanNow()).toBe(false)
+    expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
+
+    ;(document.querySelector('#account-root #auth-email') as HTMLInputElement).value = 'user@example.com'
+    document.querySelector<HTMLButtonElement>('#account-root #auth-send-code')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(requestCode).toHaveBeenCalledWith({ email: 'user@example.com' })
+    expect(sentScanNow()).toBe(false)
+
+    ;(document.querySelector('#account-root #auth-code') as HTMLInputElement).value = '123456'
+    document.querySelector<HTMLButtonElement>('#account-root #auth-verify-code')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(verifyCode).toHaveBeenCalledWith({ email: 'user@example.com', code: '123456' })
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'SCAN_NOW',
+      tripId: 'trip-1',
+      resetActiveMatch: true,
+    })
   })
 })
