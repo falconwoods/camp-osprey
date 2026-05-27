@@ -4,13 +4,11 @@ import { serverFetch } from './serverApi'
 
 export interface RequestCodeInput {
   email: string
-  name?: string
 }
 
 export interface VerifyCodeInput {
   email: string
   code: string
-  name?: string
 }
 
 export async function requestCode(input: RequestCodeInput): Promise<{ ok: true; isNewUser: boolean }> {

@@ -25,9 +25,9 @@ export async function POST(request: Request) {
         const [row] = await db.select().from(user).where(eq(user.email, email));
         return row ?? null;
       },
-      verifyCode: async (email, code, name) => {
+      verifyCode: async (email, code) => {
         const result = await auth.api.signInEmailOTP({
-          body: { email, otp: code, name },
+          body: { email, otp: code, name: email },
           headers: request.headers,
         });
         const authUser = result.user as BetterAuthUser;
@@ -41,9 +41,6 @@ export async function POST(request: Request) {
             banned: authUser.banned ?? null,
           },
         };
-      },
-      updateUserName: async (userId, name) => {
-        await db.update(user).set({ name, updatedAt: new Date() }).where(eq(user.id, userId));
       },
     });
 

@@ -39,7 +39,7 @@ export type UserLookup = {
 
 export type RequestCodeDeps = {
   findUserByEmail: (email: string) => Promise<UserLookup | null>;
-  sendCode: (email: string, name?: string) => Promise<void>;
+  sendCode: (email: string) => Promise<void>;
 };
 
 export type VerifiedSession = {
@@ -56,7 +56,7 @@ export type VerifiedSession = {
 export type VerifyCodeDeps = {
   findUserByEmail: (email: string) => Promise<(UserLookup & { role: string | null }) | null>;
   verifyCode: (email: string, code: string, name?: string) => Promise<VerifiedSession>;
-  updateUserName: (userId: string, name: string) => Promise<void>;
+  updateUserName?: (userId: string, name: string) => Promise<void>;
 };
 
 const pendingOtpNames = new Map<string, { name: string; expiresAt: number }>();
@@ -183,11 +183,8 @@ export async function requestExtensionAuthCode(
 
   if (existingUser?.banned) throw extensionAuthError('account_blocked');
 
-  const name = existingUser || requestBody.name == null
-    ? undefined
-    : normalizeExtensionName(requestBody.name);
   try {
-    await deps.sendCode(email, name);
+    await deps.sendCode(email);
   } catch (err) {
     console.error('[extension-auth] send code failed:', err);
     throw extensionAuthError('email_send_failed');
@@ -207,25 +204,16 @@ export async function verifyExtensionAuthCode(
 
   if (existingUser?.banned) throw extensionAuthError('account_blocked');
 
-  const nameForNewUser = existingUser
-    ? undefined
-    : requestBody.name == null
-      ? email
-      : normalizeExtensionName(requestBody.name);
-
   let verified: VerifiedSession;
   try {
-    verified = await deps.verifyCode(email, code, nameForNewUser);
+    verified = await deps.verifyCode(email, code);
   } catch (err) {
     throw extensionAuthErrorForVerifyCodeFailure(err);
   }
 
   if (verified.user.banned) throw extensionAuthError('account_blocked');
 
-  const finalName = existingUser?.name ?? (verified.user.name?.trim() || nameForNewUser || email);
-  if (!existingUser && nameForNewUser) {
-    await deps.updateUserName(verified.user.id, nameForNewUser);
-  }
+  const finalName = existingUser?.name ?? (verified.user.name?.trim() || email);
 
   return {
     token: verified.token,

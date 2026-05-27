@@ -14,27 +14,28 @@ beforeEach(() => {
 })
 
 describe('extension auth client', () => {
-  it('requests an email code', async () => {
+  it('requests an email code without sending name', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, isNewUser: false }), { status: 200 })))
 
     await expect(requestCode({ email: 'user@example.com' })).resolves.toEqual({ ok: true, isNewUser: false })
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/extension-auth/request-code'),
-      expect.objectContaining({ method: 'POST' }),
-    )
+
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toEqual({ email: 'user@example.com' })
   })
 
-  it('stores auth after verifying code', async () => {
+  it('stores auth after verifying code without sending name', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       token: 'tok',
-      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
     }), { status: 200 })))
 
-    await verifyCode({ email: 'user@example.com', code: '123456', name: 'Eric' })
+    await verifyCode({ email: 'user@example.com', code: '123456' })
 
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toEqual({ email: 'user@example.com', code: '123456' })
     await expect(getAuth()).resolves.toEqual({
       token: 'tok',
-      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
       lastEmail: 'user@example.com',
     })
   })
