@@ -4,10 +4,10 @@ import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { isLoggedIn, watchLoginChanges } from '../background/login'
-import { formatDebugLog } from '../debugLog'
+import { ALL_LOG_LEVELS, formatDebugLogAsJsonl, renderDebugLogRows } from '../debugLog'
 import { renderAccountPanelHTML, bindAccountPanel } from '../accountPanel'
 import { consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
-import type { Trip, DateRange, Park, Theme } from '../types'
+import type { Trip, DateRange, Park, Theme, LogLevel } from '../types'
 
 // Apply saved theme before anything renders
 getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
@@ -73,8 +73,8 @@ function escapeHtml(value: string): string {
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 
-type OptionsTab = 'trips' | 'payment' | 'settings' | 'account'
-const OPTIONS_TABS: OptionsTab[] = ['trips', 'payment', 'settings', 'account']
+type OptionsTab = 'trips' | 'payment' | 'settings' | 'account' | 'logs'
+const OPTIONS_TABS: OptionsTab[] = ['trips', 'payment', 'settings', 'account', 'logs']
 
 function selectTab(name: OptionsTab): void {
   document.querySelectorAll('.tab').forEach(t => {
@@ -84,6 +84,8 @@ function selectTab(name: OptionsTab): void {
   document.getElementById('tab-payment')!.classList.toggle('hidden', name !== 'payment')
   document.getElementById('tab-settings')!.classList.toggle('hidden', name !== 'settings')
   document.getElementById('tab-account')!.classList.toggle('hidden', name !== 'account')
+  document.getElementById('tab-logs')!.classList.toggle('hidden', name !== 'logs')
+  if (name === 'logs') void refreshDebugLog()
 }
 
 function tabFromHash(): OptionsTab {
@@ -264,9 +266,9 @@ watchLoginChanges(() => renderTripList())
 chrome.storage.onChanged.addListener((_changes, area) => {
   if (area === 'local') {
     const tripsView = document.getElementById('trips-view')!
-    const settingsTab = document.getElementById('tab-settings')!
+    const logsTab = document.getElementById('tab-logs')!
     if (!tripsView.classList.contains('hidden')) renderTripList()
-    if (!settingsTab.classList.contains('hidden')) refreshDebugLog()
+    if (!logsTab.classList.contains('hidden')) refreshDebugLog()
   }
 })
 
@@ -602,6 +604,8 @@ document.getElementById('save-payment-btn')!.addEventListener('click', async () 
 // ── Settings ───────────────────────────────────────────────────────────────
 
 let selectedTheme: Theme = 'auto'
+let selectedLogLevels = new Set<LogLevel>(ALL_LOG_LEVELS)
+let logAutoScroll = true
 
 function updateThemeBtns(theme: Theme) {
   document.querySelectorAll('.theme-btn').forEach(btn => {
@@ -622,15 +626,11 @@ async function loadSettingsForm() {
   ;(document.getElementById('poll-interval') as HTMLSelectElement).value = String(settings.pollIntervalSeconds)
   const debugEl = document.getElementById('debug-mode') as HTMLInputElement
   debugEl.checked = settings.debugMode ?? false
-  document.getElementById('debug-section')!.classList.toggle('hidden', !debugEl.checked)
   selectedTheme = settings.theme ?? 'auto'
   updateThemeBtns(selectedTheme)
 }
 
-document.getElementById('debug-mode')!.addEventListener('change', () => {
-  const checked = (document.getElementById('debug-mode') as HTMLInputElement).checked
-  document.getElementById('debug-section')!.classList.toggle('hidden', !checked)
-})
+document.getElementById('debug-mode')!.addEventListener('change', () => undefined)
 
 document.getElementById('test-notif-btn')!.addEventListener('click', () => {
   const id = `camposprey-test-${Date.now()}`
@@ -657,25 +657,41 @@ document.getElementById('save-settings-btn')!.addEventListener('click', async ()
 })
 
 async function refreshDebugLog() {
-  const { debugLog, settings } = await getStorage()
-  const section = document.getElementById('debug-section')!
-  section.classList.toggle('hidden', !settings.debugMode)
-  if (!settings.debugMode) return
-  const box = document.getElementById('debug-log-box')!
-  box.textContent = formatDebugLog(debugLog)
-  box.scrollTop = box.scrollHeight
+  const { debugLog } = await getStorage()
+  const box = document.getElementById('debug-log-box')
+  if (!box) return
+  box.innerHTML = renderDebugLogRows(debugLog, selectedLogLevels)
+  if (logAutoScroll) box.scrollTop = box.scrollHeight
 }
+
+document.querySelectorAll('.log-level-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const level = (btn as HTMLElement).dataset['logLevel'] as LogLevel
+    if (selectedLogLevels.has(level)) selectedLogLevels.delete(level)
+    else selectedLogLevels.add(level)
+    btn.classList.toggle('active', selectedLogLevels.has(level))
+    await refreshDebugLog()
+  })
+})
+
+document.getElementById('log-autoscroll')!.addEventListener('change', () => {
+  logAutoScroll = (document.getElementById('log-autoscroll') as HTMLInputElement).checked
+  if (logAutoScroll) {
+    const box = document.getElementById('debug-log-box')
+    if (box) box.scrollTop = box.scrollHeight
+  }
+})
 
 document.getElementById('clear-log-btn')!.addEventListener('click', async () => {
   await clearDebugLog()
   await refreshDebugLog()
 })
 
-document.getElementById('copy-log-btn')!.addEventListener('click', async () => {
+document.getElementById('copy-log-jsonl-btn')!.addEventListener('click', async () => {
   const { debugLog } = await getStorage()
-  const text = formatDebugLog(debugLog)
+  const text = formatDebugLogAsJsonl(debugLog, selectedLogLevels)
   await navigator.clipboard.writeText(text)
-  const btn = document.getElementById('copy-log-btn')!
+  const btn = document.getElementById('copy-log-jsonl-btn')!
   const original = btn.textContent
   btn.textContent = 'Copied'
   window.setTimeout(() => { btn.textContent = original }, 1200)

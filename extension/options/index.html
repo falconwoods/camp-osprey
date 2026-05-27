@@ -143,7 +143,34 @@
     .theme-btn.active { border-color: var(--blue); color: var(--blue); background: var(--bg-blue); font-weight: 600; }
 
     /* ── Debug log ───────────────────────────────────────────── */
-    .debug-log-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; color: var(--text-subtle); height: 300px; overflow-y: auto; line-height: 1.7; white-space: pre-wrap; }
+    .log-panel { display: flex; flex-direction: column; min-height: 620px; }
+    .log-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .log-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .log-autoscroll-label { width: auto; white-space: nowrap; }
+    .log-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .log-level-btn { border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted); border-radius: 5px; padding: 5px 10px; font-size: 11px; cursor: pointer; }
+    .log-level-btn.active[data-log-level="debug"] { border-color: #38bdf8; color: #0284c7; background: rgba(56,189,248,0.12); }
+    .log-level-btn.active[data-log-level="info"] { border-color: var(--green); color: var(--green); background: var(--green-subtle); }
+    .log-level-btn.active[data-log-level="warning"] { border-color: var(--amber); color: var(--amber); background: var(--amber-subtle); }
+    .log-level-btn.active[data-log-level="error"] { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.08); }
+    .debug-log-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--text-subtle); height: min(640px, calc(100vh - 250px)); min-height: 420px; overflow-y: auto; line-height: 1.6; }
+    .log-row { display: grid; grid-template-columns: 190px 74px 160px minmax(260px, 1fr); gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); align-items: start; }
+    .log-row--debug .log-level { color: #0284c7; }
+    .log-row--info .log-level { color: var(--green); }
+    .log-row--warning { background: var(--amber-subtle); }
+    .log-row--warning .log-level { color: var(--amber); }
+    .log-row--error, .log-row--failed { background: rgba(239,68,68,0.08); }
+    .log-row--error .log-level, .log-row--failed .log-level { color: var(--red); }
+    .log-row--found, .log-row--reserved, .log-row--paid { background: var(--green-subtle); }
+    .log-cell { min-width: 0; overflow-wrap: anywhere; }
+    .log-time { color: var(--text-dim); }
+    .log-event { color: var(--text); font-weight: 600; }
+    .log-message { color: var(--text-subtle); }
+    .log-empty { padding: 18px; color: var(--text-muted); font-size: 12px; }
+    @media (max-width: 720px) {
+      .log-toolbar { align-items: flex-start; flex-direction: column; }
+      .log-row { grid-template-columns: 1fr; gap: 2px; }
+    }
 
     /* ── Alerts ──────────────────────────────────────────────── */
     .alert-error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 5px; padding: 6px 9px; font-size: 11px; color: var(--red); margin-top: 6px; line-height: 1.5; }
@@ -176,6 +203,7 @@
       <div class="tab" data-tab="payment">Payment</div>
       <div class="tab" data-tab="settings">Settings</div>
       <div class="tab" data-tab="account">Account</div>
+      <div class="tab" data-tab="logs">Logs</div>
     </div>
     <div id="tab-trips">
       <div id="global-alerts" style="margin-bottom:8px"></div>
@@ -225,7 +253,7 @@
       <div class="section">
         <label class="checkbox-label" style="width:fit-content">
           <input type="checkbox" id="debug-mode">
-          Debug mode — log scan activity below
+          Debug mode
         </label>
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -236,20 +264,34 @@
         If test notification doesn't appear: <strong>macOS System Settings → Notifications → Google Chrome</strong>
         → Alert style: <strong>Alerts</strong> (not Banners).
       </div>
-
-      <div id="debug-section" class="hidden" style="margin-top:24px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div class="section-label" style="margin-bottom:0">Scan Log</div>
-          <div style="display:flex;gap:8px">
-            <button class="btn-secondary" id="copy-log-btn" style="padding:4px 12px;font-size:11px">Copy</button>
-            <button class="btn-secondary" id="clear-log-btn" style="padding:4px 12px;font-size:11px">Clear</button>
-          </div>
-        </div>
-        <div class="debug-log-box" id="debug-log-box">No log entries yet — waiting for next scan cycle.</div>
-      </div>
     </div>
     <div id="tab-account" class="hidden">
       <div id="account-root"></div>
+    </div>
+    <div id="tab-logs" class="hidden">
+      <div class="log-panel">
+        <div class="log-toolbar">
+          <div>
+            <div class="section-label" style="margin-bottom:2px">Scan Log</div>
+            <div class="hint">Structured local logs. Newest entries stay at the bottom.</div>
+          </div>
+          <div class="log-actions">
+            <label class="checkbox-label log-autoscroll-label">
+              <input type="checkbox" id="log-autoscroll" checked>
+              Auto scroll
+            </label>
+            <button class="btn-secondary" id="copy-log-jsonl-btn">Copy JSONL</button>
+            <button class="btn-secondary" id="clear-log-btn">Clear</button>
+          </div>
+        </div>
+        <div class="log-filters" aria-label="Log level filters">
+          <button class="log-level-btn active" data-log-level="debug">Debug</button>
+          <button class="log-level-btn active" data-log-level="info">Info</button>
+          <button class="log-level-btn active" data-log-level="warning">Warning</button>
+          <button class="log-level-btn active" data-log-level="error">Error</button>
+        </div>
+        <div class="debug-log-box" id="debug-log-box"></div>
+      </div>
     </div>
   </div>
 

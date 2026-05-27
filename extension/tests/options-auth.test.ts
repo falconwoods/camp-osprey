@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { saveAuth, saveTrips } from '../src/storage'
-import type { Trip } from '../src/types'
+import type { DebugLogEntry, Trip } from '../src/types'
 
 vi.mock('../src/background/login', () => ({
   isLoggedIn: vi.fn(async () => true),
@@ -31,6 +31,16 @@ function trip(): Trip {
   }
 }
 
+function logEntry(overrides: Partial<DebugLogEntry> = {}): DebugLogEntry {
+  return {
+    ts: '2026-05-27T00:42:05.000Z',
+    level: 'info',
+    event: 'site_found',
+    message: 'Found site',
+    ...overrides,
+  }
+}
+
 function renderFixture(): void {
   document.body.innerHTML = `
     <div id="trips-view">
@@ -38,10 +48,21 @@ function renderFixture(): void {
       <div class="tab" data-tab="payment"></div>
       <div class="tab" data-tab="settings"></div>
       <div class="tab" data-tab="account"></div>
+      <div class="tab" data-tab="logs"></div>
       <div id="tab-trips"><div id="global-alerts"></div><div id="trip-list"></div><button id="new-trip-btn"></button></div>
       <div id="tab-payment" class="hidden"></div>
       <div id="tab-settings" class="hidden"></div>
       <div id="tab-account" class="hidden"><div id="account-root"></div></div>
+      <div id="tab-logs" class="hidden">
+        <input id="log-autoscroll" type="checkbox" checked>
+        <button class="log-level-btn active" data-log-level="debug"></button>
+        <button class="log-level-btn active" data-log-level="info"></button>
+        <button class="log-level-btn active" data-log-level="warning"></button>
+        <button class="log-level-btn active" data-log-level="error"></button>
+        <button id="copy-log-jsonl-btn"></button>
+        <button id="clear-log-btn"></button>
+        <div id="debug-log-box"></div>
+      </div>
       <input id="card-number"><input id="card-holder"><input id="card-expiry"><input id="card-cvv">
       <input id="billing-address"><input id="billing-postal"><input id="party-size">
       <button id="save-payment-btn"></button>
@@ -50,12 +71,8 @@ function renderFixture(): void {
       <button class="theme-btn" data-theme-choice="dark"></button>
       <select id="poll-interval"><option value="60"></option></select>
       <input id="debug-mode" type="checkbox">
-      <div id="debug-section" class="hidden"></div>
       <button id="test-notif-btn"></button>
       <button id="save-settings-btn"></button>
-      <div id="debug-log-box"></div>
-      <button id="clear-log-btn"></button>
-      <button id="copy-log-btn"></button>
     </div>
     <div id="trip-editor" class="hidden">
       <button id="back-btn"></button>
@@ -156,6 +173,73 @@ describe('options auth gate', () => {
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
     expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+  })
+
+  it('selects Logs tab from hash and renders structured log rows', async () => {
+    location.hash = '#logs'
+    await saveTrips([trip()])
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({
+      trips: [trip()],
+      debugLog: [
+        logEntry({ level: 'debug', event: 'park_checked', message: 'Checking park' }),
+        logEntry({ level: 'error', event: 'booking_failed', message: 'Payment failed', error: 'card declined' }),
+      ],
+      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto' },
+      auth: { token: null, user: null, lastEmail: null },
+    }))
+
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="logs"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-logs')!.classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('debug-log-box')!.textContent).toContain('park_checked')
+    expect(document.getElementById('debug-log-box')!.textContent).toContain('booking_failed')
+  })
+
+  it('filters logs by level when a level chip is toggled', async () => {
+    location.hash = '#logs'
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({
+      trips: [trip()],
+      debugLog: [
+        logEntry({ level: 'debug', event: 'park_checked', message: 'Checking park' }),
+        logEntry({ level: 'error', event: 'booking_failed', message: 'Payment failed' }),
+      ],
+      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto' },
+      auth: { token: null, user: null, lastEmail: null },
+    }))
+
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-log-level="debug"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.getElementById('debug-log-box')!.textContent).not.toContain('park_checked')
+    expect(document.getElementById('debug-log-box')!.textContent).toContain('booking_failed')
+  })
+
+  it('copies filtered logs as JSONL', async () => {
+    location.hash = '#logs'
+    const writeText = vi.fn(async () => undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({
+      trips: [trip()],
+      debugLog: [
+        logEntry({ level: 'debug', event: 'park_checked', message: 'Checking park' }),
+        logEntry({ level: 'info', event: 'site_found', message: 'Found site' }),
+      ],
+      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto' },
+      auth: { token: null, user: null, lastEmail: null },
+    }))
+
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    document.querySelector<HTMLButtonElement>('[data-log-level="debug"]')!.click()
+    document.getElementById('copy-log-jsonl-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(writeText).toHaveBeenCalledWith(JSON.stringify(logEntry({ level: 'info', event: 'site_found', message: 'Found site' })))
   })
 
   it('stores pending trip and resumes it after Account verification', async () => {
