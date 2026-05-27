@@ -20,10 +20,10 @@ export function openOptionsAccount(): void {
   chrome.tabs.create({ url: chrome.runtime.getURL('options/index.html#account') })
 }
 
-export async function openAuthGateForTrip(tripId: string | null): Promise<void> {
+export async function openAuthGateForTrip(tripId: string | null, openAccount = true): Promise<void> {
   await setPendingStartTripId(tripId)
   emit()
-  openOptionsAccount()
+  if (openAccount) openOptionsAccount()
 }
 
 export async function getPendingStartTripId(): Promise<string | null> {
@@ -41,9 +41,9 @@ export async function consumePendingStartTripId(): Promise<string | null> {
   return tripId
 }
 
-export async function requireServerAuthForStart(tripId: string): Promise<boolean> {
+export async function requireServerAuthForStart(tripId: string, openAccount = true): Promise<boolean> {
   const ok = await validateAuth()
   if (ok) return true
-  await openAuthGateForTrip(tripId)
+  await openAuthGateForTrip(tripId, openAccount)
   return false
 }

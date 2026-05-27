@@ -102,6 +102,7 @@ beforeEach(async () => {
   }
   chrome.runtime.sendMessage = vi.fn()
   chrome.runtime.getURL = vi.fn((path: string) => path)
+  chrome.tabs.create = vi.fn()
   await saveTrips([trip()])
   await saveAuth({ token: null, user: null, lastEmail: null })
   vi.resetModules()
@@ -167,6 +168,7 @@ describe('options auth gate', () => {
 
     expect(sentScanNow()).toBe(false)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
+    expect(chrome.tabs.create).not.toHaveBeenCalled()
 
     ;(document.querySelector('#account-root #auth-email') as HTMLInputElement).value = 'user@example.com'
     document.querySelector<HTMLButtonElement>('#account-root #auth-send-code')!.click()

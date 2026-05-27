@@ -216,7 +216,7 @@ async function renderTripList() {
       const action = (btn as HTMLElement).dataset['action']!
 
       if (action === 'start') {
-        if (!(await requireServerAuthForStart(id))) {
+        if (!(await requireServerAuthForStart(id, false))) {
           await showAccountTab()
           return
         }
@@ -555,7 +555,7 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
   }
   await saveTrips(trips)
 
-  if (!(await requireServerAuthForStart(savedTripId))) {
+  if (!(await requireServerAuthForStart(savedTripId, false))) {
     document.getElementById('back-btn')!.click()
     await showAccountTab()
     return
