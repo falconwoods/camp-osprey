@@ -89,10 +89,34 @@ export interface AuthState {
   lastEmail: string | null
 }
 
+export type LogLevel = 'debug' | 'info' | 'warning' | 'error'
+
+export type BookingStatus = 'found' | 'reserved' | 'paid' | 'failed'
+
+export interface DebugLogEntry {
+  ts: string
+  level: LogLevel
+  event: string
+  message: string
+  tripId?: string
+  tripName?: string
+  parkName?: string
+  siteName?: string
+  checkIn?: string
+  checkOut?: string
+  foundAt?: string
+  reservedAt?: string
+  paidAt?: string
+  bookingDate?: string
+  status?: BookingStatus
+  error?: string
+  metadata?: Record<string, unknown>
+}
+
 export interface StorageData {
   trips: Trip[]
   payment: PaymentConfig | null
   settings: Settings
-  debugLog: string[]
+  debugLog: DebugLogEntry[]
   auth: AuthState
 }

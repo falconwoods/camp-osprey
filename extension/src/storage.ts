@@ -1,4 +1,4 @@
-import type { AuthState, StorageData, Trip, PaymentConfig, Settings } from './types'
+import type { AuthState, StorageData, Trip, PaymentConfig, Settings, DebugLogEntry } from './types'
 
 export const MAX_DEBUG_LOG_ENTRIES = 100_000
 let debugLogWriteQueue = Promise.resolve()
@@ -51,6 +51,15 @@ export function formatDateTime(date: Date | string | number = new Date()): strin
   })
 }
 
+function isDebugLogEntry(value: unknown): value is DebugLogEntry {
+  if (!value || typeof value !== 'object') return false
+  const entry = value as Partial<DebugLogEntry>
+  return typeof entry.ts === 'string' &&
+    (entry.level === 'debug' || entry.level === 'info' || entry.level === 'warning' || entry.level === 'error') &&
+    typeof entry.event === 'string' &&
+    typeof entry.message === 'string'
+}
+
 export async function getAuth(): Promise<AuthState> {
   const { auth } = await getStorage()
   return auth
@@ -87,11 +96,15 @@ export async function clearPendingStartTripId(): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.remove(PENDING_START_KEY, cb))
 }
 
-export async function addDebugLog(entry: string): Promise<void> {
+export async function addDebugLog(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
   const write = async () => {
     const { debugLog } = await getStorage()
-    const timestamp = formatDateTime()
-    const newLog = [...debugLog, `${timestamp} — ${entry}`].slice(-MAX_DEBUG_LOG_ENTRIES)
+    const existing = Array.isArray(debugLog) ? debugLog.filter(isDebugLogEntry) : []
+    const structuredEntry: DebugLogEntry = {
+      ...entry,
+      ts: entry.ts ?? new Date().toISOString(),
+    }
+    const newLog = [...existing, structuredEntry].slice(-MAX_DEBUG_LOG_ENTRIES)
     await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
   }
   const result = debugLogWriteQueue.then(write, write)

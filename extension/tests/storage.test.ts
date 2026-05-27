@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { addDebugLog, getStorage, saveTrips, updateTrip, MAX_DEBUG_LOG_ENTRIES } from '../src/storage'
 import { clearAuthSession, getAuth, saveAuth } from '../src/storage'
-import type { Trip } from '../src/types'
+import type { DebugLogEntry, Trip } from '../src/types'
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
   return {
@@ -111,50 +111,101 @@ describe('addDebugLog', () => {
     vi.useRealTimers()
   })
 
-  it('keeps more than 30 entries so the scan history is not truncated too aggressively', async () => {
-    const existing = Array.from({ length: 40 }, (_, i) => `entry ${i}`)
+  function entry(i: number): DebugLogEntry {
+    return {
+      ts: `2026-05-27T00:00:${String(i).padStart(2, '0')}.000Z`,
+      level: 'info',
+      event: 'scan_cycle_started',
+      message: `entry ${i}`,
+    }
+  }
+
+  it('keeps more than 30 structured entries so the scan history is not truncated too aggressively', async () => {
+    const existing = Array.from({ length: 40 }, (_, i) => entry(i))
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: existing }))
     chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
 
-    await addDebugLog('latest')
+    await addDebugLog({ level: 'info', event: 'site_found', message: 'latest' })
 
     const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(setCall.debugLog).toHaveLength(41)
-    expect(setCall.debugLog[0]).toBe('entry 0')
-    expect(setCall.debugLog[40]).toContain('latest')
+    expect(setCall.debugLog[0]).toEqual(existing[0])
+    expect(setCall.debugLog[40]).toEqual(expect.objectContaining({
+      level: 'info',
+      event: 'site_found',
+      message: 'latest',
+      ts: expect.any(String),
+    }))
   })
 
   it('keeps overnight-sized local logs instead of trimming at 500 entries', async () => {
-    const existing = Array.from({ length: 800 }, (_, i) => `entry ${i}`)
+    const existing = Array.from({ length: 800 }, (_, i) => entry(i))
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: existing }))
     chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
 
-    await addDebugLog('latest')
+    await addDebugLog({ level: 'debug', event: 'availability_result', message: 'latest' })
 
     const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(setCall.debugLog).toHaveLength(801)
-    expect(setCall.debugLog[0]).toBe('entry 0')
-    expect(setCall.debugLog[800]).toContain('latest')
+    expect(setCall.debugLog[0]).toEqual(existing[0])
+    expect(setCall.debugLog[800]).toEqual(expect.objectContaining({ event: 'availability_result' }))
   })
 
   it('keeps a larger local log history cap for long debug runs', async () => {
     expect(MAX_DEBUG_LOG_ENTRIES).toBe(100_000)
   })
 
-  it('adds full date and time to each log entry', async () => {
+  it('adds an ISO timestamp to each structured log entry', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-26T17:42:05-07:00'))
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: [] }))
     chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
 
-    await addDebugLog('found site')
+    await addDebugLog({
+      level: 'info',
+      event: 'site_found',
+      message: 'Found reservable site',
+      parkName: 'Alice Lake',
+      siteName: '67',
+      checkIn: '2026-07-04',
+      checkOut: '2026-07-05',
+      foundAt: '2026-05-27T00:42:05.000Z',
+      bookingDate: '2026-05-27T00:42:05.000Z',
+      status: 'found',
+    })
 
     const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(setCall.debugLog[0]).toContain('May 26, 2026')
-    expect(setCall.debugLog[0]).toContain('found site')
+    expect(setCall.debugLog[0]).toEqual({
+      ts: '2026-05-27T00:42:05.000Z',
+      level: 'info',
+      event: 'site_found',
+      message: 'Found reservable site',
+      parkName: 'Alice Lake',
+      siteName: '67',
+      checkIn: '2026-07-04',
+      checkOut: '2026-07-05',
+      foundAt: '2026-05-27T00:42:05.000Z',
+      bookingDate: '2026-05-27T00:42:05.000Z',
+      status: 'found',
+    })
   })
 
-  it('serializes concurrent writes so log entries are not lost', async () => {
+  it('drops old string logs before writing the first structured entry', async () => {
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: ['old string log'] }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog({ level: 'warning', event: 'match_failed', message: 'Site unavailable' })
+
+    const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(setCall.debugLog).toHaveLength(1)
+    expect(setCall.debugLog[0]).toEqual(expect.objectContaining({
+      level: 'warning',
+      event: 'match_failed',
+      message: 'Site unavailable',
+    }))
+  })
+
+  it('serializes concurrent structured writes so log entries are not lost', async () => {
     let stored: Record<string, unknown> = { debugLog: [] }
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
     chrome.storage.local.set.mockImplementation((data, cb) => {
@@ -163,14 +214,14 @@ describe('addDebugLog', () => {
     })
 
     await Promise.all([
-      addDebugLog('first'),
-      addDebugLog('second'),
+      addDebugLog({ level: 'info', event: 'first_event', message: 'first' }),
+      addDebugLog({ level: 'error', event: 'second_event', message: 'second' }),
     ])
 
     expect(stored.debugLog).toHaveLength(2)
     expect(stored.debugLog).toEqual([
-      expect.stringContaining('first'),
-      expect.stringContaining('second'),
+      expect.objectContaining({ event: 'first_event', message: 'first' }),
+      expect.objectContaining({ event: 'second_event', message: 'second' }),
     ])
   })
 })
