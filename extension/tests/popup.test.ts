@@ -47,16 +47,46 @@ beforeEach(async () => {
   await saveTrips([trip()])
   await saveAuth({ token: null, user: null, lastEmail: null })
   chrome.runtime.sendMessage = vi.fn()
+  chrome.runtime.getURL = vi.fn((path: string) => `chrome-extension://test/${path}`)
+  chrome.tabs.create = vi.fn()
   vi.resetModules()
 })
 
 describe('popup auth gate', () => {
-  it('shows sign-in banner while signed out', async () => {
+  it('shows signed-out CTA without auth inputs', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
     await import('../src/popup/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.body.textContent).toContain('Sign in to start trips')
+    expect(document.querySelector('#auth-email')).toBeNull()
+    expect(document.querySelector('#auth-code')).toBeNull()
+  })
+
+  it('opens options account when signed-out CTA is clicked', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.getElementById('open-account-btn')!.click()
+
+    expect(chrome.tabs.create).toHaveBeenCalledWith({
+      url: 'chrome-extension://test/options/index.html#account',
+    })
+  })
+
+  it('escapes signed-in email in the CTA', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: '<img src=x onerror=alert(1)>@example.com', role: 'user' },
+      lastEmail: null,
+    })
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.body.textContent).toContain('Signed in as <img src=x onerror=alert(1)>@example.com')
+    expect(document.querySelector('#global-alerts img')).toBeNull()
   })
 
   it('does not send SCAN_NOW when Start is clicked signed out', async () => {
@@ -67,7 +97,12 @@ describe('popup auth gate', () => {
     document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith({ type: 'SCAN_NOW', tripId: 'trip-1' })
+    expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.some(([message]) =>
+      (message as { type?: string }).type === 'SCAN_NOW'
+    )).toBe(false)
+    expect(chrome.tabs.create).toHaveBeenCalledWith({
+      url: 'chrome-extension://test/options/index.html#account',
+    })
   })
 
   it('sends SCAN_NOW when auth validates', async () => {

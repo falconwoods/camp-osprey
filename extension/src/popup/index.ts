@@ -2,8 +2,7 @@ import { getAuth, getStorage, updateTrip } from '../storage'
 import { isLoggedIn } from '../background/login'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
-import { authPanelHTML, bindAuthPanel } from '../authPanel'
-import { requireServerAuthForStart } from '../startAuthGate'
+import { openOptionsAccount, requireServerAuthForStart } from '../startAuthGate'
 import type { Trip, MatchedSite } from '../types'
 
 // Apply saved theme immediately before render
@@ -97,6 +96,28 @@ function renderTrip(trip: Trip): string {
   </div>`
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function accountCtaHTML(authEmail: string | null): string {
+  if (authEmail) {
+    return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span>Signed in as ${escapeHtml(authEmail)}</span>
+      <button class="btn btn-start" id="open-account-btn">Account</button>
+    </div>`
+  }
+  return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <span><strong>Sign in to start trips</strong><br>Get booking emails for your trips.</span>
+    <button class="btn btn-start" id="open-account-btn">Sign in</button>
+  </div>`
+}
+
 async function render() {
   const { trips } = await getStorage()
   const auth = await getAuth()
@@ -104,15 +125,8 @@ async function render() {
   const container = document.getElementById('trips-container')!
   const globalAlertsEl = document.getElementById('global-alerts')!
 
-  globalAlertsEl.innerHTML = authPanelHTML(auth) + renderWarnings(getGlobalWarnings(trips, loggedIn))
-  bindAuthPanel(async pendingTripId => {
-    await render()
-    if (pendingTripId) {
-      await updateTrip(pendingTripId, { status: 'scanning', lastMatch: null, attempted: [] })
-      chrome.storage.local.remove('campOspreyTarget')
-      chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: pendingTripId })
-    }
-  }, render)
+  globalAlertsEl.innerHTML = accountCtaHTML(auth.user?.email ?? null) + renderWarnings(getGlobalWarnings(trips, loggedIn))
+  document.getElementById('open-account-btn')?.addEventListener('click', openOptionsAccount)
 
   if (trips.length === 0) {
     container.innerHTML = '<div class="empty">No trips yet. Add one to start scanning.</div>'
