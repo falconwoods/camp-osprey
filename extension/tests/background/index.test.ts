@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   updateTrip: vi.fn(),
   addDebugLog: vi.fn(),
   isLoggedIn: vi.fn(),
+  validateAuth: vi.fn(),
+  sendTripResult: vi.fn(),
   watchLoginChanges: vi.fn(),
   getAvailability: vi.fn(),
 }))
@@ -27,6 +29,14 @@ vi.mock('../../src/storage', () => ({
 vi.mock('../../src/background/login', () => ({
   isLoggedIn: mocks.isLoggedIn,
   watchLoginChanges: mocks.watchLoginChanges,
+}))
+
+vi.mock('../../src/auth', () => ({
+  validateAuth: mocks.validateAuth,
+}))
+
+vi.mock('../../src/serverApi', () => ({
+  sendTripResult: mocks.sendTripResult,
 }))
 
 vi.mock('../../src/providers/bcparks', () => ({
@@ -58,6 +68,7 @@ function makeStorage(trips: Trip[]): StorageData {
     payment: null,
     settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto' },
     debugLog: [],
+    auth: { token: null, user: null, lastEmail: null },
   }
 }
 
@@ -85,6 +96,8 @@ describe('background scanner scheduling', () => {
     mocks.updateTrip.mockReset().mockResolvedValue(undefined)
     mocks.addDebugLog.mockReset().mockResolvedValue(undefined)
     mocks.isLoggedIn.mockReset().mockResolvedValue(true)
+    mocks.validateAuth.mockReset().mockResolvedValue(true)
+    mocks.sendTripResult.mockReset().mockResolvedValue({ ok: true, emailSent: false })
     mocks.watchLoginChanges.mockReset()
     mocks.getAvailability.mockReset().mockResolvedValue([])
     chrome.runtime.onMessage.addListener.mockClear()
@@ -173,6 +186,24 @@ describe('background scanner scheduling', () => {
     expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('already handling active match'))
   })
 
+  it('skips scanning when server auth is invalid', async () => {
+    const trip = makeTrip()
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.validateAuth.mockResolvedValue(false)
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalled())
+    expect(mocks.getAvailability).not.toHaveBeenCalled()
+    expect(chrome.notifications.create).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ title: 'Sign In Required' }),
+      expect.any(Function)
+    )
+  })
+
   it('includes the discovery time in match notifications', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-26T17:42:05-07:00'))
@@ -201,6 +232,93 @@ describe('background scanner scheduling', () => {
 
     await vi.waitFor(() => expect(mocks.updateTrip).toHaveBeenCalledWith(trip.id, { status: 'reserved' }))
     expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reservation held'))
+  })
+
+  it('reports hold success to the server for email notification', async () => {
+    const trip = makeTrip({
+      mode: 'hold',
+      status: 'reserving',
+      lastMatch: {
+        parkName: 'Park 1',
+        sectionName: 'Main',
+        siteName: 'A1',
+        checkIn: '2026-07-04',
+        checkOut: '2026-07-05',
+        bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+        resourceId: 'site-1',
+        foundAt: '2026-05-26T17:00:00.000Z',
+      },
+    })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'BOOKING_RESERVED', tripId: trip.id })
+
+    await vi.waitFor(() => expect(mocks.sendTripResult).toHaveBeenCalledWith(trip.id, {
+      outcome: 'hold_placed',
+      matchedSite: expect.objectContaining({
+        parkName: 'Park 1',
+        sectionName: 'Main',
+        siteName: 'A1',
+        checkIn: '2026-07-04',
+        checkOut: '2026-07-05',
+        bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+        resourceId: 'site-1',
+      }),
+      tripSnapshot: expect.objectContaining({
+        name: 'Trip 1',
+        parks: trip.parks,
+        dateRanges: trip.dateRanges,
+        filters: trip.filters,
+        mode: 'hold',
+        status: 'reserved',
+        attempted: [],
+      }),
+    }))
+  })
+
+  it('notifies and logs server reporting details when a site is reserved', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-26T18:10:00-07:00'))
+    mocks.sendTripResult.mockResolvedValue({ ok: true, emailSent: true })
+    const trip = makeTrip({
+      mode: 'hold',
+      status: 'reserving',
+      lastMatch: {
+        parkName: 'Park 1',
+        sectionName: 'Main',
+        siteName: 'A1',
+        checkIn: '2026-07-04',
+        checkOut: '2026-07-05',
+        bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+        resourceId: 'site-1',
+        foundAt: '2026-05-26T17:00:00.000Z',
+      },
+    })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'BOOKING_RESERVED', tripId: trip.id })
+
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        title: 'Site Reserved',
+        message: expect.stringContaining('Park 1'),
+        requireInteraction: true,
+      }),
+      expect.any(Function),
+    ))
+    const notificationOptions = chrome.notifications.create.mock.calls[0][1]
+    expect(notificationOptions.message).toContain('Main')
+    expect(notificationOptions.message).toContain('Site A1')
+    expect(notificationOptions.message).toContain('2026-07-04 → 2026-07-05')
+    expect(notificationOptions.message).toContain('Reserved:')
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reporting reservation result to server'))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.stringContaining('Reservation email sent'))
+    vi.useRealTimers()
   })
 
   it('marks confirmed autopay booking as paid', async () => {

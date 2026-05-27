@@ -6,6 +6,20 @@ Scans BC Parks for campsite cancellations and auto-books the moment one opens up
 
 BC Parks campsites sell out instantly. This tool polls for cancellations on a configurable interval, applies your filters (no walk-in, no double sites), and books the first match — notifying you via terminal, desktop popup, and email.
 
+## Features
+
+- Chrome extension trip manager for creating, starting, pausing, and monitoring campsite scans.
+- Passwordless CampOsprey sign-in is required before a trip can start, so usage can be tracked, booking emails can be connected to the right account, and blocked accounts can be prevented from scanning.
+- Email-code registration and login:
+  - New users enter a valid email and name, then verify with a 6-digit email code.
+  - Returning users enter their email and code without needing a password.
+  - The extension remembers the last login email locally to prefill the next sign-in attempt.
+- Sign-in UI appears in the popup and options page with a short explanation of why login is needed, plus a reminder to check Spam, Junk, or Trash for the code.
+- Signed-in users receive personalized emails, including greetings such as `Hi Eric`.
+- Background scan cycles validate the server session before scanning, so expired, signed-out, or blocked users cannot continue running trips.
+- Server extension-auth API supports requesting and verifying email codes, returning bearer tokens for extension API calls.
+- Server booking result emails include the signed-in user's name when available.
+
 ## Setup
 
 **1. Install**

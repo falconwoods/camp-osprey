@@ -5,6 +5,8 @@ import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { isLoggedIn, watchLoginChanges } from '../background/login'
 import { formatDebugLog } from '../debugLog'
+import { authPanelHTML, bindAuthPanel } from '../authPanel'
+import { requireServerAuthForStart } from '../startAuthGate'
 import type { Trip, DateRange, Park, Theme } from '../types'
 
 // Apply saved theme before anything renders
@@ -76,11 +78,15 @@ document.querySelectorAll('.tab').forEach(tab => {
 // ── Trip list ──────────────────────────────────────────────────────────────
 
 async function renderTripList() {
-  const { trips } = await getStorage()
+  const { trips, auth } = await getStorage()
   const loggedIn = await isLoggedIn()
   const globalAlertsEl = document.getElementById('global-alerts')
   if (globalAlertsEl) {
-    globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn))
+    globalAlertsEl.innerHTML = authPanelHTML(auth, 'input', 'trip-action-btn') + renderWarnings(getGlobalWarnings(trips, loggedIn))
+    bindAuthPanel(async pendingTripId => {
+      if (pendingTripId) await startTripNow(pendingTripId)
+      await renderTripList()
+    }, renderTripList)
   }
   const list = document.getElementById('trip-list')!
   if (trips.length === 0) {
@@ -133,15 +139,11 @@ async function renderTripList() {
       const action = (btn as HTMLElement).dataset['action']!
 
       if (action === 'start') {
-        const { trips } = await getStorage()
-        const trip = trips.find(t => t.id === id)
-        if (trip && trip.mode !== 'notify' && !(await isLoggedIn())) {
-          promptLogin()
+        if (!(await requireServerAuthForStart(id))) {
+          await renderTripList()
           return
         }
-        chrome.storage.local.remove('campOspreyTarget')
-        await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
-        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
+        await startTripNow(id)
       } else {
         await updateTrip(id, { status: 'paused' })
         chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
@@ -150,6 +152,19 @@ async function renderTripList() {
       await renderTripList()
     })
   })
+}
+
+async function startTripNow(id: string): Promise<boolean> {
+  const { trips } = await getStorage()
+  const trip = trips.find(t => t.id === id)
+  if (trip && trip.mode !== 'notify' && !(await isLoggedIn())) {
+    promptLogin()
+    return false
+  }
+  chrome.storage.local.remove('campOspreyTarget')
+  await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
+  chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
+  return true
 }
 
 // Open BC Parks sign-in tab and tell user to come back
@@ -450,26 +465,25 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
 
   if (hasErrors) return
 
-  if (mode !== 'notify' && !(await isLoggedIn())) {
-    promptLogin()
+  const { trips } = await getStorage()
+  const savedTripId = editingTripId ?? crypto.randomUUID()
+  if (editingTripId) {
+    const idx = trips.findIndex(t => t.id === editingTripId)
+    if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'idle' }
+  } else {
+    // Transfer the date mode saved under 'datemode_new' to the real trip ID
+    const savedMode = localStorage.getItem('datemode_new')
+    if (savedMode) localStorage.setItem(`datemode_${savedTripId}`, savedMode)
+    trips.push({ id: savedTripId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'idle', lastMatch: null, attempted: [], createdAt: Date.now() })
+  }
+  await saveTrips(trips)
+
+  if (!(await requireServerAuthForStart(savedTripId))) {
+    document.getElementById('back-btn')!.click()
     return
   }
 
-  const { trips } = await getStorage()
-  let savedTripId = editingTripId
-  if (editingTripId) {
-    const idx = trips.findIndex(t => t.id === editingTripId)
-    if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [] }
-  } else {
-    const newId = crypto.randomUUID()
-    savedTripId = newId
-    // Transfer the date mode saved under 'datemode_new' to the real trip ID
-    const savedMode = localStorage.getItem('datemode_new')
-    if (savedMode) localStorage.setItem(`datemode_${newId}`, savedMode)
-    trips.push({ id: newId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'scanning', lastMatch: null, attempted: [], createdAt: Date.now() })
-  }
-  await saveTrips(trips)
-  chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: savedTripId ?? undefined })
+  if (!(await startTripNow(savedTripId))) return
   document.getElementById('back-btn')!.click()
 })
 

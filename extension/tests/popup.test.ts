@@ -1,0 +1,87 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { saveAuth, saveTrips } from '../src/storage'
+import type { Trip } from '../src/types'
+
+vi.mock('../src/background/login', () => ({ isLoggedIn: vi.fn(async () => true) }))
+vi.mock('../src/auth', () => ({
+  requestCode: vi.fn(async () => ({ ok: true, isNewUser: false })),
+  verifyCode: vi.fn(async () => ({ token: 'tok', user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' } })),
+  validateAuth: vi.fn(),
+  signOut: vi.fn(async () => undefined),
+}))
+
+import { validateAuth } from '../src/auth'
+
+function trip(): Trip {
+  return {
+    id: 'trip-1',
+    name: 'Weekend',
+    parks: [{ id: 'p1', name: 'Alice Lake' }],
+    dateRanges: [{ type: 'specific', checkIn: '2026-07-04', checkOut: '2026-07-05' }],
+    filters: { noWalkin: true, noDouble: true },
+    mode: 'notify',
+    status: 'idle',
+    lastMatch: null,
+    attempted: [],
+    createdAt: Date.now(),
+  }
+}
+
+beforeEach(async () => {
+  document.body.innerHTML = `
+    <a id="settings-link"></a>
+    <button id="add-trip-btn"></button>
+    <div id="global-alerts"></div>
+    <div id="trips-container"></div>
+  `
+  let stored: Record<string, unknown> = {}
+  chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
+  chrome.storage.local.set.mockImplementation((data, cb) => {
+    stored = { ...stored, ...data }
+    cb?.()
+  })
+  chrome.storage.local.remove.mockImplementation((_key, cb) => cb?.())
+  ;(chrome.storage as unknown as { onChanged: { addListener: ReturnType<typeof vi.fn> } }).onChanged = {
+    addListener: vi.fn(),
+  }
+  await saveTrips([trip()])
+  await saveAuth({ token: null, user: null, lastEmail: null })
+  chrome.runtime.sendMessage = vi.fn()
+  vi.resetModules()
+})
+
+describe('popup auth gate', () => {
+  it('shows sign-in banner while signed out', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.body.textContent).toContain('Sign in to start trips')
+  })
+
+  it('does not send SCAN_NOW when Start is clicked signed out', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith({ type: 'SCAN_NOW', tripId: 'trip-1' })
+  })
+
+  it('sends SCAN_NOW when auth validates', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'SCAN_NOW',
+      tripId: 'trip-1',
+      resetActiveMatch: true,
+    })
+  })
+})

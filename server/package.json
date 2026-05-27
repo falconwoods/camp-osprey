@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "node scripts/next-with-env.mjs dev",
     "build": "next build",
-    "start": "next start -p 3001",
+    "start": "node scripts/next-with-env.mjs start",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run",

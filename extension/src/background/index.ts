@@ -3,6 +3,8 @@ import { getStorage, updateTrip, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
 import type { AvailableSite, MatchedSite, Trip } from '../types'
+import { validateAuth } from '../auth'
+import { sendTripResult } from '../serverApi'
 
 const ALARM_NAME = 'scan'
 const provider = new BCParksProvider()
@@ -74,6 +76,16 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     await addDebugLog(`${'─'.repeat(48)}\nAlarm fired — ${scanningTrips.length} trip(s) scanning`)
 
     for (const trip of scanningTrips) {
+      const serverLoggedIn = await validateAuth()
+      if (!serverLoggedIn) {
+        if (debug) await addDebugLog(`"${trip.name}" — not signed in to server, skipping scan`)
+        await notify(
+          'Sign In Required',
+          `Sign in to start "${trip.name}" and keep booking emails connected to your account.`
+        )
+        continue
+      }
+
       const loggedIn = await isLoggedIn()
       const needsLogin = trip.mode !== 'notify' && !loggedIn
       if (needsLogin) {
@@ -323,8 +335,40 @@ chrome.runtime.onMessage.addListener((msg: {
       const trip = trips.find(t => t.id === msg.tripId)
       const reservedAt = new Date().toISOString()
       const match = trip?.lastMatch ? { ...trip.lastMatch, reservedAt } : undefined
-      addDebugLog(`Reservation held${trip ? ` for "${trip.name}"` : ''} at ${formatDateTime(reservedAt)}`)
+      const reservedAtLabel = formatDateTime(reservedAt)
+      addDebugLog(`Reservation held${trip ? ` for "${trip.name}"` : ''} at ${reservedAtLabel}`)
       updateTrip(msg.tripId!, match ? { status: 'reserved', lastMatch: match } : { status: 'reserved' })
+        .then(async () => {
+          if (match) {
+            const siteDetail = `${match.parkName} › ${match.sectionName ? `${match.sectionName} › ` : ''}Site ${match.siteName}`
+            await notify(
+              'Site Reserved',
+              `${siteDetail}\n${match.checkIn} → ${match.checkOut}\nReserved: ${reservedAtLabel}\nComplete payment on BC Parks now.`,
+              match.bookingUrl,
+              true,
+            )
+          }
+          if (!match) return
+          try {
+            await addDebugLog(`Reporting reservation result to server${trip ? ` for "${trip.name}"` : ''}: ${match.parkName} › Site ${match.siteName} ${match.checkIn}→${match.checkOut}`)
+            const result = await sendTripResult(msg.tripId!, {
+              outcome: 'hold_placed',
+              matchedSite: match,
+              tripSnapshot: {
+                name: trip.name,
+                parks: trip.parks,
+                dateRanges: trip.dateRanges,
+                filters: trip.filters,
+                mode: trip.mode,
+                status: 'reserved',
+                attempted: trip.attempted,
+              },
+            })
+            await addDebugLog(`Reservation email ${result.emailSent ? 'sent' : 'not sent'}${trip ? ` for "${trip.name}"` : ''}`)
+          } catch (err) {
+            await addDebugLog(`Reservation email failed${trip ? ` for "${trip.name}"` : ''}: ${err}`)
+          }
+        })
     })
     return
   }

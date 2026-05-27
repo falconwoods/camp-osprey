@@ -1,7 +1,9 @@
-import { getStorage, updateTrip } from '../storage'
+import { getAuth, getStorage, updateTrip } from '../storage'
 import { isLoggedIn } from '../background/login'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
+import { authPanelHTML, bindAuthPanel } from '../authPanel'
+import { requireServerAuthForStart } from '../startAuthGate'
 import type { Trip, MatchedSite } from '../types'
 
 // Apply saved theme immediately before render
@@ -97,11 +99,20 @@ function renderTrip(trip: Trip): string {
 
 async function render() {
   const { trips } = await getStorage()
+  const auth = await getAuth()
   const loggedIn = await isLoggedIn()
   const container = document.getElementById('trips-container')!
   const globalAlertsEl = document.getElementById('global-alerts')!
 
-  globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn))
+  globalAlertsEl.innerHTML = authPanelHTML(auth) + renderWarnings(getGlobalWarnings(trips, loggedIn))
+  bindAuthPanel(async pendingTripId => {
+    await render()
+    if (pendingTripId) {
+      await updateTrip(pendingTripId, { status: 'scanning', lastMatch: null, attempted: [] })
+      chrome.storage.local.remove('campOspreyTarget')
+      chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: pendingTripId })
+    }
+  }, render)
 
   if (trips.length === 0) {
     container.innerHTML = '<div class="empty">No trips yet. Add one to start scanning.</div>'
@@ -113,6 +124,10 @@ async function render() {
     btn.addEventListener('click', async () => {
       const id = (btn as HTMLElement).dataset['id']!
       const action = (btn as HTMLElement).dataset['action']!
+      if (action === 'start' && !(await requireServerAuthForStart(id))) {
+        await render()
+        return
+      }
       await updateTrip(id, action === 'start'
         ? { status: 'scanning', lastMatch: null, attempted: [] }
         : { status: 'paused' })

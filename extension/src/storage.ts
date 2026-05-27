@@ -1,4 +1,4 @@
-import type { StorageData, Trip, PaymentConfig, Settings } from './types'
+import type { AuthState, StorageData, Trip, PaymentConfig, Settings } from './types'
 
 export const MAX_DEBUG_LOG_ENTRIES = 100_000
 let debugLogWriteQueue = Promise.resolve()
@@ -8,6 +8,7 @@ const DEFAULTS: StorageData = {
   payment: null,
   settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto' },
   debugLog: [],
+  auth: { token: null, user: null, lastEmail: null },
 }
 
 function promisify<T>(fn: (callback: (result: T) => void) => void): Promise<T> {
@@ -48,6 +49,20 @@ export function formatDateTime(date: Date | string | number = new Date()): strin
     minute: '2-digit',
     second: '2-digit',
   })
+}
+
+export async function getAuth(): Promise<AuthState> {
+  const { auth } = await getStorage()
+  return auth
+}
+
+export async function saveAuth(auth: AuthState): Promise<void> {
+  await promisify<void>(cb => chrome.storage.local.set({ auth }, cb))
+}
+
+export async function clearAuthSession(): Promise<void> {
+  const { auth } = await getStorage()
+  await saveAuth({ token: null, user: null, lastEmail: auth.lastEmail })
 }
 
 export async function addDebugLog(entry: string): Promise<void> {
