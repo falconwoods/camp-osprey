@@ -83,6 +83,10 @@ function milestoneClass(entry: DebugLogEntry): string | null {
     return 'log-row--found'
   }
 
+  if (entry.event === 'booking_reserved' || entry.status === 'reserved') {
+    return 'log-row--reserved'
+  }
+
   if (entry.event === 'booking_paid' || entry.status === 'paid') {
     return 'log-row--paid'
   }

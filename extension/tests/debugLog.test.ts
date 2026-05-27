@@ -54,11 +54,13 @@ describe('structured debug log helpers', () => {
   it('adds milestone row classes for booking events', () => {
     const html = renderDebugLogRows([
       entry({ event: 'site_found', status: 'found' }),
+      entry({ event: 'booking_reserved', status: 'reserved' }),
       entry({ event: 'booking_paid', status: 'paid' }),
       entry({ level: 'error', event: 'booking_failed', status: 'failed' }),
     ], new Set<LogLevel>(['info', 'error']))
 
     expect(html).toContain('log-row--found')
+    expect(html).toContain('log-row--reserved')
     expect(html).toContain('log-row--paid')
     expect(html).toContain('log-row--failed')
   })
