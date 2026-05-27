@@ -32,14 +32,14 @@ export function renderDebugLogRows(entries: DebugLogEntry[], levels: Set<LogLeve
       milestoneClass(entry),
     ].filter(Boolean).join(' ')
     const metadata = renderMetadata(entry)
+    const detail = [entry.message, metadata].filter(Boolean).join(' ')
 
     return [
       `<div class="${escapeHtml(rowClasses)}">`,
-      `<span class="log-row__time">${escapeHtml(entry.ts)}</span>`,
-      `<span class="log-row__level">${escapeHtml(entry.level.toUpperCase())}</span>`,
-      `<span class="log-row__event">${escapeHtml(entry.event)}</span>`,
-      `<span class="log-row__message">${escapeHtml(entry.message)}</span>`,
-      metadata ? `<span class="log-row__metadata">${metadata}</span>` : '',
+      `<span class="log-cell log-time">${escapeHtml(entry.ts)}</span>`,
+      `<span class="log-cell log-level">${escapeHtml(entry.level.toUpperCase())}</span>`,
+      `<span class="log-cell log-event">${escapeHtml(entry.event)}</span>`,
+      `<span class="log-cell log-message">${escapeHtml(detail)}</span>`,
       '</div>',
     ].join('')
   }).join('')
@@ -74,7 +74,7 @@ function renderMetadata(entry: DebugLogEntry): string {
   }
 
   return metadataPairs
-    .map(([key, value]) => `${escapeHtml(key)}=&quot;${escapeHtml(formatMetadataValue(value))}&quot;`)
+    .map(([key, value]) => `${key}="${formatMetadataValue(value)}"`)
     .join(' ')
 }
 

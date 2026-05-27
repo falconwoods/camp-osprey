@@ -51,16 +51,28 @@ describe('structured debug log helpers', () => {
     expect(html).not.toContain('<script>')
   })
 
+  it('renders planned cell classes for log rows', () => {
+    const html = renderDebugLogRows([
+      entry(),
+    ], new Set<LogLevel>(['info']))
+
+    expect(html).toContain('class="log-cell log-time"')
+    expect(html).toContain('class="log-cell log-level"')
+    expect(html).toContain('class="log-cell log-event"')
+    expect(html).toContain('class="log-cell log-message"')
+  })
+
   it('adds milestone row classes for booking events', () => {
     const html = renderDebugLogRows([
       entry({ event: 'site_found', status: 'found' }),
-      entry({ event: 'booking_reserved', status: 'reserved' }),
+      entry({ event: 'booking_reserved' }),
+      entry({ status: 'reserved' }),
       entry({ event: 'booking_paid', status: 'paid' }),
       entry({ level: 'error', event: 'booking_failed', status: 'failed' }),
     ], new Set<LogLevel>(['info', 'error']))
 
     expect(html).toContain('log-row--found')
-    expect(html).toContain('log-row--reserved')
+    expect(html.match(/log-row--reserved/g)).toHaveLength(2)
     expect(html).toContain('log-row--paid')
     expect(html).toContain('log-row--failed')
   })
