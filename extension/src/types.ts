@@ -75,8 +75,12 @@ export interface Settings {
 export interface ServerUser {
   id: string
   email: string
-  name: string
+  name?: string
   role: string
+}
+
+export interface PendingAuthState {
+  pendingStartTripId: string | null
 }
 
 export interface AuthState {

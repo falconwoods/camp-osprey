@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { consumePendingStartTripId, openAuthGateForTrip, requireServerAuthForStart } from '../src/startAuthGate'
-import { saveAuth } from '../src/storage'
+import { clearPendingStartTripId, consumePendingStartTripId, getPendingStartTripId, requireServerAuthForStart } from '../src/startAuthGate'
 
 vi.mock('../src/auth', () => ({
   validateAuth: vi.fn(),
@@ -8,35 +7,57 @@ vi.mock('../src/auth', () => ({
 
 import { validateAuth } from '../src/auth'
 
-beforeEach(async () => {
-  vi.clearAllMocks()
+beforeEach(() => {
   let stored: Record<string, unknown> = {}
   chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
   chrome.storage.local.set.mockImplementation((data, cb) => {
     stored = { ...stored, ...data }
     cb?.()
   })
-  await saveAuth({ token: null, user: null, lastEmail: null })
+  chrome.storage.local.remove.mockImplementation((key, cb) => {
+    const keys = Array.isArray(key) ? key : [key]
+    for (const item of keys) delete stored[item]
+    cb?.()
+  })
+  chrome.runtime.getURL = vi.fn((path: string) => `chrome-extension://test/${path}`)
+  chrome.tabs.create = vi.fn()
 })
 
 describe('start auth gate', () => {
-  it('blocks start and records pending trip when signed out', async () => {
+  it('stores pending trip and opens Options Account when auth is missing', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
 
     await expect(requireServerAuthForStart('trip-1')).resolves.toBe(false)
-    expect(consumePendingStartTripId()).toBe('trip-1')
+
+    await expect(getPendingStartTripId()).resolves.toBe('trip-1')
+    expect(chrome.tabs.create).toHaveBeenCalledWith({
+      url: 'chrome-extension://test/options/index.html#account',
+    })
   })
 
-  it('allows start when auth validates', async () => {
+  it('does not store pending trip when auth validates', async () => {
     vi.mocked(validateAuth).mockResolvedValue(true)
 
     await expect(requireServerAuthForStart('trip-1')).resolves.toBe(true)
-    expect(consumePendingStartTripId()).toBeNull()
+
+    await expect(getPendingStartTripId()).resolves.toBeNull()
+    expect(chrome.tabs.create).not.toHaveBeenCalled()
   })
 
-  it('can manually set pending trip for UI flows', () => {
-    openAuthGateForTrip('trip-2')
-    expect(consumePendingStartTripId()).toBe('trip-2')
-    expect(consumePendingStartTripId()).toBeNull()
+  it('consumes and clears pending trip id', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await requireServerAuthForStart('trip-1')
+
+    await expect(consumePendingStartTripId()).resolves.toBe('trip-1')
+    await expect(getPendingStartTripId()).resolves.toBeNull()
+  })
+
+  it('clears pending trip id explicitly', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await requireServerAuthForStart('trip-1')
+
+    await clearPendingStartTripId()
+
+    await expect(getPendingStartTripId()).resolves.toBeNull()
   })
 })

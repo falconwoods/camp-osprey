@@ -14,7 +14,7 @@ function escapeHtml(value: string): string {
 export function authPanelHTML(auth: AuthState, inputClass = 'auth-input', buttonClass = 'btn btn-start'): string {
   if (auth.user) {
     return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center">
-      <span>Signed in as ${escapeHtml(auth.user.name)}</span>
+      <span>Signed in as ${escapeHtml(auth.user.name ?? auth.user.email)}</span>
       <button class="${buttonClass}" id="sign-out-btn">Sign out</button>
     </div>`
   }
@@ -79,7 +79,7 @@ export function bindAuthPanel(
     const code = (document.getElementById('auth-code') as HTMLInputElement).value
     try {
       await verifyCode({ email, code })
-      await onSignedIn(consumePendingStartTripId())
+      await onSignedIn(await consumePendingStartTripId())
     } catch (err) {
       setError(authMessage(err instanceof Error ? err.message : 'server_error'))
     }

@@ -65,6 +65,28 @@ export async function clearAuthSession(): Promise<void> {
   await saveAuth({ token: null, user: null, lastEmail: auth.lastEmail })
 }
 
+const PENDING_START_KEY = 'campOspreyPendingStartTripId'
+
+export async function getPendingStartTripId(): Promise<string | null> {
+  const result = await promisify<Record<string, unknown>>(cb =>
+    chrome.storage.local.get([PENDING_START_KEY], cb)
+  )
+  const value = result[PENDING_START_KEY]
+  return typeof value === 'string' && value ? value : null
+}
+
+export async function setPendingStartTripId(tripId: string | null): Promise<void> {
+  if (!tripId) {
+    await clearPendingStartTripId()
+    return
+  }
+  await promisify<void>(cb => chrome.storage.local.set({ [PENDING_START_KEY]: tripId }, cb))
+}
+
+export async function clearPendingStartTripId(): Promise<void> {
+  await promisify<void>(cb => chrome.storage.local.remove(PENDING_START_KEY, cb))
+}
+
 export async function addDebugLog(entry: string): Promise<void> {
   const write = async () => {
     const { debugLog } = await getStorage()
