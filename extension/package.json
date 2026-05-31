@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch",
+    "build:development": "vite build --mode development",
+    "build:production": "vite build --mode production",
+    "dev:development": "vite build --watch --mode development",
+    "dev:production": "vite build --watch --mode production",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"

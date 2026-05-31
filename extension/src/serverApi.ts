@@ -1,7 +1,6 @@
 import { getAuth } from './storage'
+import { BACKEND_BASE_URL } from './config'
 import type { DebugLogEntry, MatchedSite, Trip } from './types'
-
-const DEFAULT_BASE_URL = 'http://localhost:4000'
 
 export class ServerApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -10,7 +9,7 @@ export class ServerApiError extends Error {
 }
 
 export function getServerBaseUrl(): string {
-  return DEFAULT_BASE_URL
+  return BACKEND_BASE_URL
 }
 
 export async function serverFetch<T>(

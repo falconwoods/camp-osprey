@@ -37,6 +37,21 @@ npm run dev
 
 The development server runs on `http://localhost:3001`.
 
+Local development reads `server/.env`. Production deployment reads
+`server/.env.production` by default and uploads that file to the VPS before
+restarting the container:
+
+```bash
+cp .env.example .env.production
+npm run deploy
+```
+
+To deploy with a different env file:
+
+```bash
+ENV_FILE=/path/to/production.env npm run deploy
+```
+
 ## Database
 
 The server uses Postgres with Drizzle migrations. All commands below should be
@@ -58,6 +73,33 @@ connection string instead:
 ```bash
 DATABASE_URL=postgres://user:password@localhost:5432/camposprey
 ```
+
+For the Docker deployment, do not use `localhost` in `DATABASE_URL`. Inside the
+Next.js container, `localhost` points back to that container, not to Postgres.
+For multi-VPS deployments, expose infra services on the infra VPS private
+network interface and use the infra VPS private IP:
+
+```bash
+DATABASE_URL=postgres://user:password@10.0.0.10:15432/camposprey
+```
+
+Loki should use the same private-IP pattern:
+
+```bash
+LOKI_URL=http://10.0.0.10:13100
+```
+
+The infra Docker Compose files can bind those published ports to all interfaces
+when Oracle security rules keep them private:
+
+```yaml
+ports:
+  - "${POSTGRES_PORT:-5432}:5432"
+  - "${LOKI_PORT:-3100}:3100"
+```
+
+Restrict access with Oracle security lists or NSGs so only app VPS private IPs
+can reach the Postgres and Loki ports.
 
 Apply the checked-in migrations to initialize the schema:
 
