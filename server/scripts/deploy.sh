@@ -28,6 +28,8 @@ docker save $IMAGE:latest | gzip | ssh -p $SSH_PORT $SERVER "
   docker run -d \
     --name $CONTAINER \
     --env-file $SERVER_ENV_DIR/$ENV_FILE \
+    -e PORT=3000 \
+    -e HOSTNAME=0.0.0.0 \
     --network $NETWORK \
     --restart unless-stopped \
     -p 127.0.0.1:$HOST_PORT:3000 \
