@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { addDebugLog, getStorage, saveTrips, updateTrip, MAX_DEBUG_LOG_ENTRIES } from '../src/storage'
+import {
+  addDebugLog,
+  getStorage,
+  saveTrips,
+  updateTrip,
+  MAX_DEBUG_LOG_ENTRIES,
+  PENDING_SERVER_LOGS_KEY,
+} from '../src/storage'
 import { clearAuthSession, getAuth, saveAuth } from '../src/storage'
 import type { DebugLogEntry, Trip } from '../src/types'
 
@@ -29,6 +36,7 @@ describe('getStorage', () => {
     expect(data.trips).toEqual([])
     expect(data.payment).toBeNull()
     expect(data.settings.pollIntervalSeconds).toBe(60)
+    expect(data.settings.logSyncMinLevel).toBe('info')
   })
 })
 
@@ -222,6 +230,25 @@ describe('addDebugLog', () => {
     expect(stored.debugLog).toEqual([
       expect.objectContaining({ event: 'first_event', message: 'first' }),
       expect.objectContaining({ event: 'second_event', message: 'second' }),
+    ])
+  })
+
+  it('queues server logs at or above the configured sync level', async () => {
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({
+      debugLog: [],
+      settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto', logSyncMinLevel: 'warning' },
+      [PENDING_SERVER_LOGS_KEY]: [],
+    }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog({ level: 'info', event: 'info_event', message: 'ignored remotely' })
+    await addDebugLog({ level: 'error', event: 'error_event', message: 'queued remotely' })
+
+    const firstSet = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const secondSet = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[1][0]
+    expect(firstSet[PENDING_SERVER_LOGS_KEY]).toEqual([])
+    expect(secondSet[PENDING_SERVER_LOGS_KEY]).toEqual([
+      expect.objectContaining({ level: 'error', event: 'error_event' }),
     ])
   })
 })

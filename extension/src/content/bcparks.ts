@@ -1,5 +1,5 @@
 // Content script — injected on all camping.bcparks.ca pages
-import { extractCampsiteName, extractSelectedCampsiteName, findDetailsControl, findReserveControl, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
+import { extractCampsiteName, extractSelectedCampsiteName, findDetailsControl, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
 
 // ── Debug logging ──────────────────────────────────────────────────────────
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
@@ -131,6 +131,17 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     const el = document.getElementById('camposprey-status')
     if (el) el.textContent = msg
   }
+  const reportUnavailable = (reason: string) => {
+    const attemptKey = `${target.resourceId}|${target.checkIn}|${target.checkOut}`
+    setStatus('Site disappeared — scanner will keep looking.')
+    dbg(`MATCH_FAILED — ${reason}`, { attemptKey })
+    chrome.runtime.sendMessage({
+      type: 'MATCH_FAILED',
+      tripId: target.tripId,
+      attemptKey,
+    })
+    setTimeout(() => window.close(), 4000)
+  }
 
   // Step 1: wait for Angular to render (2s)
   await sleep(2000)
@@ -193,9 +204,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   dbg('switchToListView', switched)
 
   // Poll for either category buttons OR panels (whichever appears first)
-  const listReady = await pollUntil(6_000, () =>
-    document.querySelectorAll('button.map-link-button, mat-expansion-panel.list-entry').length > 0
-  )
+  const listReady = await pollUntil(6_000, () => hasListResultOutcome(document.body))
   dbg('list ready', listReady)
 
   panelCount = document.querySelectorAll('mat-expansion-panel.list-entry').length
@@ -212,6 +221,10 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   }
 
   if (panelCount === 0) {
+    if (hasNoAvailabilityMessage(document.body)) {
+      reportUnavailable('BC Parks reports no available campsites')
+      return
+    }
     setStatus('List view not loading — click "List" → "Campground" → "Details" → "Reserve" manually.')
     dbg('FAILED: panels never appeared. Paste __cs_debug() to developer.')
     return

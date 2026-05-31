@@ -1,7 +1,7 @@
 import type { Trip, AvailableSite, Filters } from '../types'
 import { expandDateRange, isBookable } from '../dates'
 
-const DATE_WINDOW_DELAY_MS = 200
+const DATE_WINDOW_DELAY_MS = 300
 
 type GetAvailabilityFn = (
   campgroundId: string,

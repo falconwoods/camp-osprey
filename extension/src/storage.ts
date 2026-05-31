@@ -1,15 +1,19 @@
 import type { AuthState, StorageData, Trip, PaymentConfig, Settings, DebugLogEntry } from './types'
 
 export const MAX_DEBUG_LOG_ENTRIES = 100_000
+export const MAX_PENDING_SERVER_LOG_ENTRIES = 10_000
+export const PENDING_SERVER_LOGS_KEY = 'pendingServerLogs'
 let debugLogWriteQueue = Promise.resolve()
 
 const DEFAULTS: StorageData = {
   trips: [],
   payment: null,
-  settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto' },
+  settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto', logSyncMinLevel: 'info' },
   debugLog: [],
   auth: { token: null, user: null, lastEmail: null },
 }
+
+const LOG_LEVEL_RANK = { debug: 10, info: 20, warning: 30, error: 40 } as const
 
 function promisify<T>(fn: (callback: (result: T) => void) => void): Promise<T> {
   return new Promise(resolve => fn(resolve))
@@ -21,6 +25,7 @@ export async function getStorage(): Promise<StorageData> {
     chrome.storage.local.get(keys, cb)
   )
   const data = { ...DEFAULTS, ...result } as StorageData
+  data.settings = { ...DEFAULTS.settings, ...(data.settings ?? {}) }
   data.trips = data.trips.map(trip => ({
     ...trip,
     status: (trip.status as string) === 'completed' ? 'paid' : trip.status,
@@ -38,6 +43,10 @@ export async function savePayment(payment: PaymentConfig | null): Promise<void> 
 
 export async function saveSettings(settings: Settings): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.set({ settings }, cb))
+}
+
+function shouldSyncLog(entry: DebugLogEntry, settings: Settings): boolean {
+  return LOG_LEVEL_RANK[entry.level] >= LOG_LEVEL_RANK[settings.logSyncMinLevel ?? 'info']
 }
 
 export function formatDateTime(date: Date | string | number = new Date()): string {
@@ -98,14 +107,26 @@ export async function clearPendingStartTripId(): Promise<void> {
 
 export async function addDebugLog(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
   const write = async () => {
-    const { debugLog } = await getStorage()
+    const { debugLog, settings } = await getStorage()
+    const pendingResult = await promisify<Record<string, unknown>>(cb =>
+      chrome.storage.local.get([PENDING_SERVER_LOGS_KEY], cb)
+    )
     const existing = Array.isArray(debugLog) ? debugLog.filter(isDebugLogEntry) : []
+    const pending = Array.isArray(pendingResult[PENDING_SERVER_LOGS_KEY])
+      ? pendingResult[PENDING_SERVER_LOGS_KEY].filter(isDebugLogEntry)
+      : []
     const structuredEntry: DebugLogEntry = {
       ...entry,
       ts: entry.ts ?? new Date().toISOString(),
     }
     const newLog = [...existing, structuredEntry].slice(-MAX_DEBUG_LOG_ENTRIES)
-    await promisify<void>(cb => chrome.storage.local.set({ debugLog: newLog }, cb))
+    const nextPending = shouldSyncLog(structuredEntry, settings)
+      ? [...pending, structuredEntry].slice(-MAX_PENDING_SERVER_LOG_ENTRIES)
+      : pending
+    await promisify<void>(cb => chrome.storage.local.set({
+      debugLog: newLog,
+      [PENDING_SERVER_LOGS_KEY]: nextPending,
+    }, cb))
   }
   const result = debugLogWriteQueue.then(write, write)
   debugLogWriteQueue = result.catch(() => undefined)

@@ -1,5 +1,5 @@
 import { getAuth } from './storage'
-import type { MatchedSite, Trip } from './types'
+import type { DebugLogEntry, MatchedSite, Trip } from './types'
 
 const DEFAULT_BASE_URL = 'http://localhost:4000'
 
@@ -52,5 +52,15 @@ export async function sendTripResult(
     method: 'POST',
     auth: true,
     body: JSON.stringify(payload),
+  })
+}
+
+export async function sendExtensionLogs(
+  entries: DebugLogEntry[],
+): Promise<{ ok: true; accepted: number }> {
+  return serverFetch('/api/extension-logs', {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({ entries }),
   })
 }

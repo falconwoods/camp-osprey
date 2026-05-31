@@ -70,6 +70,7 @@ export interface Settings {
   pollIntervalSeconds: 10 | 30 | 60 | 120
   debugMode: boolean
   theme: Theme
+  logSyncMinLevel: LogLevel
 }
 
 export interface ServerUser {

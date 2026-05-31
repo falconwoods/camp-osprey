@@ -31,6 +31,7 @@ beforeEach(async () => {
   document.body.innerHTML = `
     <a id="settings-link"></a>
     <button id="add-trip-btn"></button>
+    <span id="header-email"></span>
     <div id="global-alerts"></div>
     <div id="trips-container"></div>
   `
@@ -53,6 +54,38 @@ beforeEach(async () => {
 })
 
 describe('popup auth gate', () => {
+  it('labels the trip management button', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.getElementById('add-trip-btn')?.textContent).toBe('Manage Trip')
+  })
+
+  it('renders idle trip actions in the state panel', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const action = document.querySelector<HTMLButtonElement>('[data-action="start"]')!
+    expect(action.closest('.state-panel.idle')).toBeTruthy()
+    expect(document.body.textContent).toContain('Ready to scan')
+  })
+
+  it('uses header account display when signed in', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      lastEmail: null,
+    })
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/popup/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.getElementById('header-email')?.textContent).toBe('user@example.com')
+    expect(document.querySelector('#global-alerts .account-cta')).toBeNull()
+  })
+
   it('shows signed-out CTA without auth inputs', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
     await import('../src/popup/index')
@@ -85,8 +118,8 @@ describe('popup auth gate', () => {
     await import('../src/popup/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(document.body.textContent).toContain('Signed in as <img src=x onerror=alert(1)>@example.com')
-    expect(document.querySelector('#global-alerts img')).toBeNull()
+    expect(document.getElementById('header-email')?.textContent).toBe('<img src=x onerror=alert(1)>@example.com')
+    expect(document.querySelector('img')).toBeNull()
   })
 
   it('does not send SCAN_NOW when Start is clicked signed out', async () => {

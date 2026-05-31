@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveAuth, saveTrips } from '../src/storage'
+import { getStorage, saveAuth, saveTrips } from '../src/storage'
 import type { DebugLogEntry, Trip } from '../src/types'
 
 vi.mock('../src/background/login', () => ({
@@ -44,15 +44,17 @@ function logEntry(overrides: Partial<DebugLogEntry> = {}): DebugLogEntry {
 function renderFixture(): void {
   document.body.innerHTML = `
     <div id="trips-view">
+      <div id="header-account"></div>
       <div class="tab active" data-tab="trips"></div>
-      <div class="tab" data-tab="payment"></div>
       <div class="tab" data-tab="settings"></div>
       <div class="tab" data-tab="account"></div>
-      <div class="tab" data-tab="logs"></div>
+      <div class="tab hidden" data-tab="logs"></div>
       <div id="tab-trips"><div id="global-alerts"></div><div id="trip-list"></div><button id="new-trip-btn"></button></div>
-      <div id="tab-payment" class="hidden"></div>
       <div id="tab-settings" class="hidden"></div>
-      <div id="tab-account" class="hidden"><div id="account-root"></div></div>
+      <div id="tab-account" class="hidden">
+        <div id="account-root"></div>
+        <div id="payment-root"></div>
+      </div>
       <div id="tab-logs" class="hidden">
         <input id="log-autoscroll" type="checkbox" checked>
         <button class="log-level-btn active" data-log-level="debug"></button>
@@ -63,16 +65,12 @@ function renderFixture(): void {
         <button id="clear-log-btn"></button>
         <div id="debug-log-box"></div>
       </div>
-      <input id="card-number"><input id="card-holder"><input id="card-expiry"><input id="card-cvv">
-      <input id="billing-address"><input id="billing-postal"><input id="party-size">
-      <button id="save-payment-btn"></button>
       <button class="theme-btn" data-theme-choice="auto"></button>
       <button class="theme-btn" data-theme-choice="light"></button>
       <button class="theme-btn" data-theme-choice="dark"></button>
       <select id="poll-interval"><option value="60"></option></select>
       <input id="debug-mode" type="checkbox">
       <button id="test-notif-btn"></button>
-      <button id="save-settings-btn"></button>
     </div>
     <div id="trip-editor" class="hidden">
       <button id="back-btn"></button>
@@ -120,6 +118,10 @@ beforeEach(async () => {
   chrome.runtime.sendMessage = vi.fn()
   chrome.runtime.getURL = vi.fn((path: string) => path)
   chrome.tabs.create = vi.fn()
+  Object.defineProperty(window, 'confirm', {
+    value: vi.fn(() => true),
+    writable: true,
+  })
   await saveTrips([trip()])
   await saveAuth({ token: null, user: null, lastEmail: null })
   vi.resetModules()
@@ -146,8 +148,8 @@ describe('options auth gate', () => {
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(document.querySelector('#global-alerts img')).toBeNull()
-    expect(document.querySelector('#global-alerts')!.textContent).toContain('<img src=x onerror=alert(1)>@example.com')
+    expect(document.querySelector('#header-account img')).toBeNull()
+    expect(document.querySelector('#header-account')!.textContent).toContain('<img src=x onerror=alert(1)>@example.com')
   })
 
   it('selects Account tab from hash and renders auth form', async () => {
@@ -159,6 +161,24 @@ describe('options auth gate', () => {
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
     expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+    expect(document.querySelector<HTMLInputElement>('#payment-root #card-number')!.disabled).toBe(true)
+    expect(document.getElementById('payment-root')!.textContent).toContain('Sign in to add or edit payment information.')
+  })
+
+  it('enables payment fields when signed in', async () => {
+    location.hash = '#account'
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      lastEmail: null,
+    })
+
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector<HTMLInputElement>('#payment-root #card-number')!.disabled).toBe(false)
+    expect(document.querySelector('#payment-root #save-payment-btn')).not.toBeNull()
+    expect(document.getElementById('payment-root')!.textContent).not.toContain('Sign in to add or edit payment information.')
   })
 
   it('routes to Account tab on hash changes after startup', async () => {
@@ -175,6 +195,61 @@ describe('options auth gate', () => {
     expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
   })
 
+  it('hides Logs tab while debug mode is disabled', async () => {
+    location.hash = '#logs'
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="logs"]')!.classList.contains('hidden')).toBe(true)
+    expect(document.querySelector('[data-tab="trips"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-logs')!.classList.contains('hidden')).toBe(true)
+  })
+
+  it('persists debug mode toggle and reveals Logs tab', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const debugMode = document.getElementById('debug-mode') as HTMLInputElement
+    debugMode.checked = true
+    debugMode.dispatchEvent(new Event('change'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="logs"]')!.classList.contains('hidden')).toBe(false)
+    expect((await getStorage()).settings.debugMode).toBe(true)
+  })
+
+  it('autosaves theme and poll interval settings', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-theme-choice="dark"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect((await getStorage()).settings.theme).toBe('dark')
+
+    const interval = document.getElementById('poll-interval') as HTMLSelectElement
+    interval.innerHTML = '<option value="30">30</option><option value="60">60</option>'
+    interval.value = '30'
+    interval.dispatchEvent(new Event('change'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect((await getStorage()).settings.pollIntervalSeconds).toBe(30)
+  })
+
+  it('does not refresh the trip list while Account tab is active', async () => {
+    location.hash = '#account'
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.getElementById('trip-list')!.textContent = 'keep account input stable'
+    const listener = vi.mocked(chrome.storage.onChanged.addListener).mock.calls[0][0]
+    listener({ trips: { oldValue: [], newValue: [trip()] } }, 'local')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
+    expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+    expect(document.getElementById('trip-list')!.textContent).toBe('keep account input stable')
+  })
+
   it('selects Logs tab from hash and renders structured log rows', async () => {
     location.hash = '#logs'
     await saveTrips([trip()])
@@ -184,7 +259,7 @@ describe('options auth gate', () => {
         logEntry({ level: 'debug', event: 'park_checked', message: 'Checking park' }),
         logEntry({ level: 'error', event: 'booking_failed', message: 'Payment failed', error: 'card declined' }),
       ],
-      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto' },
+      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto', logSyncMinLevel: 'info' },
       auth: { token: null, user: null, lastEmail: null },
     }))
 
@@ -205,7 +280,7 @@ describe('options auth gate', () => {
         logEntry({ level: 'debug', event: 'park_checked', message: 'Checking park' }),
         logEntry({ level: 'error', event: 'booking_failed', message: 'Payment failed' }),
       ],
-      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto' },
+      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto', logSyncMinLevel: 'info' },
       auth: { token: null, user: null, lastEmail: null },
     }))
 
@@ -229,7 +304,7 @@ describe('options auth gate', () => {
         logEntry({ level: 'debug', event: 'park_checked', message: 'Checking park' }),
         logEntry({ level: 'info', event: 'site_found', message: 'Found site' }),
       ],
-      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto' },
+      settings: { pollIntervalSeconds: 60, debugMode: true, theme: 'auto', logSyncMinLevel: 'info' },
       auth: { token: null, user: null, lastEmail: null },
     }))
 
@@ -271,5 +346,28 @@ describe('options auth gate', () => {
       tripId: 'trip-1',
       resetActiveMatch: true,
     })
+  })
+
+  it('confirms before deleting from the trip list', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-delete]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(window.confirm).toHaveBeenCalledWith('Delete "Weekend"?')
+    expect((await getStorage()).trips).toHaveLength(0)
+  })
+
+  it('keeps the trip when list deletion is cancelled', async () => {
+    vi.mocked(window.confirm).mockReturnValue(false)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-delete]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(window.confirm).toHaveBeenCalledWith('Delete "Weekend"?')
+    expect((await getStorage()).trips).toHaveLength(1)
   })
 })

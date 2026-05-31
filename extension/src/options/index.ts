@@ -7,7 +7,7 @@ import { isLoggedIn, watchLoginChanges } from '../background/login'
 import { ALL_LOG_LEVELS, formatDebugLogAsJsonl, renderDebugLogRows } from '../debugLog'
 import { renderAccountPanelHTML, bindAccountPanel } from '../accountPanel'
 import { consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
-import type { Trip, DateRange, Park, Theme, LogLevel } from '../types'
+import type { AuthState, Trip, DateRange, Park, Theme, LogLevel, Settings } from '../types'
 
 // Apply saved theme before anything renders
 getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
@@ -20,34 +20,56 @@ let dateMode: 'specific' | 'recurring' = 'specific'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus'
+
+function icon(name: IconName): string {
+  const attrs = 'class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+  const paths: Record<IconName, string> = {
+    tent: '<path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/>',
+    card: '<rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/><path d="M6 16h.01"/><path d="M10 16h4"/>',
+    settings: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/>',
+    user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    play: '<path d="m8 5 11 7-11 7Z"/>',
+    pause: '<path d="M8 5v14"/><path d="M16 5v14"/>',
+    refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.25"/><path d="M3 12A9 9 0 0 1 18.5 5.75"/><path d="M18 2v4h-4"/><path d="M6 22v-4h4"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    lock: '<rect width="16" height="11" x="4" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    check: '<path d="m20 6-11 11-5-5"/>',
+    chevronDown: '<path d="m6 9 6 6 6-6"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  }
+  return `<svg ${attrs}>${paths[name]}</svg>`
+}
 
 function upcomingWindows(range: DateRange) {
   return expandDateRange(range).filter(w => isBookable(w.checkIn))
 }
 
 function statusTextHTML(status: Trip['status']): string {
-  const map: Record<Trip['status'], { color: string; label: string }> = {
-    scanning:  { color: '#22c55e', label: '● Scanning' },
-    reserving: { color: '#3b82f6', label: '● Reserving' },
-    reserved:  { color: '#22c55e', label: '✓ Reserved' },
-    paid:      { color: '#22c55e', label: '✓ Paid' },
-    paused:    { color: '#f59e0b', label: '⏸ Paused' },
-    failed:    { color: '#ef4444', label: '! Failed' },
-    idle:      { color: '#64748b', label: '— Idle' },
+  const map: Record<Trip['status'], { className: string; label: string; iconName?: IconName }> = {
+    scanning:  { className: 'status-scanning', label: 'Scanning' },
+    reserving: { className: 'status-reserving', label: 'Reserving' },
+    reserved:  { className: 'status-reserved', label: 'Reserved', iconName: 'check' },
+    paid:      { className: 'status-paid', label: 'Paid', iconName: 'check' },
+    paused:    { className: 'status-paused', label: 'Paused', iconName: 'pause' },
+    failed:    { className: 'status-failed', label: 'Failed' },
+    idle:      { className: 'status-idle', label: 'Idle' },
   }
   const s = map[status] ?? map.idle
-  return `<span style="color:${s.color};font-size:11px;font-weight:500">${s.label}</span>`
+  const statusIcon = s.iconName ? icon(s.iconName) : '<span class="status-dot"></span>'
+  return `<span class="status-badge ${s.className}">${statusIcon}${s.label}</span>`
 }
 
 function actionBtnHTML(trip: Trip): string {
   if (trip.status === 'scanning')
-    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="pause">⏸ Pause</button>`
+    return `<button class="trip-action-btn" type="button" data-id="${trip.id}" data-action="pause">${icon('pause')} Pause</button>`
   if (trip.status === 'reserving')
-    return `<button class="trip-action-btn" disabled>Reserving...</button>`
+    return `<button class="trip-action-btn" type="button" disabled>Reserving...</button>`
   if (trip.status === 'reserved' || trip.status === 'paid')
-    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="start">↻ Scan Again</button>`
+    return `<button class="trip-action-btn" type="button" data-id="${trip.id}" data-action="start">${icon('refresh')} Scan Again</button>`
   if (trip.status === 'paused' || trip.status === 'idle' || trip.status === 'failed')
-    return `<button class="trip-action-btn" data-id="${trip.id}" data-action="start">▶ Start</button>`
+    return `<button class="trip-action-btn" type="button" data-id="${trip.id}" data-action="start">${icon('play')} Start</button>`
   return ''
 }
 
@@ -73,15 +95,18 @@ function escapeHtml(value: string): string {
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 
-type OptionsTab = 'trips' | 'payment' | 'settings' | 'account' | 'logs'
-const OPTIONS_TABS: OptionsTab[] = ['trips', 'payment', 'settings', 'account', 'logs']
+type OptionsTab = 'trips' | 'settings' | 'account' | 'logs'
+const OPTIONS_TABS: OptionsTab[] = ['trips', 'settings', 'account', 'logs']
+let debugModeEnabled = false
+let activeTab: OptionsTab = tabFromHash()
 
 function selectTab(name: OptionsTab): void {
+  if (name === 'logs' && !debugModeEnabled) name = 'trips'
+  activeTab = name
   document.querySelectorAll('.tab').forEach(t => {
     t.classList.toggle('active', (t as HTMLElement).dataset['tab'] === name)
   })
   document.getElementById('tab-trips')!.classList.toggle('hidden', name !== 'trips')
-  document.getElementById('tab-payment')!.classList.toggle('hidden', name !== 'payment')
   document.getElementById('tab-settings')!.classList.toggle('hidden', name !== 'settings')
   document.getElementById('tab-account')!.classList.toggle('hidden', name !== 'account')
   document.getElementById('tab-logs')!.classList.toggle('hidden', name !== 'logs')
@@ -90,7 +115,9 @@ function selectTab(name: OptionsTab): void {
 
 function tabFromHash(): OptionsTab {
   const hashTab = location.hash.replace('#', '') as OptionsTab
-  return OPTIONS_TABS.includes(hashTab) ? hashTab : 'trips'
+  if (!OPTIONS_TABS.includes(hashTab)) return 'trips'
+  if (hashTab === 'logs' && !debugModeEnabled) return 'trips'
+  return hashTab
 }
 
 async function showAccountTab(): Promise<void> {
@@ -110,6 +137,7 @@ async function routeFromHash(): Promise<void> {
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     const name = (tab as HTMLElement).dataset['tab'] as OptionsTab
+    if (name === 'logs' && !debugModeEnabled) return
     if (name === 'account') {
       void showAccountTab()
       return
@@ -127,14 +155,16 @@ window.addEventListener('hashchange', () => {
 
 function accountCtaHTML(authEmail: string | null): string {
   if (authEmail) {
-    return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    return `<div class="account-cta account-cta-signed-in">
+      <span class="account-check">${icon('check')}</span>
       <span>Signed in as ${escapeHtml(authEmail)}</span>
-      <button class="trip-action-btn" id="open-account-btn">Account</button>
+      <button class="icon-only-btn" type="button" id="open-account-btn" aria-label="Open account">${icon('chevronDown')}</button>
     </div>`
   }
-  return `<div class="alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-    <span><strong>Sign in to start trips</strong><br>Get booking emails and keep trips connected to your account.</span>
-    <button class="trip-action-btn" id="open-account-btn">Sign in</button>
+  return `<div class="account-cta account-cta-warning">
+    <span class="account-lock">${icon('lock')}</span>
+    <span class="account-cta-copy"><strong>Sign in to start trips</strong><br>Get booking emails and keep trips connected to your account.</span>
+    <button class="trip-action-btn account-sign-in-btn" type="button" id="open-account-btn">Sign in</button>
   </div>`
 }
 
@@ -144,28 +174,40 @@ async function bindAccountCta(): Promise<void> {
   })
 }
 
+async function renderHeaderAccount(authEmail?: string | null): Promise<void> {
+  const headerAccountEl = document.getElementById('header-account')
+  if (!headerAccountEl) return
+  const email = authEmail !== undefined ? authEmail : (await getAuth()).user?.email ?? null
+  headerAccountEl.innerHTML = accountCtaHTML(email)
+  await bindAccountCta()
+}
+
 async function renderAccount(): Promise<void> {
   const root = document.getElementById('account-root')
   if (!root) return
   const auth = await getAuth()
   const pendingTripId = await getPendingStartTripId()
   root.innerHTML = renderAccountPanelHTML(auth, pendingTripId)
+  await renderPaymentSection(auth)
   bindAccountPanel(async () => {
     const tripId = await consumePendingStartTripId()
     if (tripId) await startTripNow(tripId)
     await renderAccount()
     await renderTripList()
-  }, renderAccount)
+  }, async () => {
+    await renderAccount()
+    await renderHeaderAccount()
+  })
 }
 
 async function renderTripList() {
   const { trips, auth } = await getStorage()
   const loggedIn = await isLoggedIn()
+  const authEmail = auth.user?.email ?? null
+  await renderHeaderAccount(authEmail)
   const globalAlertsEl = document.getElementById('global-alerts')
   if (globalAlertsEl) {
-    const authEmail = auth.user?.email ?? null
-    globalAlertsEl.innerHTML = accountCtaHTML(authEmail) + renderWarnings(getGlobalWarnings(trips, loggedIn))
-    await bindAccountCta()
+    globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn))
   }
   const list = document.getElementById('trip-list')!
   if (trips.length === 0) {
@@ -185,13 +227,16 @@ async function renderTripList() {
     const warnings = getTripWarnings(t)
     return `<div class="trip-list-item ${t.status}" data-edit="${t.id}" style="cursor:pointer">
       <div class="trip-list-header">
-        <span class="trip-list-name">${t.name} <span style="color:var(--text-dim);font-size:10px">› tap to edit</span></span>
-        <div class="trip-action-zone" style="display:flex;align-items:center;gap:10px">
-          ${statusTextHTML(t.status)}
+        <div>
+          <span class="trip-list-name">${escapeHtml(t.name)} <span class="trip-edit-hint">tap to edit</span></span>
+          <div class="trip-list-meta">${escapeHtml(parkNames)} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[t.mode]}</div>
+        </div>
+        <div class="trip-action-zone">
           ${actionBtnHTML(t)}
+          <button class="trip-action-btn trip-delete-btn" type="button" data-id="${t.id}" data-delete="true">${icon('trash')} Delete</button>
         </div>
       </div>
-      <div class="trip-list-meta">${parkNames} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[t.mode]}</div>
+      <div>${statusTextHTML(t.status)}</div>
       ${renderWarnings(warnings)}
       ${matchHTML}
     </div>`
@@ -231,6 +276,24 @@ async function renderTripList() {
       await renderTripList()
     })
   })
+
+  list.querySelectorAll('[data-delete]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      const id = (btn as HTMLElement).dataset['id']!
+      await deleteTripById(id)
+    })
+  })
+}
+
+async function deleteTripById(id: string): Promise<void> {
+  const { trips } = await getStorage()
+  const trip = trips.find(t => t.id === id)
+  const label = trip?.name ? `"${trip.name}"` : 'this trip'
+  if (!trip || !confirm(`Delete ${label}?`)) return
+  await saveTrips(trips.filter(t => t.id !== id))
+  if (editingTripId === id) editingTripId = null
+  await renderTripList()
 }
 
 async function startTripNow(id: string): Promise<boolean> {
@@ -252,23 +315,23 @@ function promptLogin(): void {
   if (alertsEl) {
     alertsEl.innerHTML = `<div class="alert-warn" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
       <span>⚠ Not logged in to BC Parks — required for Hold and Auto-pay modes.</span>
-      <a href="https://camping.bcparks.ca/create-booking/sign-in" target="_blank"
+      <a href="https://camping.bcparks.ca/login" target="_blank"
          style="white-space:nowrap;text-decoration:underline;opacity:0.9;flex-shrink:0">Log in →</a>
     </div>`
   }
-  chrome.tabs.create({ url: 'https://camping.bcparks.ca/create-booking/sign-in' })
+  chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
 }
 
 // Auto-refresh global alerts when BC Parks login state changes
-watchLoginChanges(() => renderTripList())
+watchLoginChanges(() => {
+  if (activeTab === 'trips') void renderTripList()
+})
 
 // Live refresh when service worker updates storage
-chrome.storage.onChanged.addListener((_changes, area) => {
+chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
-    const tripsView = document.getElementById('trips-view')!
-    const logsTab = document.getElementById('tab-logs')!
-    if (!tripsView.classList.contains('hidden')) renderTripList()
-    if (!logsTab.classList.contains('hidden')) refreshDebugLog()
+    if (activeTab === 'trips' && ('trips' in changes || 'auth' in changes)) void renderTripList()
+    if (activeTab === 'logs' && 'debugLog' in changes) void refreshDebugLog()
   }
 })
 
@@ -288,6 +351,7 @@ async function openEditor(trip?: Trip) {
   ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'hold'
   ;(document.getElementById('filter-walkin') as HTMLInputElement).checked = trip?.filters.noWalkin ?? true
   ;(document.getElementById('filter-double') as HTMLInputElement).checked = trip?.filters.noDouble ?? true
+  document.getElementById('editor-trip-title')!.textContent = name
 
   // Status bar (only for existing trips)
   const statusBar = document.getElementById('editor-status-bar')!
@@ -337,7 +401,7 @@ function renderParksList() {
   const list = document.getElementById('parks-list')!
   list.innerHTML = tripParks.map((p, i) => `
     <div class="chip">
-      <span>⠿ ${i + 1}. ${p.name}</span>
+      <span>⠿ &nbsp; ${i + 1}.&nbsp; ${escapeHtml(p.name)}</span>
       <button class="chip-remove" data-idx="${i}">✕</button>
     </div>`).join('')
   list.querySelectorAll('.chip-remove').forEach(btn => {
@@ -393,7 +457,7 @@ function renderDatesList() {
   const list = document.getElementById('dates-list')!
   list.innerHTML = tripDates.map((d, i) => `
     <div class="chip">
-      <span>${describeRange(d)}</span>
+      <span>${escapeHtml(describeRange(d))}</span>
       <button class="chip-remove" data-idx="${i}">✕</button>
     </div>`).join('')
   list.querySelectorAll('.chip-remove').forEach(btn => {
@@ -568,18 +632,104 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
 })
 
 document.getElementById('delete-trip-btn')!.addEventListener('click', async () => {
-  if (!editingTripId || !confirm('Delete this trip?')) return
-  const { trips } = await getStorage()
-  await saveTrips(trips.filter(t => t.id !== editingTripId))
-  document.getElementById('back-btn')!.click()
+  if (!editingTripId) return
+  const deletedTripId = editingTripId
+  await deleteTripById(deletedTripId)
+  if (editingTripId !== deletedTripId) document.getElementById('back-btn')!.click()
 })
 
 // ── Payment ────────────────────────────────────────────────────────────────
 
+function paymentSectionHTML(auth: AuthState): string {
+  const signedIn = Boolean(auth.user)
+  const disabled = signedIn ? '' : 'disabled'
+  const lockedClass = signedIn ? '' : ' locked'
+  const actionButton = signedIn
+    ? '<button class="btn-primary" id="save-payment-btn">Save Payment Info</button>'
+    : '<button class="btn-primary" id="payment-sign-in-btn" disabled>Sign in to save payment info</button>'
+  const editButton = signedIn
+    ? `<button class="btn-secondary" type="button">${icon('settings')} Edit</button>`
+    : ''
+  const info = signedIn
+    ? ''
+    : `<div class="payment-info">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <div><strong>Sign in to add or edit payment information.</strong><br>Your payment details are stored locally on this device only.</div>
+      </div>`
+
+  return `<div class="payment-card${lockedClass}">
+    <div class="payment-card-header">
+      <div>
+        <div class="payment-title-row">
+          <h2>Payment Details</h2>
+          <span class="payment-pill">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-5"/></svg>
+            Stored locally on this device
+          </span>
+        </div>
+        <div class="payment-copy">Used only for Auto-pay mode.<br>Your payment information is stored locally on this device and never saved on our servers.</div>
+      </div>
+      ${editButton}
+    </div>
+    <div class="payment-form">
+      ${info}
+      <div class="payment-grid">
+        <div class="payment-field">
+          <label for="card-number">Card number</label>
+          <input class="input" id="card-number" placeholder="Card number" ${disabled}>
+        </div>
+        <div class="payment-field">
+          <label for="card-holder">Name on card</label>
+          <input class="input" id="card-holder" placeholder="Full name as shown on card" ${disabled}>
+        </div>
+        <div class="payment-field">
+          <label for="card-expiry">Expiry date</label>
+          <input class="input" id="card-expiry" placeholder="MM / YY" ${disabled}>
+        </div>
+        <div class="payment-field">
+          <label for="card-cvv">CVV</label>
+          <input class="input" id="card-cvv" placeholder="CVV" ${disabled}>
+        </div>
+        <div class="payment-field payment-field-full">
+          <label for="billing-address">Billing address</label>
+          <input class="input" id="billing-address" placeholder="Street address" ${disabled}>
+        </div>
+        <div class="payment-field payment-field-full">
+          <label for="billing-postal">Postal / Zip code</label>
+          <input class="input" id="billing-postal" placeholder="Postal / Zip code" ${disabled}>
+        </div>
+        <div class="payment-field">
+          <label for="party-size">Party size</label>
+          <input class="input" id="party-size" type="number" min="1" max="8" placeholder="Number of people" ${disabled}>
+        </div>
+      </div>
+    </div>
+    <div class="payment-local-note">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="11" x="4" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      Your payment details are stored locally on this device only.
+    </div>
+    <div class="payment-actions">
+      <button class="btn-secondary" id="cancel-payment-btn" type="button">Cancel</button>
+      ${actionButton}
+    </div>
+  </div>`
+}
+
+async function renderPaymentSection(auth: AuthState): Promise<void> {
+  const root = document.getElementById('payment-root')
+  if (!root) return
+  root.innerHTML = paymentSectionHTML(auth)
+  document.getElementById('cancel-payment-btn')?.addEventListener('click', () => void loadPaymentForm())
+  document.getElementById('save-payment-btn')?.addEventListener('click', () => void savePaymentFromForm())
+  await loadPaymentForm()
+}
+
 async function loadPaymentForm() {
   const { payment } = await getStorage()
   if (!payment) return
-  ;(document.getElementById('card-number') as HTMLInputElement).value = payment.cardNumber
+  const cardNumber = document.getElementById('card-number') as HTMLInputElement | null
+  if (!cardNumber) return
+  cardNumber.value = payment.cardNumber
   ;(document.getElementById('card-holder') as HTMLInputElement).value = payment.cardHolder
   ;(document.getElementById('card-expiry') as HTMLInputElement).value = payment.cardExpiry
   ;(document.getElementById('card-cvv') as HTMLInputElement).value = payment.cardCvv
@@ -588,7 +738,7 @@ async function loadPaymentForm() {
   ;(document.getElementById('party-size') as HTMLInputElement).value = String(payment.partySize)
 }
 
-document.getElementById('save-payment-btn')!.addEventListener('click', async () => {
+async function savePaymentFromForm(): Promise<void> {
   await savePayment({
     cardNumber: (document.getElementById('card-number') as HTMLInputElement).value,
     cardHolder: (document.getElementById('card-holder') as HTMLInputElement).value,
@@ -599,7 +749,7 @@ document.getElementById('save-payment-btn')!.addEventListener('click', async () 
     partySize: parseInt((document.getElementById('party-size') as HTMLInputElement).value) || 1,
   })
   alert('Payment info saved.')
-})
+}
 
 // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -607,30 +757,66 @@ let selectedTheme: Theme = 'auto'
 let selectedLogLevels = new Set<LogLevel>(ALL_LOG_LEVELS)
 let logAutoScroll = true
 
+function updateLogsTabVisibility(enabled: boolean): void {
+  debugModeEnabled = enabled
+  document.querySelectorAll<HTMLElement>('[data-tab="logs"]').forEach(tab => {
+    tab.classList.toggle('hidden', !enabled)
+  })
+  if (!enabled && activeTab === 'logs') {
+    location.hash = 'trips'
+    selectTab('trips')
+  }
+}
+
 function updateThemeBtns(theme: Theme) {
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', (btn as HTMLElement).dataset['themeChoice'] === theme)
   })
 }
 
+function currentSettings(): Settings {
+  const logSyncMinLevel = document.getElementById('log-sync-min-level') as HTMLSelectElement | null
+  return {
+    pollIntervalSeconds: parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as Settings['pollIntervalSeconds'],
+    debugMode: (document.getElementById('debug-mode') as HTMLInputElement).checked,
+    theme: selectedTheme,
+    logSyncMinLevel: (logSyncMinLevel?.value ?? 'info') as LogLevel,
+  }
+}
+
 document.querySelectorAll('.theme-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     selectedTheme = (btn as HTMLElement).dataset['themeChoice'] as Theme
     applyTheme(selectedTheme)
     updateThemeBtns(selectedTheme)
+    await saveSettings(currentSettings())
   })
 })
 
 async function loadSettingsForm() {
   const { settings } = await getStorage()
   ;(document.getElementById('poll-interval') as HTMLSelectElement).value = String(settings.pollIntervalSeconds)
+  const logSyncMinLevel = document.getElementById('log-sync-min-level') as HTMLSelectElement | null
+  if (logSyncMinLevel) logSyncMinLevel.value = settings.logSyncMinLevel ?? 'info'
   const debugEl = document.getElementById('debug-mode') as HTMLInputElement
   debugEl.checked = settings.debugMode ?? false
+  updateLogsTabVisibility(debugEl.checked)
   selectedTheme = settings.theme ?? 'auto'
   updateThemeBtns(selectedTheme)
 }
 
-document.getElementById('debug-mode')!.addEventListener('change', () => undefined)
+document.getElementById('debug-mode')!.addEventListener('change', async () => {
+  updateLogsTabVisibility((document.getElementById('debug-mode') as HTMLInputElement).checked)
+  await saveSettings(currentSettings())
+})
+
+document.getElementById('poll-interval')!.addEventListener('change', async () => {
+  await saveSettings(currentSettings())
+})
+
+document.getElementById('log-sync-min-level')?.addEventListener('change', async () => {
+  await saveSettings(currentSettings())
+})
 
 document.getElementById('test-notif-btn')!.addEventListener('click', () => {
   const id = `camposprey-test-${Date.now()}`
@@ -647,13 +833,6 @@ document.getElementById('test-notif-btn')!.addEventListener('click', () => {
       console.log('[CampOsprey] Test notification sent:', createdId)
     }
   })
-})
-
-document.getElementById('save-settings-btn')!.addEventListener('click', async () => {
-  const val = parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as 30 | 60 | 120
-  const debugMode = (document.getElementById('debug-mode') as HTMLInputElement).checked
-  await saveSettings({ pollIntervalSeconds: val, debugMode, theme: selectedTheme })
-  alert('Settings saved.')
 })
 
 async function refreshDebugLog() {
@@ -699,8 +878,11 @@ document.getElementById('copy-log-jsonl-btn')!.addEventListener('click', async (
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
-void routeFromHash()
-renderTripList()
-loadPaymentForm()
-loadSettingsForm()
-refreshDebugLog()
+async function init(): Promise<void> {
+  await loadSettingsForm()
+  await routeFromHash()
+  await renderTripList()
+  await refreshDebugLog()
+}
+
+void init()

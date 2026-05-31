@@ -5,8 +5,10 @@ import { scanTrip, buildBookingUrl } from './scanner'
 import type { AvailableSite, DebugLogEntry, MatchedSite, Trip } from '../types'
 import { validateAuth } from '../auth'
 import { sendTripResult } from '../serverApi'
+import { flushPendingServerLogs } from '../logSync'
 
 const ALARM_NAME = 'scan'
+const LOG_SYNC_ALARM_NAME = 'log-sync'
 const provider = new BCParksProvider()
 let scanInProgress = false
 let pendingScanAll = false
@@ -14,9 +16,55 @@ const pendingScanTripIds = new Set<string>()
 const stoppedTripIds = new Set<string>()
 const activeTripControllers = new Map<string, AbortController>()
 const activeMatchKeys = new Set<string>()
+const authNotificationKeys = new Set<string>()
+const AUTH_NOTIFICATION_SUPPRESSIONS_KEY = 'campOspreyAuthNotificationSuppressions'
+type AuthNotificationKind = 'server' | 'bcparks'
 
 function logEntry(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
   return addDebugLog(entry)
+}
+
+function authNotificationKey(kind: AuthNotificationKind, tripId: string): string {
+  return `${kind}:${tripId}`
+}
+
+function getAuthNotificationSuppressions(): Promise<Record<string, true>> {
+  return new Promise(resolve => {
+    chrome.storage.local.get([AUTH_NOTIFICATION_SUPPRESSIONS_KEY], result => {
+      const value = (result as Record<string, unknown>)[AUTH_NOTIFICATION_SUPPRESSIONS_KEY]
+      resolve(value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, true> : {})
+    })
+  })
+}
+
+function saveAuthNotificationSuppressions(suppressions: Record<string, true>): Promise<void> {
+  return new Promise(resolve => {
+    chrome.storage.local.set({ [AUTH_NOTIFICATION_SUPPRESSIONS_KEY]: suppressions }, () => resolve())
+  })
+}
+
+async function shouldNotifyAuthIssue(kind: AuthNotificationKind, tripId: string): Promise<boolean> {
+  const key = authNotificationKey(kind, tripId)
+  if (authNotificationKeys.has(key)) return false
+  const suppressions = await getAuthNotificationSuppressions()
+  if (suppressions[key]) {
+    authNotificationKeys.add(key)
+    return false
+  }
+  suppressions[key] = true
+  authNotificationKeys.add(key)
+  await saveAuthNotificationSuppressions(suppressions)
+  return true
+}
+
+async function clearAuthIssue(kind: AuthNotificationKind, tripId: string): Promise<void> {
+  const key = `${kind}:${tripId}`
+  authNotificationKeys.delete(key)
+  const suppressions = await getAuthNotificationSuppressions()
+  if (suppressions[key]) {
+    delete suppressions[key]
+    await saveAuthNotificationSuppressions(suppressions)
+  }
 }
 
 // Log full raw daily API response for every site that passes availability check
@@ -32,12 +80,14 @@ provider.onAvailabilityRaw = (siteId, siteName, daily) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm(60)
+  setupLogSyncAlarm()
 })
 
 // Restore alarm on service worker restart
 chrome.storage.local.get('settings', result => {
   const interval = (result as Record<string, { pollIntervalSeconds?: number }>)['settings']?.pollIntervalSeconds ?? 60
   setupAlarm(interval)
+  setupLogSyncAlarm()
 })
 
 async function setupAlarm(intervalSeconds: number): Promise<void> {
@@ -45,9 +95,17 @@ async function setupAlarm(intervalSeconds: number): Promise<void> {
   chrome.alarms.create(ALARM_NAME, { periodInMinutes: intervalSeconds / 60 })
 }
 
+async function setupLogSyncAlarm(): Promise<void> {
+  await new Promise<void>(resolve => chrome.alarms.clear(LOG_SYNC_ALARM_NAME, () => resolve()))
+  chrome.alarms.create(LOG_SYNC_ALARM_NAME, { periodInMinutes: 1 })
+}
+
 chrome.alarms.onAlarm.addListener(async (alarm: chrome.alarms.Alarm) => {
-  if (alarm.name !== ALARM_NAME) return
-  await runScanCycle()
+  if (alarm.name === ALARM_NAME) {
+    await runScanCycle()
+  } else if (alarm.name === LOG_SYNC_ALARM_NAME) {
+    await flushPendingServerLogs()
+  }
 })
 
 watchLoginChanges(async loggedIn => {
@@ -88,7 +146,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     const debug = settings.debugMode
 
     await logEntry({
-      level: 'info',
+      level: 'debug',
       event: 'scan_cycle_started',
       message: 'Alarm fired',
       metadata: { scanningTripCount: scanningTrips.length },
@@ -104,12 +162,15 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           tripId: trip.id,
           tripName: trip.name,
         })
-        await notify(
-          'Sign In Required',
-          `Sign in to start "${trip.name}" and keep booking emails connected to your account.`
-        )
+        if (await shouldNotifyAuthIssue('server', trip.id)) {
+          await notify(
+            'Sign In Required',
+            `Sign in to start "${trip.name}" and keep booking emails connected to your account.`
+          )
+        }
         continue
       }
+      await clearAuthIssue('server', trip.id)
 
       const loggedIn = await isLoggedIn()
       const needsLogin = trip.mode !== 'notify' && !loggedIn
@@ -122,12 +183,15 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           tripName: trip.name,
           metadata: { mode: trip.mode },
         })
-        await notify(
-          'CampOsprey — Login Required',
-          `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
-        )
+        if (await shouldNotifyAuthIssue('bcparks', trip.id)) {
+          await notify(
+            'CampOsprey — Login Required',
+            `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
+          )
+        }
         continue
       }
+      await clearAuthIssue('bcparks', trip.id)
 
       if (debug) {
         const parkNames = trip.parks.map(p => p.name).join(', ')
@@ -241,6 +305,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       }
     }
   } finally {
+    await flushPendingServerLogs()
     scanInProgress = false
     const queuedAll = pendingScanAll
     const queuedTripIds = [...pendingScanTripIds]

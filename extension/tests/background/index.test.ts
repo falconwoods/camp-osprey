@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   isLoggedIn: vi.fn(),
   validateAuth: vi.fn(),
   sendTripResult: vi.fn(),
+  sendExtensionLogs: vi.fn(),
   watchLoginChanges: vi.fn(),
   getAvailability: vi.fn(),
 }))
@@ -37,6 +38,7 @@ vi.mock('../../src/auth', () => ({
 
 vi.mock('../../src/serverApi', () => ({
   sendTripResult: mocks.sendTripResult,
+  sendExtensionLogs: mocks.sendExtensionLogs,
 }))
 
 vi.mock('../../src/providers/bcparks', () => ({
@@ -66,7 +68,7 @@ function makeStorage(trips: Trip[]): StorageData {
   return {
     trips,
     payment: null,
-    settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto' },
+    settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto', logSyncMinLevel: 'info' },
     debugLog: [],
     auth: { token: null, user: null, lastEmail: null },
   }
@@ -98,6 +100,7 @@ describe('background scanner scheduling', () => {
     mocks.isLoggedIn.mockReset().mockResolvedValue(true)
     mocks.validateAuth.mockReset().mockResolvedValue(true)
     mocks.sendTripResult.mockReset().mockResolvedValue({ ok: true, emailSent: false })
+    mocks.sendExtensionLogs.mockReset().mockResolvedValue({ ok: true, accepted: 0 })
     mocks.watchLoginChanges.mockReset()
     mocks.getAvailability.mockReset().mockResolvedValue([])
     chrome.runtime.onMessage.addListener.mockClear()
@@ -124,6 +127,20 @@ describe('background scanner scheduling', () => {
 
     await vi.waitFor(() => expect(mocks.getAvailability).toHaveBeenCalledTimes(1))
     expect(mocks.getAvailability.mock.calls[0][0]).toBe('park-2')
+  })
+
+  it('logs scan cycle starts at debug level', async () => {
+    const trip = makeTrip()
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+
+    await vi.waitFor(() => expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'debug',
+      event: 'scan_cycle_started',
+    })))
   })
 
   it('queues SCAN_NOW when a scan is already running', async () => {
@@ -207,6 +224,86 @@ describe('background scanner scheduling', () => {
       expect.objectContaining({ title: 'Sign In Required' }),
       expect.any(Function)
     )
+  })
+
+  it('does not repeat server sign-in notifications on every scan cycle', async () => {
+    const trip = makeTrip()
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.validateAuth.mockResolvedValue(false)
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(1))
+
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(mocks.getAvailability).not.toHaveBeenCalled()
+    expect(chrome.notifications.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not repeat server sign-in notifications after service worker restart', async () => {
+    const trip = makeTrip()
+    const stored: Record<string, unknown> = {}
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb(stored))
+    chrome.storage.local.set.mockImplementation((data, cb) => {
+      Object.assign(stored, data)
+      cb?.()
+    })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.validateAuth.mockResolvedValue(false)
+
+    await import('../../src/background/index')
+    let listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)![0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(1))
+
+    vi.resetModules()
+    await import('../../src/background/index')
+    listener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)![0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(stored).toHaveProperty('campOspreyAuthNotificationSuppressions')
+    expect(chrome.notifications.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows server sign-in notification again after auth recovers then fails', async () => {
+    const trip = makeTrip()
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.validateAuth
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(1))
+
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(mocks.getAvailability).toHaveBeenCalledTimes(1))
+
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not repeat BC Parks login notifications on every scan cycle', async () => {
+    const trip = makeTrip({ mode: 'hold' })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+    mocks.isLoggedIn.mockResolvedValue(false)
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await vi.waitFor(() => expect(chrome.notifications.create).toHaveBeenCalledTimes(1))
+
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(mocks.getAvailability).not.toHaveBeenCalled()
+    expect(chrome.notifications.create).toHaveBeenCalledTimes(1)
   })
 
   it('includes the discovery time in match notifications', async () => {

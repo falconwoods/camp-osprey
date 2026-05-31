@@ -5,6 +5,8 @@ import {
   extractSelectedCampsiteName,
   findDetailsControl,
   findReserveControl,
+  hasNoAvailabilityMessage,
+  hasListResultOutcome,
   isExpansionPanelOpen,
 } from '../../src/content/reserveStrategy'
 
@@ -87,6 +89,54 @@ describe('findReserveControl', () => {
     `
 
     expect(findReserveControl(document.body)).toBeNull()
+  })
+})
+
+describe('hasNoAvailabilityMessage', () => {
+  it('detects the BC Parks no availability results screen', () => {
+    document.body.innerHTML = `
+      <main>
+        <h2>No Available Campsites</h2>
+        <p>There are no available campsites at this location that match your search.</p>
+      </main>
+    `
+
+    expect(hasNoAvailabilityMessage(document.body)).toBe(true)
+  })
+
+  it('does not treat normal campsite lists as unavailable', () => {
+    document.body.innerHTML = `
+      <main>
+        <mat-expansion-panel class="list-entry">Campsite 52 Available</mat-expansion-panel>
+      </main>
+    `
+
+    expect(hasNoAvailabilityMessage(document.body)).toBe(false)
+  })
+})
+
+describe('hasListResultOutcome', () => {
+  it('treats the BC Parks no availability panel as a completed list outcome', () => {
+    document.body.innerHTML = `
+      <app-legacy-list-view>
+        <div class="list-wrapper">
+          <div class="expansion-panel">
+            <div class="expansion-details full-width availability-panel">
+              <h2>No Available Campsites</h2>
+              <p>There are no available campsites at this location that match your search.</p>
+            </div>
+          </div>
+        </div>
+      </app-legacy-list-view>
+    `
+
+    expect(hasListResultOutcome(document.body)).toBe(true)
+  })
+
+  it('treats category buttons as a completed list outcome', () => {
+    document.body.innerHTML = '<button class="map-link-button">Campground</button>'
+
+    expect(hasListResultOutcome(document.body)).toBe(true)
   })
 })
 

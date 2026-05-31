@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestCode, signOut, validateAuth, verifyCode } from '../src/auth'
-import { sendTripResult } from '../src/serverApi'
+import { sendExtensionLogs, sendTripResult } from '../src/serverApi'
 import { getAuth, saveAuth } from '../src/storage'
 
 beforeEach(() => {
@@ -107,6 +107,33 @@ describe('extension auth client', () => {
       expect.objectContaining({
         method: 'POST',
         body: expect.stringContaining('"outcome":"hold_placed"'),
+      }),
+    )
+    const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Headers
+    expect(headers.get('Authorization')).toBe('Bearer tok')
+  })
+
+  it('sends extension logs in a bearer-authenticated batch', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      lastEmail: 'user@example.com',
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, accepted: 1 }), { status: 200 })))
+
+    await expect(sendExtensionLogs([{
+      ts: '2026-05-31T12:00:00.000Z',
+      level: 'error',
+      event: 'trip_scan_error',
+      message: 'Error scanning trip',
+      tripId: 'trip-1',
+    }])).resolves.toEqual({ ok: true, accepted: 1 })
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/extension-logs'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"event":"trip_scan_error"'),
       }),
     )
     const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Headers

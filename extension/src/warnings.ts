@@ -35,7 +35,7 @@ export function getGlobalWarnings(_trips: Trip[], loggedIn: boolean): Warning[] 
     warnings.push({
       level: 'warn',
       message: 'Not logged in to BC Parks. Hold and Auto-pay modes require a BC Parks account.',
-      action: { label: 'Log in →', url: 'https://camping.bcparks.ca/create-booking/sign-in' },
+      action: { label: 'Log in →', url: 'https://camping.bcparks.ca/login' },
     })
   }
 

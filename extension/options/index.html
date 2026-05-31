@@ -70,11 +70,14 @@
 
     /* ── Base ────────────────────────────────────────────────── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 13px; max-width: 760px; margin: 0 auto; padding: 32px 24px; }
-    .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
-    .page-header img { width: 56px; height: 56px; border-radius: 12px; flex-shrink: 0; }
-    h1 { font-size: 20px; margin-bottom: 2px; }
-    .subtitle { color: var(--text-muted); font-size: 12px; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 13px; max-width: 1180px; margin: 0 auto; padding: 24px 28px; }
+    .page-header { display: flex; align-items: center; gap: 18px; margin-bottom: 24px; }
+    .page-brand { display: flex; align-items: center; gap: 18px; min-width: 0; }
+    .page-header img { width: 64px; height: 64px; border-radius: 14px; flex-shrink: 0; box-shadow: 0 10px 24px rgba(15,23,42,0.12); }
+    .page-title-copy { min-width: 0; }
+    h1 { font-size: 28px; line-height: 1; margin-bottom: 6px; letter-spacing: 0; }
+    .subtitle { color: var(--text-subtle); font-size: 16px; line-height: 1.2; }
+    .icon { width: 1em; height: 1em; flex: 0 0 auto; }
 
     /* ── Sections & labels ───────────────────────────────────── */
     .section { margin-bottom: 20px; }
@@ -95,32 +98,96 @@
     .btn-primary   { background: var(--green); border: none; color: #fff; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
     .btn-secondary { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
     .btn-danger    { background: var(--bg-card); border: 1px solid var(--red-border); color: var(--red); padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    .btn-add { width: 100%; background: var(--bg-blue); border: 1px dashed var(--blue); color: var(--blue); padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-top: 4px; }
-    .trip-action-btn { padding: 4px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-subtle); }
+    .btn-add { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; border: 1px dashed var(--border); color: var(--green); padding: 13px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 700; margin-top: 14px; }
+    .btn-add:hover { border-color: var(--green); background: var(--green-subtle); }
+    .trip-action-btn { min-width: 132px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-subtle); }
     .trip-action-btn:hover { border-color: var(--blue); color: var(--blue); }
     .trip-action-btn:disabled { cursor: default; opacity: 0.65; border-color: var(--border); color: var(--text-dim); }
+    .trip-delete-btn { border-color: var(--red-border); color: var(--red); }
+    .trip-delete-btn:hover { border-color: var(--red); color: var(--red); }
 
     /* ── Chips ───────────────────────────────────────────────── */
     .chip { background: var(--bg-card); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .chip-remove { color: var(--text-muted); cursor: pointer; background: none; border: none; font-size: 14px; padding: 0 4px; }
 
     /* ── Tabs ────────────────────────────────────────────────── */
-    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; gap: 2px; }
-    .tab { padding: 8px 16px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; font-size: 12px; }
-    .tab.active { color: var(--text); border-bottom-color: var(--green); }
+    .tabs { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); margin-bottom: 22px; gap: 24px; overflow-x: auto; }
+    .tab { display: inline-flex; align-items: center; gap: 9px; padding: 0 0 13px; cursor: pointer; color: var(--text-subtle); border-bottom: 3px solid transparent; font-size: 15px; font-weight: 600; white-space: nowrap; }
+    .tab .icon { width: 18px; height: 18px; }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
 
     /* ── Trip list ───────────────────────────────────────────── */
-    .trip-list-item { background: var(--bg-card); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; border-left: 3px solid var(--border); }
+    .trip-list-item { background: var(--bg-card); border: 1px solid var(--border); border-left: 6px solid var(--border); border-radius: 8px; padding: 17px 18px 14px; margin-bottom: 13px; box-shadow: 0 7px 16px rgba(15,23,42,0.08); }
     .trip-list-item.scanning  { border-left-color: var(--green); }
     .trip-list-item.reserving { border-left-color: var(--blue); }
     .trip-list-item.reserved  { border-left-color: var(--green); }
     .trip-list-item.paid      { border-left-color: var(--green); opacity: 0.9; }
     .trip-list-item.paused    { border-left-color: var(--amber); }
     .trip-list-item.failed    { border-left-color: #ef4444; }
-    .trip-list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .trip-list-name { font-weight: 600; }
-    .trip-list-meta { color: var(--text-muted); font-size: 11px; margin-bottom: 6px; }
-    .match-info { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 5px 8px; font-size: 11px; color: var(--green); margin-top: 6px; }
+    .trip-list-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 7px; }
+    .trip-list-name { font-weight: 800; font-size: 19px; line-height: 1.2; }
+    .trip-edit-hint { color: var(--text-subtle); font-size: 12px; font-weight: 500; margin-left: 12px; }
+    .trip-list-meta { color: var(--text-subtle); font-size: 14px; margin-top: 8px; margin-bottom: 10px; }
+    .trip-action-zone { display: flex; flex-direction: column; align-items: stretch; gap: 8px; flex-shrink: 0; }
+    .match-info { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 9px 12px; font-size: 13px; color: var(--green); margin-top: 12px; }
+    .status-badge { display: inline-flex; align-items: center; gap: 7px; border: 1px solid currentColor; border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 600; line-height: 1; }
+    .status-badge .icon { width: 14px; height: 14px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+    .status-scanning, .status-reserved, .status-paid { color: var(--green); background: var(--green-subtle); }
+    .status-reserving { color: var(--blue); background: rgba(59,130,246,0.1); }
+    .status-paused { color: var(--amber); background: var(--amber-subtle); }
+    .status-failed { color: var(--red); background: rgba(239,68,68,0.08); }
+    .status-idle { color: var(--text-muted); background: var(--bg-input); }
+    .header-account { margin-left: auto; flex: 0 1 auto; }
+    .account-cta { display: flex; align-items: center; gap: 12px; border-radius: 8px; }
+    .account-cta-signed-in { width: fit-content; min-width: 300px; justify-content: flex-start; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 12px; font-size: 14px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+    .account-cta-warning { width: fit-content; min-width: 300px; background: var(--amber-subtle); border: 1px solid var(--amber-border); color: var(--amber); padding: 10px 12px; }
+    .account-cta-copy { flex: 1; font-size: 13px; line-height: 1.35; }
+    .account-cta-copy strong { font-size: 15px; }
+    .account-check, .account-lock { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .account-check { width: 22px; height: 22px; border-radius: 999px; background: var(--green); color: #fff; }
+    .account-lock { width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--amber-border); color: var(--amber); }
+    .account-check .icon { width: 15px; height: 15px; }
+    .account-lock .icon { width: 18px; height: 18px; }
+    .icon-only-btn { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; background: transparent; color: var(--text-subtle); cursor: pointer; }
+    .account-sign-in-btn { color: var(--amber); background: var(--bg-card); border-color: var(--border); }
+    .payment-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; box-shadow: 0 7px 18px rgba(15,23,42,0.07); overflow: hidden; }
+    .payment-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px; }
+    .payment-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .payment-title-row h2 { font-size: 18px; line-height: 1; margin: 0; }
+    .payment-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--green); background: var(--green-subtle); border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; }
+    .payment-pill .icon { width: 14px; height: 14px; }
+    .payment-copy { color: var(--text-subtle); font-size: 13px; line-height: 1.45; }
+    .payment-form { padding: 0 18px 16px; }
+    .payment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+    .payment-field-full { grid-column: 1 / -1; }
+    .payment-field label { display: block; color: var(--text-dim); font-size: 12px; font-weight: 500; margin-bottom: 7px; }
+    .payment-field .input { background: var(--bg-card); }
+    .payment-local-note { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; padding: 14px 18px; border-top: 1px solid var(--border); }
+    .payment-local-note .icon { width: 14px; height: 14px; }
+    .payment-actions { display: flex; justify-content: flex-end; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--border); }
+    .payment-info { display: flex; gap: 12px; color: var(--blue); background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.28); border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; }
+    .payment-info .icon { width: 18px; height: 18px; margin-top: 1px; }
+    .payment-card.locked .input { color: var(--text-muted); opacity: 0.7; }
+    .payment-card.locked .btn-primary { opacity: 0.65; }
+    @media (max-width: 720px) {
+      body { padding: 22px 16px; }
+      .page-header { align-items: flex-start; flex-direction: column; }
+      .page-header img { width: 56px; height: 56px; }
+      h1 { font-size: 23px; }
+      .subtitle { font-size: 14px; }
+      .tabs { gap: 18px; }
+      .tab { font-size: 14px; }
+      .trip-list-header { flex-direction: column; }
+      .trip-action-zone { width: 100%; }
+      .trip-action-btn { width: 100%; }
+      .header-account { margin-left: 0; width: 100%; }
+      .account-cta { align-items: center; }
+      .account-cta-signed-in, .account-cta-warning { width: 100%; min-width: 0; }
+      .account-cta-warning { flex-wrap: wrap; }
+      .payment-card-header, .payment-actions { flex-direction: column; align-items: stretch; }
+      .payment-grid { grid-template-columns: 1fr; }
+    }
 
     /* ── Date form ───────────────────────────────────────────── */
     .date-form { background: var(--bg-card); border-radius: 8px; padding: 14px; margin-top: 8px; }
@@ -187,86 +254,682 @@
     .back-link { color: var(--text-muted); cursor: pointer; font-size: 11px; margin-bottom: 16px; display: inline-block; }
     .hidden { display: none; }
     .hint { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── Trip editor redesign ───────────────────────────────── */
+    #trip-editor { max-width: 1160px; margin: 0 auto; }
+    #trip-editor .back-link { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 14px; font-weight: 700; margin-bottom: 14px; }
+    .editor-hero, .editor-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 7px 18px rgba(15,23,42,0.07); }
+    .editor-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 18px; margin-bottom: 14px; }
+    .editor-eyebrow { color: var(--text-subtle); font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+    .editor-title-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .editor-title-row h1 { font-size: 25px; margin: 0; line-height: 1.15; }
+    .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
+    .editor-main, .editor-side { display: flex; flex-direction: column; gap: 14px; }
+    .editor-side { position: sticky; top: 18px; }
+    .editor-card { padding: 17px; }
+    .editor-section-title { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; color: var(--text); font-size: 16px; font-weight: 800; }
+    .editor-section-title .icon { width: 20px; height: 20px; color: var(--green); }
+    .editor-section-title small { color: var(--text-muted); font-size: 12px; font-weight: 500; margin-left: 4px; }
+    .editor-card .section-label { color: var(--text-dim); font-size: 12px; letter-spacing: 0; text-transform: none; margin-bottom: 7px; }
+    #trip-editor .input, #trip-editor .select { background: var(--bg-card); border-color: var(--border); border-radius: 6px; padding: 10px 12px; font-size: 14px; }
+    #parks-list, #dates-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+    #trip-editor .chip { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; min-height: 35px; padding: 8px 12px; margin-bottom: 0; font-size: 14px; }
+    #trip-editor .chip-remove { color: var(--text-muted); font-size: 18px; }
+    #trip-editor .date-form { border: 1px solid var(--border); padding: 0; overflow: hidden; }
+    #trip-editor .date-mode-toggle { border-bottom: 1px solid var(--border); gap: 0; margin: 0; padding: 0 18px; }
+    #trip-editor .date-mode-btn { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); padding: 12px 14px; font-size: 13px; }
+    #trip-editor .date-mode-btn.active { color: var(--green); border-bottom-color: var(--green); font-weight: 700; }
+    .date-form-body { padding: 14px 18px; }
+    #trip-editor .preview { display: flex; align-items: center; min-height: 36px; background: var(--green-subtle); color: var(--green); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-top: 12px; }
+    #trip-editor #add-date-btn { width: 100%; margin-top: 12px; font-size: 15px; padding: 11px 18px; }
+    .editor-filters { display: flex; flex-direction: column; gap: 10px; }
+    #trip-editor .checkbox-label { background: transparent; color: var(--text); padding: 0; font-size: 15px; }
+    #trip-editor input[type="checkbox"] { accent-color: var(--green); width: 16px; height: 16px; }
+    .editor-action-stack { display: flex; flex-direction: column; gap: 10px; }
+    #save-trip-btn, #delete-trip-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 700; padding: 12px 16px; }
+    @media (max-width: 900px) {
+      .editor-layout { grid-template-columns: 1fr; }
+      .editor-side { position: static; }
+    }
+
+    /*
+      CampOsprey theme tokens. Update these values to reskin the options UI.
+      Existing aliases below keep the TypeScript-rendered components aligned.
+    */
+    :root,
+    [data-theme="light"] {
+      --co-page: #f6faf7;
+      --co-page-soft: #eef8ef;
+      --co-surface: rgba(255,255,255,0.9);
+      --co-surface-solid: #ffffff;
+      --co-surface-muted: #f3f8f2;
+      --co-border: #d9e3db;
+      --co-border-strong: #9fcfaa;
+      --co-text: #101828;
+      --co-text-muted: #536079;
+      --co-text-soft: #6f7890;
+      --co-brand: #0f8f35;
+      --co-brand-dark: #075f2a;
+      --co-brand-soft: #eaf7eb;
+      --co-blue: #356b8f;
+      --co-amber: #d49b2f;
+      --co-red: #d83f3f;
+      --co-shadow: 0 16px 40px rgba(31, 50, 37, 0.12);
+      --co-shadow-soft: 0 8px 24px rgba(31, 50, 37, 0.08);
+      --co-radius: 8px;
+      --co-radius-lg: 18px;
+
+      --bg: var(--co-page);
+      --bg-card: var(--co-surface-solid);
+      --bg-input: #fbfdfb;
+      --bg-blue: #eef6fb;
+      --border: var(--co-border);
+      --text: var(--co-text);
+      --text-muted: var(--co-text-soft);
+      --text-subtle: var(--co-text-muted);
+      --text-dim: #3d485b;
+      --green: var(--co-brand);
+      --green-subtle: rgba(15,143,53,0.09);
+      --green-border: rgba(15,143,53,0.26);
+      --blue: var(--co-blue);
+      --amber: var(--co-amber);
+      --amber-subtle: rgba(212,155,47,0.1);
+      --amber-border: rgba(212,155,47,0.28);
+      --red: var(--co-red);
+      --red-border: rgba(216,63,63,0.24);
+    }
+    [data-theme="dark"] {
+      --co-page: #0d1511;
+      --co-page-soft: #132019;
+      --co-surface: rgba(20,31,26,0.92);
+      --co-surface-solid: #15221b;
+      --co-surface-muted: #1c2d23;
+      --co-border: #2a4233;
+      --co-border-strong: #2c7f46;
+      --co-text: #edf7ef;
+      --co-text-muted: #b8c7bd;
+      --co-text-soft: #8ea198;
+      --co-brand: #4ade80;
+      --co-brand-dark: #22c55e;
+      --co-brand-soft: rgba(74,222,128,0.13);
+      --co-blue: #7db7d7;
+      --co-amber: #f6c568;
+      --co-red: #fb7185;
+      --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
+      --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --co-page: #0d1511;
+        --co-page-soft: #132019;
+        --co-surface: rgba(20,31,26,0.92);
+        --co-surface-solid: #15221b;
+        --co-surface-muted: #1c2d23;
+        --co-border: #2a4233;
+        --co-border-strong: #2c7f46;
+        --co-text: #edf7ef;
+        --co-text-muted: #b8c7bd;
+        --co-text-soft: #8ea198;
+        --co-brand: #4ade80;
+        --co-brand-dark: #22c55e;
+        --co-brand-soft: rgba(74,222,128,0.13);
+        --co-blue: #7db7d7;
+        --co-amber: #f6c568;
+        --co-red: #fb7185;
+        --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
+        --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
+      }
+    }
+
+    body {
+      max-width: none;
+      min-height: 100vh;
+      padding: 0;
+      background:
+        radial-gradient(circle at 78% 6%, rgba(250,210,104,0.24), transparent 5%),
+        linear-gradient(180deg, rgba(220,241,245,0.72) 0, rgba(246,250,247,0.42) 118px, var(--co-page) 360px);
+      color: var(--co-text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 0 auto 0;
+      height: 150px;
+      pointer-events: none;
+      background:
+        linear-gradient(135deg, transparent 0 55%, rgba(175,213,219,0.4) 55% 61%, transparent 61%) 66% 22px / 160px 80px no-repeat,
+        linear-gradient(135deg, transparent 0 48%, rgba(178,215,206,0.34) 48% 56%, transparent 56%) 72% 28px / 220px 94px no-repeat,
+        linear-gradient(135deg, transparent 0 50%, rgba(156,196,190,0.28) 50% 58%, transparent 58%) 80% 10px / 260px 108px no-repeat;
+      opacity: 0.9;
+      z-index: -2;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: auto 0 0 0;
+      height: 140px;
+      pointer-events: none;
+      background:
+        linear-gradient(135deg, transparent 0 50%, rgba(23,126,51,0.72) 50% 58%, transparent 58%) right 44px bottom 5px / 74px 120px no-repeat,
+        linear-gradient(135deg, transparent 0 50%, rgba(42,152,72,0.55) 50% 59%, transparent 59%) left 34px bottom -10px / 86px 150px no-repeat,
+        linear-gradient(180deg, transparent 0, rgba(194,226,183,0.82) 70%, rgba(176,216,165,0.95) 100%);
+      z-index: -2;
+    }
+    .icon { width: 1em; height: 1em; }
+    #trips-view { min-height: 100vh; padding: 0 32px 36px; }
+    .page-header {
+      height: 96px;
+      margin: 0 -32px 26px;
+      padding: 0 32px;
+      display: grid;
+      grid-template-columns: 280px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 20px;
+      background: rgba(255,255,255,0.68);
+      border-bottom: 1px solid rgba(217,227,219,0.82);
+      box-shadow: 0 8px 24px rgba(31,50,37,0.08);
+      backdrop-filter: blur(12px);
+    }
+    .page-brand { gap: 12px; }
+    .page-header img { width: 56px; height: 56px; border-radius: 999px; box-shadow: none; }
+    h1 { margin: 0; color: var(--co-brand-dark); font-size: 28px; line-height: 1; font-weight: 850; }
+    .subtitle {
+      margin-top: 7px;
+      color: var(--co-brand);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+    }
+    .tabs {
+      margin: 0;
+      border: 0;
+      gap: 42px;
+      justify-content: flex-start;
+      overflow: visible;
+    }
+    .tab {
+      min-height: 96px;
+      padding: 0 2px;
+      border-bottom-width: 4px;
+      border-radius: 0;
+      color: #1f2937;
+      font-size: 18px;
+      font-weight: 750;
+    }
+    .tab .icon { width: 24px; height: 24px; color: currentColor; }
+    .tab.active { color: var(--co-brand); border-bottom-color: var(--co-brand); }
+    .tab[data-tab="account"],
+    .tab[data-tab="logs"] { display: none; }
+    .tab.settings-nav-item[data-tab="account"],
+    .tab.settings-nav-item[data-tab="logs"] { display: flex; }
+    .tab[data-tab="logs"].settings-nav-item { display: flex; }
+    .tab.hidden,
+    .settings-nav-item.hidden { display: none !important; }
+    .header-account { justify-self: end; margin: 0; }
+    .account-cta {
+      min-height: 56px;
+      border-radius: 999px;
+      box-shadow: var(--co-shadow-soft);
+    }
+    .account-cta-signed-in,
+    .account-cta-warning {
+      min-width: 240px;
+      padding: 9px 14px;
+      background: rgba(255,255,255,0.82);
+      border-color: var(--co-border);
+      color: var(--co-text);
+    }
+    .account-check,
+    .account-lock {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: var(--co-brand-dark);
+      color: #fff;
+      border: 0;
+    }
+    .account-cta-copy { font-size: 13px; color: var(--co-text-muted); }
+    .account-sign-in-btn { width: auto; min-width: 84px; color: var(--co-brand); border-color: var(--co-border-strong); }
+
+    #tab-trips,
+    #tab-account,
+    #tab-logs {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .trip-list-item,
+    .payment-card,
+    .account-auth,
+    .account-summary,
+    .log-panel {
+      background: var(--co-surface);
+      border-color: var(--co-border);
+      box-shadow: var(--co-shadow-soft);
+      backdrop-filter: blur(10px);
+    }
+    .input,
+    .select {
+      min-height: 38px;
+      background: rgba(255,255,255,0.78);
+      border-color: var(--co-border);
+      color: var(--co-text);
+    }
+    .input:focus,
+    .select:focus { outline: none; border-color: var(--co-brand); box-shadow: 0 0 0 3px rgba(15,143,53,0.12); }
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger,
+    .trip-action-btn {
+      border-radius: 7px;
+      font-weight: 750;
+    }
+    .btn-primary { background: var(--co-brand); }
+    .btn-secondary { background: rgba(255,255,255,0.72); border-color: var(--co-border); color: var(--co-text-muted); }
+    .btn-add {
+      max-width: 1180px;
+      margin: 16px auto 0;
+      background: rgba(255,255,255,0.58);
+      border-color: var(--co-border-strong);
+      color: var(--co-brand);
+    }
+
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 314px minmax(0,1fr);
+      gap: 40px;
+      max-width: 1528px;
+      margin: 0 auto;
+    }
+    .settings-sidebar,
+    .settings-main {
+      background: var(--co-surface);
+      border: 1px solid var(--co-border);
+      border-radius: var(--co-radius-lg);
+      box-shadow: var(--co-shadow);
+      backdrop-filter: blur(12px);
+    }
+    .settings-sidebar {
+      min-height: 768px;
+      padding: 28px 22px;
+      display: flex;
+      flex-direction: column;
+    }
+    .settings-sidebar-title {
+      margin: 0 0 22px;
+      color: var(--co-text);
+      font-size: 23px;
+      font-weight: 850;
+    }
+    .settings-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .settings-nav-item,
+    .settings-nav-link {
+      min-height: 54px;
+      width: 100%;
+      justify-content: flex-start;
+      padding: 0 14px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: var(--co-text);
+      background: transparent;
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .settings-nav-item.active {
+      color: var(--co-brand);
+      background: var(--co-brand-soft);
+      border-color: var(--co-border-strong);
+      box-shadow: inset 0 0 0 1px rgba(15,143,53,0.05);
+    }
+    .settings-nav-divider {
+      height: 1px;
+      margin: 16px 0;
+      background: var(--co-border);
+    }
+    .settings-promo {
+      margin-top: auto;
+      min-height: 288px;
+      padding: 22px 18px;
+      border: 1px solid var(--co-border-strong);
+      border-radius: 8px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.78), rgba(232,246,234,0.88)),
+        linear-gradient(135deg, transparent 0 50%, rgba(12,121,48,0.24) 50% 58%, transparent 58%) right 12px bottom 18px / 84px 130px no-repeat;
+      overflow: hidden;
+    }
+    .settings-promo strong {
+      display: block;
+      max-width: 170px;
+      color: var(--co-text);
+      font-size: 16px;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+    .settings-promo p {
+      max-width: 176px;
+      color: var(--co-text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .settings-promo a {
+      color: var(--co-brand);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .settings-main {
+      padding: 24px 22px;
+    }
+    .settings-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .settings-heading .icon {
+      width: 30px;
+      height: 30px;
+      color: var(--co-brand);
+      margin-top: 2px;
+    }
+    .settings-heading h2 {
+      margin: 0 0 8px;
+      color: var(--co-text);
+      font-size: 23px;
+      line-height: 1;
+    }
+    .settings-heading p {
+      margin: 0;
+      color: var(--co-text-muted);
+      font-size: 15px;
+    }
+    .settings-card {
+      margin-bottom: 16px;
+      padding: 20px 20px 18px;
+      border: 1px solid var(--co-border);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.72);
+      box-shadow: var(--co-shadow-soft);
+    }
+    .settings-card-title {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 14px;
+      color: var(--co-text);
+      font-size: 17px;
+      font-weight: 850;
+    }
+    .settings-card-title .icon { width: 22px; height: 22px; color: var(--co-brand); }
+    .theme-btns {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 18px;
+    }
+    .theme-btn {
+      position: relative;
+      min-height: 76px;
+      display: grid;
+      grid-template-columns: 44px minmax(0,1fr);
+      align-items: center;
+      gap: 14px;
+      padding: 12px 20px;
+      border-radius: 7px;
+      border: 1px solid var(--co-border);
+      background: rgba(255,255,255,0.68);
+      color: var(--co-text);
+      text-align: left;
+      font-size: 15px;
+      font-weight: 850;
+    }
+    .theme-btn:hover { border-color: var(--co-border-strong); }
+    .theme-btn.active {
+      border-color: var(--co-brand);
+      background: var(--co-brand-soft);
+      color: var(--co-text);
+      box-shadow: inset 0 0 0 1px rgba(15,143,53,0.08);
+    }
+    .theme-btn.active::after {
+      content: "";
+      position: absolute;
+      top: 9px;
+      right: 11px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--co-brand);
+      box-shadow: inset 0 0 0 5px var(--co-brand), inset 0 0 0 7px #fff;
+    }
+    .theme-icon {
+      width: 32px;
+      height: 32px;
+      color: var(--co-blue);
+    }
+    .theme-btn.active .theme-icon { color: var(--co-brand); }
+    .theme-subtitle {
+      display: block;
+      margin-top: 5px;
+      color: var(--co-text-muted);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .setting-row-note {
+      margin-top: 8px;
+      color: var(--co-text-muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .settings-check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--co-text);
+      font-size: 15px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    input[type="checkbox"] {
+      accent-color: var(--co-brand);
+      width: 18px;
+      height: 18px;
+    }
+    .notification-help {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 10px 13px;
+      border: 1px solid rgba(15,143,53,0.16);
+      border-radius: 7px;
+      background: rgba(15,143,53,0.06);
+      color: var(--co-text-muted);
+      font-size: 13px;
+    }
+    .notification-help strong { color: var(--co-brand); }
+    .settings-account-card {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 18px;
+      border-color: var(--co-border-strong);
+      background: var(--co-brand-soft);
+    }
+    .settings-account-icons {
+      display: flex;
+      color: var(--co-brand-dark);
+    }
+    .settings-account-icons span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      border-radius: 999px;
+      background: rgba(15,143,53,0.08);
+      border: 1px solid rgba(15,143,53,0.18);
+    }
+    .settings-account-icons span + span { margin-left: -10px; }
+    .settings-account-copy { flex: 1; min-width: 0; }
+    .settings-account-copy h3 {
+      margin: 0 0 5px;
+      color: var(--co-text);
+      font-size: 16px;
+    }
+    .settings-account-copy p {
+      margin: 0;
+      color: var(--co-text-muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .settings-account-card .trip-action-btn {
+      width: auto;
+      min-width: 210px;
+      color: var(--co-brand);
+      border-color: var(--co-border-strong);
+      background: rgba(255,255,255,0.68);
+    }
+    .log-panel { padding: 20px; border-radius: var(--co-radius-lg); }
+
+    @media (max-width: 980px) {
+      #trips-view { padding: 0 18px 28px; }
+      .page-header {
+        height: auto;
+        min-height: 96px;
+        margin: 0 -18px 20px;
+        padding: 14px 18px;
+        grid-template-columns: 1fr;
+      }
+      .tabs { order: 3; gap: 24px; overflow-x: auto; }
+      .tab { min-height: 52px; }
+      .header-account { justify-self: stretch; }
+      .account-cta-signed-in,
+      .account-cta-warning { width: 100%; min-width: 0; }
+      .settings-layout { grid-template-columns: 1fr; gap: 18px; }
+      .settings-sidebar { min-height: 0; }
+      .settings-promo { display: none; }
+      .theme-btns { grid-template-columns: 1fr; }
+      .settings-account-card { align-items: stretch; flex-direction: column; }
+      .settings-account-card .trip-action-btn { width: 100%; min-width: 0; }
+    }
   </style>
 </head>
 <body>
   <div id="trips-view">
     <div class="page-header">
-      <img src="../icons/icon128.png" alt="CampOsprey">
-      <div>
-        <h1>CampOsprey</h1>
-        <p class="subtitle">Manage your camping trips</p>
+      <div class="page-brand">
+        <img src="../icons/icon128.png" alt="CampOsprey">
+        <div class="page-title-copy">
+          <h1>CampOsprey</h1>
+          <p class="subtitle">Manage your camping trips</p>
+        </div>
       </div>
-    </div>
-    <div class="tabs">
-      <div class="tab active" data-tab="trips">Trips</div>
-      <div class="tab" data-tab="payment">Payment</div>
-      <div class="tab" data-tab="settings">Settings</div>
-      <div class="tab" data-tab="account">Account</div>
-      <div class="tab" data-tab="logs">Logs</div>
+      <div class="tabs" aria-label="Primary navigation">
+        <div class="tab active" data-tab="trips"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>Trips</div>
+        <div class="tab" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>Settings</div>
+        <div class="tab" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account</div>
+        <div class="tab hidden" data-tab="logs"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Logs</div>
+      </div>
+      <div class="header-account" id="header-account"></div>
     </div>
     <div id="tab-trips">
       <div id="global-alerts" style="margin-bottom:8px"></div>
       <div id="trip-list"></div>
-      <button class="btn-add" id="new-trip-btn">+ New Trip</button>
-    </div>
-    <div id="tab-payment" class="hidden">
-      <div class="section">
-        <div class="section-label">Card Details (for Auto-pay mode)</div>
-        <input class="input" id="card-number" placeholder="Card number" style="margin-bottom:8px">
-        <input class="input" id="card-holder" placeholder="Name on card" style="margin-bottom:8px">
-        <div class="row" style="margin-bottom:8px">
-          <input class="input" id="card-expiry" placeholder="MM/YY">
-          <input class="input" id="card-cvv" placeholder="CVV">
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-label">Billing Address</div>
-        <input class="input" id="billing-address" placeholder="Street address" style="margin-bottom:8px">
-        <input class="input" id="billing-postal" placeholder="Postal / Zip code" style="margin-bottom:8px">
-      </div>
-      <div class="section">
-        <div class="section-label">Party Size</div>
-        <input class="input" id="party-size" type="number" min="1" max="8" placeholder="Number of people">
-      </div>
-      <button class="btn-primary" id="save-payment-btn" style="margin-top:8px">Save Payment Info</button>
-    </div>
-    <div id="tab-settings" class="hidden">
-      <div class="section">
-        <div class="section-label">Theme</div>
-        <div class="theme-btns">
-          <button class="theme-btn" data-theme-choice="auto">Auto</button>
-          <button class="theme-btn" data-theme-choice="light">☀ Light</button>
-          <button class="theme-btn" data-theme-choice="dark">☾ Dark</button>
-        </div>
-      </div>
-      <div class="section">
-        <div class="section-label">Check interval</div>
-        <select class="select" id="poll-interval">
-          <option value="10">Every 10 seconds</option>
-          <option value="30">Every 30 seconds</option>
-          <option value="60" selected>Every 60 seconds</option>
-          <option value="120">Every 2 minutes</option>
-        </select>
-        <div class="hint" style="margin-top:6px">Chrome enforces a 30s minimum for published extensions. 10s works for the unpacked dev version.</div>
-      </div>
-      <div class="section">
-        <label class="checkbox-label" style="width:fit-content">
-          <input type="checkbox" id="debug-mode">
-          Debug mode
-        </label>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn-primary" id="save-settings-btn">Save Settings</button>
-        <button class="btn-secondary" id="test-notif-btn">🔔 Test Notification</button>
-      </div>
-      <div style="margin-top:10px" class="hint">
-        If test notification doesn't appear: <strong>macOS System Settings → Notifications → Google Chrome</strong>
-        → Alert style: <strong>Alerts</strong> (not Banners).
-      </div>
+      <button class="btn-add" id="new-trip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>New Trip</button>
     </div>
     <div id="tab-account" class="hidden">
       <div id="account-root"></div>
+      <div id="payment-root"></div>
+    </div>
+    <div id="tab-settings" class="hidden">
+      <div class="settings-layout">
+        <aside class="settings-sidebar" aria-label="Settings sections">
+          <h2 class="settings-sidebar-title">Settings</h2>
+          <nav class="settings-nav">
+            <div class="tab settings-nav-item active" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>General</div>
+            <button class="settings-nav-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Notifications</button>
+            <div class="tab settings-nav-item" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account &amp; Payment</div>
+            <div class="tab settings-nav-item hidden" data-tab="logs"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Logs</div>
+            <div class="settings-nav-divider"></div>
+            <button class="settings-nav-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>Advanced</button>
+          </nav>
+          <div class="settings-promo">
+            <strong>More settings in the sidebar</strong>
+            <p>Manage your account, payments, and view logs without leaving Settings.</p>
+            <a href="#account">Learn more</a>
+          </div>
+        </aside>
+        <main class="settings-main">
+          <div class="settings-heading">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>
+            <div>
+              <h2>General</h2>
+              <p>Configure how CampOsprey works.</p>
+            </div>
+          </div>
+          <section class="settings-card">
+            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 5.9 2 10.8 2 14.6 4.9 18 8.9 19c.8.2 1.3.9 1.1 1.7-.2.8.4 1.5 1.2 1.3 6.4-.6 10.8-5 10.8-10.8C22 6.1 17.5 2 12 2Z"/></svg>Theme</div>
+            <div class="theme-btns">
+              <button class="theme-btn" data-theme-choice="auto"><svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg><span>Auto<span class="theme-subtitle">Follow system</span></span></button>
+              <button class="theme-btn" data-theme-choice="light"><svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg><span>Light<span class="theme-subtitle">Light mode</span></span></button>
+              <button class="theme-btn" data-theme-choice="dark"><svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 7.5A9 9 0 1 1 12 3Z"/></svg><span>Dark<span class="theme-subtitle">Dark mode</span></span></button>
+            </div>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Check interval</div>
+            <select class="select" id="poll-interval">
+              <option value="10">Every 10 seconds</option>
+              <option value="30">Every 30 seconds</option>
+              <option value="60" selected>Every 60 seconds</option>
+              <option value="120">Every 2 minutes</option>
+            </select>
+            <div class="setting-row-note">Chrome enforces a 30s minimum for published extensions. 10s works for the unpacked dev version.</div>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><path d="m9 14 2 2 4-5"/><rect width="18" height="18" x="3" y="4" rx="2"/></svg>Debug mode</div>
+            <label class="settings-check-label">
+              <input type="checkbox" id="debug-mode">
+              Enable debug mode
+            </label>
+            <div class="setting-row-note">Show additional logs and development information.</div>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Server log sync</div>
+            <select class="select" id="log-sync-min-level">
+              <option value="debug">Debug and above</option>
+              <option value="info" selected>Info and above</option>
+              <option value="warning">Warning and above</option>
+              <option value="error">Error only</option>
+            </select>
+            <div class="setting-row-note">Only logs at this level or higher are queued for server sync.</div>
+          </section>
+          <section class="settings-card">
+            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Notifications</div>
+            <button class="btn-secondary" id="test-notif-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Send test notification</button>
+            <div class="setting-row-note">If test notification doesn't appear:</div>
+            <div class="notification-help"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 22 8-4V6l-8-4-8 4v12Z"/><path d="m9 12 2 2 4-5"/></svg>macOS System Settings -> Notifications -> Google Chrome -> Alert style: <strong>Alerts</strong> (not Banners).</div>
+          </section>
+          <section class="settings-card settings-account-card">
+            <div class="settings-account-icons">
+              <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span>
+              <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+            </div>
+            <div class="settings-account-copy">
+              <h3>Account &amp; Payment and Logs</h3>
+              <p>Manage your account, payment methods, and view extension logs in the sidebar.</p>
+            </div>
+            <a class="trip-action-btn" href="#account">Go to Account &amp; Payment <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+          </section>
+        </main>
+      </div>
     </div>
     <div id="tab-logs" class="hidden">
       <div class="log-panel">
@@ -297,64 +960,92 @@
 
   <div id="trip-editor" class="hidden">
     <span class="back-link" id="back-btn">← All Trips</span>
-    <div id="editor-status-bar" class="status-bar hidden">
-      <span style="font-size:11px;color:var(--text-muted)">Current status:</span>
-      <span id="editor-status-badge"></span>
-    </div>
-    <div class="section" id="section-name">
-      <div class="section-label">Trip Name</div>
-      <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
-      <div class="field-error" id="error-name"></div>
-    </div>
-    <div class="section" id="section-parks">
-      <div class="section-label">Parks (drag to reorder priority)</div>
-      <div id="parks-list"></div>
-      <input class="input" id="park-search" placeholder="🔍 Search parks..." style="margin-top:6px">
-      <div class="search-results" id="park-results"></div>
-      <div class="field-error" id="error-parks"></div>
-    </div>
-    <div class="section" id="section-dates">
-      <div class="section-label">Date Ranges</div>
-      <div id="dates-list"></div>
-      <div class="field-error" id="error-dates"></div>
-      <div class="date-form">
-        <div class="date-mode-toggle">
-          <button class="date-mode-btn active" data-mode="specific">Specific dates</button>
-          <button class="date-mode-btn" data-mode="recurring">Flexible (any weekend)</button>
-        </div>
-        <div id="specific-inputs">
-          <div class="row">
-            <div style="flex:1"><div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">Check-in</div><input type="date" class="input" id="date-checkin"></div>
-            <div style="flex:1"><div style="color:var(--text-muted);font-size:10px;margin-bottom:4px">Check-out</div><input type="date" class="input" id="date-checkout"></div>
+    <div class="editor-hero">
+      <div>
+        <div class="editor-eyebrow">Edit Trip</div>
+        <div class="editor-title-row">
+          <h1 id="editor-trip-title">Trip</h1>
+          <div id="editor-status-bar" class="hidden">
+            <span id="editor-status-badge"></span>
           </div>
         </div>
-        <div id="recurring-inputs" class="hidden">
-          <div class="row" style="align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-            <span style="color:var(--text-subtle)">Any</span>
-            <select class="select" id="rec-start-day">
-              <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
-              <option value="3">Thursday</option><option value="4" selected>Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
-            </select>
-            <span style="color:var(--text-subtle)">to</span>
-            <select class="select" id="rec-end-day"></select>
-            <span style="color:var(--text-subtle)">in</span>
-            <select class="select" id="rec-month">
-              <option value="1">January</option><option value="2">February</option><option value="3">March</option>
-              <option value="4">April</option><option value="5">May</option><option value="6">June</option>
-              <option value="7">July</option><option value="8">August</option><option value="9">September</option>
-              <option value="10">October</option><option value="11">November</option><option value="12">December</option>
-            </select>
-            <select class="select" id="rec-year"></select>
-          </div>
-          <div class="preview" id="rec-preview">→ Select options above</div>
-        </div>
-        <div style="margin-top:10px;font-size:10px;color:var(--text-muted)">↓ Click to add this range to the trip</div>
-        <button class="btn-primary" id="add-date-btn" style="margin-top:4px;width:100%;font-size:12px">+ Add This Range</button>
       </div>
     </div>
-    <div class="section">
-      <div class="row">
-        <div style="flex:1">
+
+    <div class="editor-layout">
+      <div class="editor-main">
+        <div class="editor-card section" id="section-name">
+          <div class="editor-section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 12-8.5 8.5a2 2 0 0 1-2.8 0L3 14.8V4h10.8l5.7 5.7a2 2 0 0 1 0 2.8Z"/><path d="M7.5 7.5h.01"/></svg>
+            Trip Details
+          </div>
+          <div class="section-label">Trip Name</div>
+          <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
+          <div class="field-error" id="error-name"></div>
+        </div>
+
+        <div class="editor-card section" id="section-parks">
+          <div class="editor-section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 4 8h-3l4 7h-4v5h-2v-5H7l4-7H8l4-8Z"/></svg>
+            Parks <small>(drag to reorder priority)</small>
+          </div>
+          <div id="parks-list"></div>
+          <input class="input" id="park-search" placeholder="Search or add parks...">
+          <div class="search-results" id="park-results"></div>
+          <div class="field-error" id="error-parks"></div>
+        </div>
+
+        <div class="editor-card section" id="section-dates">
+          <div class="editor-section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+            Date Ranges
+          </div>
+          <div id="dates-list"></div>
+          <div class="field-error" id="error-dates"></div>
+          <div class="date-form">
+            <div class="date-mode-toggle">
+              <button class="date-mode-btn active" data-mode="specific">Specific dates</button>
+              <button class="date-mode-btn" data-mode="recurring">Flexible (any weekend)</button>
+            </div>
+            <div class="date-form-body">
+              <div id="specific-inputs">
+                <div class="row">
+                  <div style="flex:1"><div class="section-label">Check-in</div><input type="date" class="input" id="date-checkin"></div>
+                  <div style="flex:1"><div class="section-label">Check-out</div><input type="date" class="input" id="date-checkout"></div>
+                </div>
+              </div>
+              <div id="recurring-inputs" class="hidden">
+                <div class="row" style="align-items:center;gap:14px;flex-wrap:wrap">
+                  <span style="color:var(--text)">Any</span>
+                  <select class="select" id="rec-start-day">
+                    <option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option>
+                    <option value="3">Thursday</option><option value="4" selected>Friday</option><option value="5">Saturday</option><option value="6">Sunday</option>
+                  </select>
+                  <span style="color:var(--text)">to</span>
+                  <select class="select" id="rec-end-day"></select>
+                  <span style="color:var(--text)">in</span>
+                  <select class="select" id="rec-month">
+                    <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                    <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                    <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                    <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                  </select>
+                  <select class="select" id="rec-year"></select>
+                </div>
+                <div class="preview" id="rec-preview">Select options above</div>
+              </div>
+              <button class="btn-primary" id="add-date-btn">+ Add This Range</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-side">
+        <div class="editor-card">
+          <div class="editor-section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>
+            Match Behavior
+          </div>
           <div class="section-label">On Match</div>
           <select class="select" id="trip-mode" style="width:100%">
             <option value="notify">Notify only</option>
@@ -362,18 +1053,29 @@
             <option value="autopay">Auto-pay</option>
           </select>
         </div>
-        <div style="flex:1">
-          <div class="section-label">Filters</div>
-          <div class="checkbox-row">
+
+        <div class="editor-card">
+          <div class="editor-section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3Z"/></svg>
+            Filters
+          </div>
+          <div class="editor-filters">
             <label class="checkbox-label"><input type="checkbox" id="filter-walkin"> No walk-in</label>
             <label class="checkbox-label"><input type="checkbox" id="filter-double"> No double</label>
           </div>
         </div>
+
+        <div class="editor-card">
+          <div class="editor-section-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13 2-9 13h7l-1 7 9-13h-7l1-7Z"/></svg>
+            Actions
+          </div>
+          <div class="editor-action-stack">
+            <button class="btn-primary" id="save-trip-btn">▶ Save &amp; Start Scanning</button>
+            <button class="btn-danger" id="delete-trip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>Delete Trip</button>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="row" style="gap:10px;margin-top:8px">
-      <button class="btn-primary" id="save-trip-btn">Save &amp; Start Scanning</button>
-      <button class="btn-danger" id="delete-trip-btn">Delete Trip</button>
     </div>
   </div>
   <script type="module" src="../src/options/index.ts"></script>

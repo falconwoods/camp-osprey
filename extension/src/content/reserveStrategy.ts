@@ -53,6 +53,17 @@ export function findReserveControl(root: ParentNode = document): HTMLElement | n
   return findControlByText(root, 'reserve')
 }
 
+export function hasNoAvailabilityMessage(root: ParentNode = document): boolean {
+  const text = (root.textContent ?? '').replace(/\s+/g, ' ').toLowerCase()
+  return text.includes('no available campsites')
+    || text.includes('there are no available campsites')
+}
+
+export function hasListResultOutcome(root: ParentNode = document): boolean {
+  return root.querySelectorAll('button.map-link-button, mat-expansion-panel.list-entry').length > 0
+    || hasNoAvailabilityMessage(root)
+}
+
 export function isExpansionPanelOpen(panel: Element, header?: Element | null): boolean {
   return panel.classList.contains('mat-expanded')
     || header?.classList.contains('mat-expanded') === true
