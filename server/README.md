@@ -36,3 +36,48 @@ npm run dev
 ```
 
 The development server runs on `http://localhost:3001`.
+
+## Database
+
+The server uses Postgres with Drizzle migrations. All commands below should be
+run from this `server/` directory.
+
+### Initial setup
+
+Create a local Postgres database, then add the connection string to
+`.env`:
+
+```bash
+createdb camposprey
+printf 'DATABASE_URL=postgres://localhost:5432/camposprey\n' >> .env
+```
+
+If your local Postgres user requires a username or password, use that in the
+connection string instead:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/camposprey
+```
+
+Apply the checked-in migrations to initialize the schema:
+
+```bash
+npm run db:migrate
+```
+
+After that, start the app as usual:
+
+```bash
+npm run dev
+```
+
+### Creating a migration
+
+When `db/schema.ts` changes, generate and apply a new migration:
+
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+Commit the generated files under `drizzle/` together with the schema change.
