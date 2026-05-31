@@ -1,0 +1,8 @@
+*
+!.next
+!.next/standalone
+!.next/standalone/**
+!.next/static
+!.next/static/**
+!docker
+!docker/Dockerfile

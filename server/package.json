@@ -6,6 +6,8 @@
     "dev": "node scripts/next-with-env.mjs dev",
     "build": "next build",
     "start": "node scripts/next-with-env.mjs start",
+    "build-image": "next build && docker build --platform linux/arm64 -f docker/Dockerfile -t camposprey-server:latest .",
+    "deploy": "bash scripts/deploy.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run",
