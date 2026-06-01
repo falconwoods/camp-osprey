@@ -522,16 +522,26 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
         //   - "not available" / "not reservable" inline text → same
         //   - double-site dialog → cancel and try next panel
         let navigated = false
-        const pollEnd = Date.now() + 4000
+        let pollEnd = Date.now() + 8000
         while (Date.now() < pollEnd) {
           // Check for any error/info dialog first
           const dialog = document.querySelector('mat-dialog-container, [role="dialog"]')
           if (dialog) {
             const dialogText = (dialog.textContent ?? '').toLowerCase()
+            if (dialogText.includes('park alerts')) {
+              const acknowledgeBtn = findDialogButton(dialog, ['acknowledge'])
+              dbg(`panel ${i} park alerts dialog`, { acknowledgeFound: !!acknowledgeBtn })
+              if (acknowledgeBtn) {
+                acknowledgeBtn.click()
+                dbg(`panel ${i} clicked Park Alerts acknowledge`)
+                pollEnd = Math.max(pollEnd, Date.now() + 8000)
+                await sleep(500)
+                continue
+              }
+            }
             if (dialogText.includes('double')) {
               dbg(`panel ${i} double-site dialog — cancelling, trying next`)
-              const cancelBtn = Array.from(dialog.querySelectorAll('button'))
-                .find(b => (b.textContent ?? '').trim().toLowerCase() === 'cancel')
+              const cancelBtn = findDialogButton(dialog, ['cancel'])
               if (cancelBtn) { ;(cancelBtn as HTMLElement).click(); await sleep(500) }
               break  // → continue outer loop (try next panel)
             }
@@ -541,11 +551,7 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
               dialogText.includes('cannot reserve')
             ) {
               dbg(`panel ${i} "Cannot Reserve" dialog — dismissing, trying next`)
-              const closeBtn = Array.from(dialog.querySelectorAll('button'))
-                .find(b => {
-                  const t = (b.textContent ?? '').trim().toLowerCase()
-                  return t === 'ok' || t === 'close' || t === 'dismiss'
-                })
+              const closeBtn = findDialogButton(dialog, ['ok', 'close', 'dismiss'])
               if (closeBtn) { ;(closeBtn as HTMLElement).click(); await sleep(300) }
               break  // → continue outer loop (try next panel)
             }
@@ -576,6 +582,15 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
   }
   dbg('no usable reserve button found in any panel')
   return 'no-reserve-btn'
+}
+
+function findDialogButton(dialog: Element, labels: string[]): HTMLElement | null {
+  const normalizedLabels = labels.map(label => label.toLowerCase())
+  return Array.from(dialog.querySelectorAll('button'))
+    .find((button): button is HTMLElement => {
+      const text = (button.textContent ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+      return normalizedLabels.includes(text)
+    }) ?? null
 }
 
 // Click "View more" until all panels are loaded
