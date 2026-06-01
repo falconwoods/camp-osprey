@@ -62,6 +62,16 @@ describe('structured debug log helpers', () => {
     expect(html).toContain('class="log-cell log-message"')
   })
 
+  it('renders log timestamps in the local timezone while preserving the raw timestamp as the title', () => {
+    const timestamp = '2026-05-27T00:42:05.000Z'
+    const html = renderDebugLogRows([
+      entry({ ts: timestamp }),
+    ], new Set<LogLevel>(['info']))
+
+    expect(html).toContain(`title="${timestamp}"`)
+    expect(html).toContain(new Date(timestamp).toLocaleString())
+  })
+
   it('adds milestone row classes for booking events', () => {
     const html = renderDebugLogRows([
       entry({ event: 'site_found', status: 'found' }),

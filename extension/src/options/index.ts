@@ -95,8 +95,8 @@ function escapeHtml(value: string): string {
 
 // ── Tab switching ──────────────────────────────────────────────────────────
 
-type OptionsTab = 'trips' | 'settings' | 'account' | 'logs'
-const OPTIONS_TABS: OptionsTab[] = ['trips', 'settings', 'account', 'logs']
+type OptionsTab = 'trips' | 'settings' | 'account' | 'payment' | 'logs'
+const OPTIONS_TABS: OptionsTab[] = ['trips', 'settings', 'account', 'payment', 'logs']
 let debugModeEnabled = false
 let activeTab: OptionsTab = tabFromHash()
 
@@ -107,8 +107,10 @@ function selectTab(name: OptionsTab): void {
     t.classList.toggle('active', (t as HTMLElement).dataset['tab'] === name)
   })
   document.getElementById('tab-trips')!.classList.toggle('hidden', name !== 'trips')
-  document.getElementById('tab-settings')!.classList.toggle('hidden', name !== 'settings')
+  document.getElementById('tab-settings')!.classList.toggle('hidden', !['settings', 'account', 'payment', 'logs'].includes(name))
+  document.getElementById('tab-settings-general')!.classList.toggle('hidden', name !== 'settings')
   document.getElementById('tab-account')!.classList.toggle('hidden', name !== 'account')
+  document.getElementById('tab-payment')!.classList.toggle('hidden', name !== 'payment')
   document.getElementById('tab-logs')!.classList.toggle('hidden', name !== 'logs')
   if (name === 'logs') void refreshDebugLog()
 }
@@ -128,10 +130,19 @@ async function showAccountTab(): Promise<void> {
   await renderAccount()
 }
 
+async function showPaymentTab(): Promise<void> {
+  if (location.hash !== '#payment') {
+    history.pushState(null, '', '#payment')
+  }
+  selectTab('payment')
+  await renderPayment()
+}
+
 async function routeFromHash(): Promise<void> {
   const tab = tabFromHash()
   selectTab(tab)
   if (tab === 'account') await renderAccount()
+  if (tab === 'payment') await renderPayment()
 }
 
 document.querySelectorAll('.tab').forEach(tab => {
@@ -140,6 +151,10 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (name === 'logs' && !debugModeEnabled) return
     if (name === 'account') {
       void showAccountTab()
+      return
+    }
+    if (name === 'payment') {
+      void showPaymentTab()
       return
     }
     location.hash = name
@@ -188,7 +203,6 @@ async function renderAccount(): Promise<void> {
   const auth = await getAuth()
   const pendingTripId = await getPendingStartTripId()
   root.innerHTML = renderAccountPanelHTML(auth, pendingTripId)
-  await renderPaymentSection(auth)
   bindAccountPanel(async () => {
     const tripId = await consumePendingStartTripId()
     if (tripId) await startTripNow(tripId)
@@ -667,7 +681,6 @@ function paymentSectionHTML(auth: AuthState): string {
             Stored locally on this device
           </span>
         </div>
-        <div class="payment-copy">Used only for Auto-pay mode.<br>Your payment information is stored locally on this device and never saved on our servers.</div>
       </div>
       ${editButton}
     </div>
@@ -722,6 +735,10 @@ async function renderPaymentSection(auth: AuthState): Promise<void> {
   document.getElementById('cancel-payment-btn')?.addEventListener('click', () => void loadPaymentForm())
   document.getElementById('save-payment-btn')?.addEventListener('click', () => void savePaymentFromForm())
   await loadPaymentForm()
+}
+
+async function renderPayment(): Promise<void> {
+  await renderPaymentSection(await getAuth())
 }
 
 async function loadPaymentForm() {
@@ -779,6 +796,7 @@ function currentSettings(): Settings {
   return {
     pollIntervalSeconds: parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as Settings['pollIntervalSeconds'],
     debugMode: (document.getElementById('debug-mode') as HTMLInputElement).checked,
+    emailOnSiteFound: (document.getElementById('email-on-site-found') as HTMLInputElement | null)?.checked ?? false,
     theme: selectedTheme,
     logSyncMinLevel: (logSyncMinLevel?.value ?? 'info') as LogLevel,
   }
@@ -800,6 +818,8 @@ async function loadSettingsForm() {
   if (logSyncMinLevel) logSyncMinLevel.value = settings.logSyncMinLevel ?? 'info'
   const debugEl = document.getElementById('debug-mode') as HTMLInputElement
   debugEl.checked = settings.debugMode ?? false
+  const emailOnSiteFoundEl = document.getElementById('email-on-site-found') as HTMLInputElement | null
+  if (emailOnSiteFoundEl) emailOnSiteFoundEl.checked = settings.emailOnSiteFound ?? false
   updateLogsTabVisibility(debugEl.checked)
   selectedTheme = settings.theme ?? 'auto'
   updateThemeBtns(selectedTheme)
@@ -807,6 +827,10 @@ async function loadSettingsForm() {
 
 document.getElementById('debug-mode')!.addEventListener('change', async () => {
   updateLogsTabVisibility((document.getElementById('debug-mode') as HTMLInputElement).checked)
+  await saveSettings(currentSettings())
+})
+
+document.getElementById('email-on-site-found')?.addEventListener('change', async () => {
   await saveSettings(currentSettings())
 })
 
@@ -818,7 +842,7 @@ document.getElementById('log-sync-min-level')?.addEventListener('change', async 
   await saveSettings(currentSettings())
 })
 
-document.getElementById('test-notif-btn')!.addEventListener('click', () => {
+document.getElementById('test-notif-btn')?.addEventListener('click', () => {
   const id = `camposprey-test-${Date.now()}`
   chrome.notifications.create(id, {
     type: 'basic',

@@ -69,6 +69,7 @@ export type Theme = 'auto' | 'light' | 'dark'
 export interface Settings {
   pollIntervalSeconds: 10 | 30 | 60 | 120
   debugMode: boolean
+  emailOnSiteFound: boolean
   theme: Theme
   logSyncMinLevel: LogLevel
 }
@@ -76,7 +77,7 @@ export interface Settings {
 export interface ServerUser {
   id: string
   email: string
-  name?: string
+  name?: string | null
   role: string
 }
 

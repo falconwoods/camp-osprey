@@ -47,9 +47,8 @@ interface MatchedSite {
   paidAt?: string;
 }
 
-function greetingFor(recipientName?: string | null): string {
-  const name = recipientName?.trim();
-  return name ? `<p>Hi ${escapeHtml(name)},</p>` : '';
+function greetingFor(): string {
+  return '<p>Hi camper,</p>';
 }
 
 function escapeHtml(value: string): string {
@@ -85,9 +84,9 @@ function siteDetailsList(site: MatchedSite | null, eventLabel?: string, eventAt?
 
 export function buildOtpEmail(
   otp: string,
-  recipientName?: string | null,
+  _recipientName?: string | null,
 ): { subject: string; html: string } {
-  const greeting = greetingFor(recipientName);
+  const greeting = greetingFor();
 
   return {
     subject: 'Your CampOsprey verification code',
@@ -113,9 +112,9 @@ export function buildResultEmail(
   outcome: Outcome,
   site: MatchedSite | null,
   tripName: string,
-  recipientName?: string | null,
+  _recipientName?: string | null,
 ): { subject: string; html: string } {
-  const greeting = greetingFor(recipientName);
+  const greeting = greetingFor();
   const subjects: Record<Outcome, string> = {
     found:        `Campsite found at ${site?.parkName ?? tripName}`,
     hold_placed:  `Campsite held — complete your booking`,

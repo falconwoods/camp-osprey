@@ -69,31 +69,33 @@ describe('buildResultEmail', () => {
     expect(subject).toBe('Booking failed at Weekend Trip');
   });
 
-  it('html includes greeting when recipient name is supplied', () => {
+  it('html uses neutral camper greeting even when recipient name is supplied', () => {
     const { html } = buildResultEmail('found', site, 'My Trip', 'Eric');
-    expect(html).toContain('Hi Eric,');
+    expect(html).toContain('Hi camper,');
+    expect(html).not.toContain('Hi Eric,');
   });
 
-  it('html omits greeting when recipient name is missing', () => {
+  it('html includes neutral camper greeting when recipient name is missing', () => {
     const { html } = buildResultEmail('found', site, 'My Trip');
-    expect(html).not.toContain('Hi ,');
+    expect(html).toContain('Hi camper,');
   });
 
-  it('OTP html includes greeting when recipient name is supplied', () => {
+  it('OTP html uses neutral camper greeting when recipient name is supplied', () => {
     const { html } = buildOtpEmail('123456', 'Eric');
-    expect(html).toContain('Hi Eric,');
+    expect(html).toContain('Hi camper,');
+    expect(html).not.toContain('Hi Eric,');
     expect(html).toContain('123456');
   });
 
-  it('OTP html omits greeting when recipient name is missing', () => {
+  it('OTP html includes neutral camper greeting when recipient name is missing', () => {
     const { html } = buildOtpEmail('123456');
-    expect(html).not.toContain('Hi ,');
+    expect(html).toContain('Hi camper,');
   });
 
-  it('escapes recipient name in greetings', () => {
-    const { html } = buildOtpEmail('123456', '<Eric>');
-    expect(html).toContain('Hi &lt;Eric&gt;,');
-    expect(html).not.toContain('Hi <Eric>,');
+  it('does not render email addresses as greeting names', () => {
+    const { html } = buildOtpEmail('123456', 'user@example.com');
+    expect(html).toContain('Hi camper,');
+    expect(html).not.toContain('Hi user@example.com,');
   });
 });
 

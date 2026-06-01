@@ -15,6 +15,13 @@
       "when": 1778601469456,
       "tag": "0001_omniscient_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780340841024,
+      "tag": "0002_glamorous_black_knight",
+      "breakpoints": true
     }
   ]
 }

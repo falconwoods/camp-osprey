@@ -27,16 +27,20 @@ export async function POST(request: Request) {
       },
       verifyCode: async (email, code) => {
         const result = await auth.api.signInEmailOTP({
-          body: { email, otp: code, name: email },
+          body: { email, otp: code },
           headers: request.headers,
         });
         const authUser = result.user as BetterAuthUser;
+        const normalizedName = authUser.name?.trim() || null;
+        if (authUser.name !== normalizedName) {
+          await db.update(user).set({ name: normalizedName }).where(eq(user.id, authUser.id));
+        }
         return {
           token: result.token,
           user: {
             id: authUser.id,
             email: authUser.email,
-            name: authUser.name,
+            name: normalizedName,
             role: authUser.role ?? null,
             banned: authUser.banned ?? null,
           },

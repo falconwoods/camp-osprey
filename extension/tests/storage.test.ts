@@ -36,6 +36,7 @@ describe('getStorage', () => {
     expect(data.trips).toEqual([])
     expect(data.payment).toBeNull()
     expect(data.settings.pollIntervalSeconds).toBe(60)
+    expect(data.settings.emailOnSiteFound).toBe(false)
     expect(data.settings.logSyncMinLevel).toBe('info')
   })
 })

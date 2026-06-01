@@ -48,11 +48,16 @@ function renderFixture(): void {
       <div class="tab active" data-tab="trips"></div>
       <div class="tab" data-tab="settings"></div>
       <div class="tab" data-tab="account"></div>
+      <div class="tab" data-tab="payment"></div>
       <div class="tab hidden" data-tab="logs"></div>
       <div id="tab-trips"><div id="global-alerts"></div><div id="trip-list"></div><button id="new-trip-btn"></button></div>
-      <div id="tab-settings" class="hidden"></div>
+      <div id="tab-settings" class="hidden">
+        <div id="tab-settings-general"></div>
+      </div>
       <div id="tab-account" class="hidden">
         <div id="account-root"></div>
+      </div>
+      <div id="tab-payment" class="hidden">
         <div id="payment-root"></div>
       </div>
       <div id="tab-logs" class="hidden">
@@ -70,6 +75,7 @@ function renderFixture(): void {
       <button class="theme-btn" data-theme-choice="dark"></button>
       <select id="poll-interval"><option value="60"></option></select>
       <input id="debug-mode" type="checkbox">
+      <input id="email-on-site-found" type="checkbox">
       <button id="test-notif-btn"></button>
     </div>
     <div id="trip-editor" class="hidden">
@@ -159,14 +165,28 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
     expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+    expect(document.getElementById('tab-payment')!.classList.contains('hidden')).toBe(true)
+  })
+
+  it('selects Payment tab from hash and renders locked payment form when signed out', async () => {
+    location.hash = '#payment'
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.querySelector('[data-tab="payment"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('tab-payment')!.classList.contains('hidden')).toBe(false)
     expect(document.querySelector<HTMLInputElement>('#payment-root #card-number')!.disabled).toBe(true)
     expect(document.getElementById('payment-root')!.textContent).toContain('Sign in to add or edit payment information.')
   })
 
   it('enables payment fields when signed in', async () => {
-    location.hash = '#account'
+    location.hash = '#payment'
     await saveAuth({
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
@@ -176,6 +196,7 @@ describe('options auth gate', () => {
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
+    expect(document.querySelector('[data-tab="payment"]')!.classList.contains('active')).toBe(true)
     expect(document.querySelector<HTMLInputElement>('#payment-root #card-number')!.disabled).toBe(false)
     expect(document.querySelector('#payment-root #save-payment-btn')).not.toBeNull()
     expect(document.getElementById('payment-root')!.textContent).not.toContain('Sign in to add or edit payment information.')
@@ -191,6 +212,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
     expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
   })
@@ -235,6 +257,18 @@ describe('options auth gate', () => {
     expect((await getStorage()).settings.pollIntervalSeconds).toBe(30)
   })
 
+  it('autosaves the site-found email setting', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const emailOnSiteFound = document.getElementById('email-on-site-found') as HTMLInputElement
+    emailOnSiteFound.checked = true
+    emailOnSiteFound.dispatchEvent(new Event('change'))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect((await getStorage()).settings.emailOnSiteFound).toBe(true)
+  })
+
   it('does not refresh the trip list while Account tab is active', async () => {
     location.hash = '#account'
     await import('../src/options/index')
@@ -267,6 +301,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('[data-tab="logs"]')!.classList.contains('active')).toBe(true)
+    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('tab-logs')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('debug-log-box')!.textContent).toContain('park_checked')
     expect(document.getElementById('debug-log-box')!.textContent).toContain('booking_failed')

@@ -36,7 +36,7 @@ export function renderDebugLogRows(entries: DebugLogEntry[], levels: Set<LogLeve
 
     return [
       `<div class="${escapeHtml(rowClasses)}">`,
-      `<span class="log-cell log-time">${escapeHtml(entry.ts)}</span>`,
+      `<span class="log-cell log-time" title="${escapeHtml(entry.ts)}">${escapeHtml(formatLogTimestamp(entry.ts))}</span>`,
       `<span class="log-cell log-level">${escapeHtml(entry.level.toUpperCase())}</span>`,
       `<span class="log-cell log-event">${escapeHtml(entry.event)}</span>`,
       `<span class="log-cell log-message">${escapeHtml(detail)}</span>`,
@@ -108,6 +108,12 @@ function formatMetadataValue(value: unknown): string {
   }
 
   return JSON.stringify(value) ?? String(value)
+}
+
+function formatLogTimestamp(timestamp: string): string {
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return timestamp
+  return date.toLocaleString()
 }
 
 function escapeHtml(value: string): string {

@@ -33,13 +33,13 @@ const STATUS_BY_CODE: Record<ExtensionAuthErrorCode, number> = {
 export type UserLookup = {
   id: string;
   email: string;
-  name: string;
+  name: string | null;
   banned: boolean | null;
 };
 
 export type RequestCodeDeps = {
   findUserByEmail: (email: string) => Promise<UserLookup | null>;
-  sendCode: (email: string) => Promise<void>;
+  sendCode: (email: string, name?: string | null) => Promise<void>;
 };
 
 export type VerifiedSession = {
@@ -184,7 +184,7 @@ export async function requestExtensionAuthCode(
   if (existingUser?.banned) throw extensionAuthError('account_blocked');
 
   try {
-    await deps.sendCode(email);
+    await deps.sendCode(email, existingUser?.name ?? null);
   } catch (err) {
     console.error('[extension-auth] send code failed:', err);
     throw extensionAuthError('email_send_failed');
@@ -196,7 +196,7 @@ export async function requestExtensionAuthCode(
 export async function verifyExtensionAuthCode(
   body: unknown,
   deps: VerifyCodeDeps,
-): Promise<{ token: string; user: { id: string; email: string; name: string; role: string } }> {
+): Promise<{ token: string; user: { id: string; email: string; name: string | null; role: string } }> {
   const requestBody = getExtensionAuthBody(body);
   const email = normalizeExtensionEmail(requestBody.email);
   const code = normalizeExtensionCode(requestBody.code);
@@ -213,7 +213,7 @@ export async function verifyExtensionAuthCode(
 
   if (verified.user.banned) throw extensionAuthError('account_blocked');
 
-  const finalName = existingUser?.name ?? (verified.user.name?.trim() || email);
+  const finalName = existingUser?.name?.trim() || verified.user.name?.trim() || null;
 
   return {
     token: verified.token,

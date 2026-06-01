@@ -387,47 +387,30 @@
       padding: 0;
       background-color: var(--co-page);
       background-image:
-        radial-gradient(circle at 78% 6%, rgba(250,210,104,0.24), transparent 5%),
         linear-gradient(180deg, rgba(220,241,245,0.72) 0, rgba(246,250,247,0.42) 118px, transparent 360px);
-      background-position:
-        78% 6%,
-        top center;
-      background-size:
-        auto,
-        100% 360px;
+      background-position: top center;
+      background-size: 100% 360px;
       background-repeat: no-repeat;
-      background-attachment:
-        scroll,
-        scroll;
+      background-attachment: scroll;
       color: var(--co-text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
       overflow-x: hidden;
     }
     body::before {
-      content: "";
-      position: fixed;
-      inset: 0 0 auto 0;
-      height: 150px;
-      pointer-events: none;
-      background:
-        linear-gradient(135deg, transparent 0 55%, rgba(175,213,219,0.4) 55% 61%, transparent 61%) 66% 22px / 160px 80px no-repeat,
-        linear-gradient(135deg, transparent 0 48%, rgba(178,215,206,0.34) 48% 56%, transparent 56%) 72% 28px / 220px 94px no-repeat,
-        linear-gradient(135deg, transparent 0 50%, rgba(156,196,190,0.28) 50% 58%, transparent 58%) 80% 10px / 260px 108px no-repeat;
-      opacity: 0.9;
-      z-index: -2;
+      content: none;
     }
     body::after {
       content: "";
       position: fixed;
       inset: auto 0 0 0;
-      height: min(26vh, 220px);
+      height: min(50vh, 400px);
       pointer-events: none;
       background:
         linear-gradient(180deg, rgba(246,250,247,0.16) 0, rgba(246,250,247,0.4) 72%, rgba(246,250,247,0.58) 100%),
-        url("../images/bg_bottom.png") center bottom / 100% auto no-repeat;
-      -webkit-mask-image: linear-gradient(180deg, transparent 0, rgba(0,0,0,0.18) 34%, #000 62%);
-      mask-image: linear-gradient(180deg, transparent 0, rgba(0,0,0,0.18) 34%, #000 62%);
+        url("../images/bg_bottom.jpg") center bottom / 100% auto no-repeat;
+      -webkit-mask-image: linear-gradient(180deg, transparent 0, rgba(0,0,0,0.45) 18%, #000 42%);
+      mask-image: linear-gradient(180deg, transparent 0, rgba(0,0,0,0.45) 18%, #000 42%);
       z-index: -2;
     }
     .icon { width: 1em; height: 1em; }
@@ -475,8 +458,10 @@
     .tab .icon { width: 24px; height: 24px; color: currentColor; }
     .tab.active { color: var(--co-brand); border-bottom-color: var(--co-brand); }
     .tab[data-tab="account"],
+    .tab[data-tab="payment"],
     .tab[data-tab="logs"] { display: none; }
     .tab.settings-nav-item[data-tab="account"],
+    .tab.settings-nav-item[data-tab="payment"],
     .tab.settings-nav-item[data-tab="logs"] { display: flex; }
     .tab[data-tab="logs"].settings-nav-item { display: flex; }
     .tab.hidden,
@@ -509,6 +494,7 @@
 
     #tab-trips,
     #tab-account,
+    #tab-payment,
     #tab-logs {
       max-width: 1180px;
       margin: 0 auto;
@@ -754,6 +740,75 @@
       width: 18px;
       height: 18px;
     }
+    .email-alert-card {
+      display: grid;
+      gap: 14px;
+    }
+    .email-alert-list {
+      display: grid;
+      gap: 10px;
+    }
+    .email-alert-option {
+      display: grid;
+      grid-template-columns: 22px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 54px;
+      padding: 12px 14px;
+      border: 1px solid var(--co-border);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.58);
+      color: var(--co-text);
+      cursor: pointer;
+    }
+    .email-alert-option:hover {
+      border-color: var(--co-border-strong);
+      background: rgba(255,255,255,0.76);
+    }
+    .email-alert-option input {
+      margin: 0;
+    }
+    .email-alert-option[aria-disabled="true"] {
+      cursor: default;
+      background: var(--co-brand-soft);
+      border-color: rgba(15,143,53,0.22);
+    }
+    .email-alert-option[aria-disabled="true"]:hover {
+      border-color: rgba(15,143,53,0.22);
+      background: var(--co-brand-soft);
+    }
+    .email-alert-option input:disabled {
+      opacity: 0.85;
+    }
+    .email-alert-copy {
+      min-width: 0;
+    }
+    .email-alert-title {
+      display: block;
+      color: var(--co-text);
+      font-size: 15px;
+      font-weight: 780;
+      line-height: 1.25;
+    }
+    .email-alert-subtitle {
+      display: block;
+      margin-top: 3px;
+      color: var(--co-text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.35;
+    }
+    .email-alert-pill {
+      justify-self: end;
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: rgba(15,143,53,0.11);
+      color: var(--co-brand-dark);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+    }
     .notification-help {
       display: flex;
       align-items: center;
@@ -848,6 +903,7 @@
         <div class="tab active" data-tab="trips"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>Trips</div>
         <div class="tab" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>Settings</div>
         <div class="tab" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account</div>
+        <div class="tab" data-tab="payment"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>Payment</div>
         <div class="tab hidden" data-tab="logs"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Logs</div>
       </div>
       <div class="header-account" id="header-account"></div>
@@ -857,29 +913,19 @@
       <div id="trip-list"></div>
       <button class="btn-add" id="new-trip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>New Trip</button>
     </div>
-    <div id="tab-account" class="hidden">
-      <div id="account-root"></div>
-      <div id="payment-root"></div>
-    </div>
     <div id="tab-settings" class="hidden">
       <div class="settings-layout">
         <aside class="settings-sidebar" aria-label="Settings sections">
           <h2 class="settings-sidebar-title">Settings</h2>
           <nav class="settings-nav">
             <div class="tab settings-nav-item active" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>General</div>
-            <button class="settings-nav-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Notifications</button>
-            <div class="tab settings-nav-item" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account &amp; Payment</div>
+            <div class="tab settings-nav-item" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account</div>
+            <div class="tab settings-nav-item" data-tab="payment"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>Payment</div>
             <div class="tab settings-nav-item hidden" data-tab="logs"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Logs</div>
-            <div class="settings-nav-divider"></div>
-            <button class="settings-nav-link" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>Advanced</button>
           </nav>
-          <div class="settings-promo">
-            <strong>More settings in the sidebar</strong>
-            <p>Manage your account, payments, and view logs without leaving Settings.</p>
-            <a href="#account">Learn more</a>
-          </div>
         </aside>
         <main class="settings-main">
+          <div id="tab-settings-general">
           <div class="settings-heading">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>
             <div>
@@ -913,6 +959,26 @@
             </label>
             <div class="setting-row-note">Show additional logs and development information.</div>
           </section>
+          <section class="settings-card email-alert-card">
+            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a2 2 0 0 1-2.06 0L2 7"/></svg>Email alerts</div>
+            <div class="email-alert-list">
+              <label class="email-alert-option">
+                <input type="checkbox" id="email-on-site-found">
+                <span class="email-alert-copy">
+                  <span class="email-alert-title">Site found</span>
+                  <span class="email-alert-subtitle">Send an email as soon as CampOsprey finds an available site.</span>
+                </span>
+              </label>
+              <label class="email-alert-option" aria-disabled="true">
+                <input type="checkbox" checked disabled>
+                <span class="email-alert-copy">
+                  <span class="email-alert-title">Reserved or paid</span>
+                  <span class="email-alert-subtitle">Booking outcome emails are always sent to your signed-in account.</span>
+                </span>
+                <span class="email-alert-pill">Always on</span>
+              </label>
+            </div>
+          </section>
           <section class="settings-card">
             <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Server log sync</div>
             <select class="select" id="log-sync-min-level">
@@ -923,49 +989,39 @@
             </select>
             <div class="setting-row-note">Only logs at this level or higher are queued for server sync.</div>
           </section>
-          <section class="settings-card">
-            <div class="settings-card-title"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Notifications</div>
-            <button class="btn-secondary" id="test-notif-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>Send test notification</button>
-            <div class="setting-row-note">If test notification doesn't appear:</div>
-            <div class="notification-help"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 22 8-4V6l-8-4-8 4v12Z"/><path d="m9 12 2 2 4-5"/></svg>macOS System Settings -> Notifications -> Google Chrome -> Alert style: <strong>Alerts</strong> (not Banners).</div>
-          </section>
-          <section class="settings-card settings-account-card">
-            <div class="settings-account-icons">
-              <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg></span>
-              <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+          </div>
+          <div id="tab-account" class="hidden">
+            <div id="account-root"></div>
+          </div>
+          <div id="tab-payment" class="hidden">
+            <div id="payment-root"></div>
+          </div>
+          <div id="tab-logs" class="hidden">
+            <div class="log-panel">
+              <div class="log-toolbar">
+                <div>
+                  <div class="section-label" style="margin-bottom:2px">Scan Log</div>
+                  <div class="hint">Structured local logs. Newest entries stay at the bottom.</div>
+                </div>
+                <div class="log-actions">
+                  <label class="checkbox-label log-autoscroll-label">
+                    <input type="checkbox" id="log-autoscroll" checked>
+                    Auto scroll
+                  </label>
+                  <button class="btn-secondary" id="copy-log-jsonl-btn">Copy JSONL</button>
+                  <button class="btn-secondary" id="clear-log-btn">Clear</button>
+                </div>
+              </div>
+              <div class="log-filters" aria-label="Log level filters">
+                <button class="log-level-btn active" data-log-level="debug">Debug</button>
+                <button class="log-level-btn active" data-log-level="info">Info</button>
+                <button class="log-level-btn active" data-log-level="warning">Warning</button>
+                <button class="log-level-btn active" data-log-level="error">Error</button>
+              </div>
+              <div class="debug-log-box" id="debug-log-box"></div>
             </div>
-            <div class="settings-account-copy">
-              <h3>Account &amp; Payment and Logs</h3>
-              <p>Manage your account, payment methods, and view extension logs in the sidebar.</p>
-            </div>
-            <a class="trip-action-btn" href="#account">Go to Account &amp; Payment <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
-          </section>
+          </div>
         </main>
-      </div>
-    </div>
-    <div id="tab-logs" class="hidden">
-      <div class="log-panel">
-        <div class="log-toolbar">
-          <div>
-            <div class="section-label" style="margin-bottom:2px">Scan Log</div>
-            <div class="hint">Structured local logs. Newest entries stay at the bottom.</div>
-          </div>
-          <div class="log-actions">
-            <label class="checkbox-label log-autoscroll-label">
-              <input type="checkbox" id="log-autoscroll" checked>
-              Auto scroll
-            </label>
-            <button class="btn-secondary" id="copy-log-jsonl-btn">Copy JSONL</button>
-            <button class="btn-secondary" id="clear-log-btn">Clear</button>
-          </div>
-        </div>
-        <div class="log-filters" aria-label="Log level filters">
-          <button class="log-level-btn active" data-log-level="debug">Debug</button>
-          <button class="log-level-btn active" data-log-level="info">Info</button>
-          <button class="log-level-btn active" data-log-level="warning">Warning</button>
-          <button class="log-level-btn active" data-log-level="error">Error</button>
-        </div>
-        <div class="debug-log-box" id="debug-log-box"></div>
       </div>
     </div>
   </div>

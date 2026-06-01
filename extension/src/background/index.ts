@@ -271,7 +271,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           return results
         }, () => !stoppedTripIds.has(trip.id) && !controller.signal.aborted)
         if (site) {
-          await handleMatch(trip, site)
+          await handleMatch(trip, site, settings.emailOnSiteFound ?? false)
         } else if (stoppedTripIds.has(trip.id) || controller.signal.aborted) {
           if (debug) await logEntry({
             level: 'debug',
@@ -343,7 +343,57 @@ function isSameMatch(match: MatchedSite | null, site: AvailableSite): boolean {
     match.checkOut === site.checkOut
 }
 
-async function handleMatch(trip: Trip, site: AvailableSite): Promise<void> {
+async function reportFoundResult(trip: Trip, matchedSite: MatchedSite): Promise<void> {
+  try {
+    await logEntry({
+      level: 'info',
+      event: 'server_result_reported',
+      message: 'Reporting found site result to server',
+      tripId: trip.id,
+      tripName: trip.name,
+      parkName: matchedSite.parkName,
+      siteName: matchedSite.siteName,
+      checkIn: matchedSite.checkIn,
+      checkOut: matchedSite.checkOut,
+      status: 'found',
+    })
+    const result = await sendTripResult(trip.id, {
+      outcome: 'found',
+      matchedSite,
+      tripSnapshot: {
+        name: trip.name,
+        parks: trip.parks,
+        dateRanges: trip.dateRanges,
+        filters: trip.filters,
+        mode: trip.mode,
+        status: trip.status,
+        attempted: trip.attempted,
+      },
+    })
+    await logEntry({
+      level: result.emailSent ? 'info' : 'warning',
+      event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+      message: result.emailSent ? 'Site found email sent' : 'Site found email not sent',
+      tripId: trip.id,
+      tripName: trip.name,
+      parkName: matchedSite.parkName,
+      siteName: matchedSite.siteName,
+    })
+  } catch (err) {
+    await logEntry({
+      level: 'error',
+      event: 'server_email_failed',
+      message: 'Site found email failed',
+      tripId: trip.id,
+      tripName: trip.name,
+      parkName: matchedSite.parkName,
+      siteName: matchedSite.siteName,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: boolean): Promise<void> {
   const key = activeMatchKey(trip.id, site)
   if (activeMatchKeys.has(key) || isSameMatch(trip.lastMatch, site)) {
     await logEntry({
@@ -399,6 +449,10 @@ async function handleMatch(trip: Trip, site: AvailableSite): Promise<void> {
     status: 'found',
     metadata: { availableCount },
   })
+
+  if (emailOnSiteFound) {
+    await reportFoundResult(trip, matchedSite)
+  }
 
   if (trip.mode === 'notify') {
     await notify(

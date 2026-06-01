@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { AvailableSite, StorageData, Trip } from '../../src/types'
+import type { AvailableSite, Settings, StorageData, Trip } from '../../src/types'
 
 const mocks = vi.hoisted(() => ({
   getStorage: vi.fn(),
@@ -64,11 +64,11 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
   }
 }
 
-function makeStorage(trips: Trip[]): StorageData {
+function makeStorage(trips: Trip[], settings: Partial<Settings> = {}): StorageData {
   return {
     trips,
     payment: null,
-    settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto', logSyncMinLevel: 'info' },
+    settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info', ...settings },
     debugLog: [],
     auth: { token: null, user: null, lastEmail: null },
   }
@@ -322,6 +322,46 @@ describe('background scanner scheduling', () => {
     expect(notificationOptions.message).toContain('Found:')
     expect(notificationOptions.message).toContain('May 26, 2026')
     vi.useRealTimers()
+  })
+
+  it('reports found sites to the server when site-found email is enabled', async () => {
+    const trip = makeTrip({ mode: 'notify' })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip], { emailOnSiteFound: true }))
+    mocks.getAvailability.mockResolvedValue([makeSite()])
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'SCAN_NOW', tripId: trip.id })
+
+    await vi.waitFor(() => expect(mocks.sendTripResult).toHaveBeenCalledWith(trip.id, {
+      outcome: 'found',
+      matchedSite: expect.objectContaining({
+        parkName: 'Park 1',
+        sectionName: 'Main',
+        siteName: 'A1',
+        checkIn: '2026-07-04',
+        checkOut: '2026-07-05',
+        bookingUrl: expect.stringContaining('camping.bcparks.ca'),
+        resourceId: 'site-1',
+        foundAt: expect.any(String),
+      }),
+      tripSnapshot: expect.objectContaining({
+        name: 'Trip 1',
+        parks: trip.parks,
+        dateRanges: trip.dateRanges,
+        filters: trip.filters,
+        mode: 'notify',
+        status: 'scanning',
+        attempted: [],
+      }),
+    }))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warning',
+      event: 'server_email_not_sent',
+      message: 'Site found email not sent',
+      tripId: trip.id,
+      tripName: trip.name,
+    }))
   })
 
   it('marks hold success as reserved', async () => {

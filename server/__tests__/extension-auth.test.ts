@@ -82,15 +82,15 @@ describe('requestExtensionAuthCode', () => {
   });
 
   it('sends code for a new email without requiring or forwarding name', async () => {
-    const sent: Array<{ email: string; name?: string }> = [];
+    const sent: Array<{ email: string; name?: string | null }> = [];
     const deps = {
       findUserByEmail: async () => null,
-      sendCode: async (email: string, name?: string) => { sent.push({ email, name }); },
+      sendCode: async (email: string, name?: string | null) => { sent.push({ email, name }); },
     };
 
     await expect(requestExtensionAuthCode({ email: 'new@example.com', name: 'Ignored User' }, deps))
       .resolves.toEqual({ ok: true, isNewUser: true });
-    expect(sent).toEqual([{ email: 'new@example.com', name: undefined }]);
+    expect(sent).toEqual([{ email: 'new@example.com', name: null }]);
   });
 
   it('sends code for an existing email without requiring name', async () => {
@@ -125,8 +125,8 @@ describe('verifyExtensionAuthCode', () => {
       verifyCode: async (email: string, code: string, name?: string) => {
         verifiedWith = { email, code, name };
         return {
-        token: 'tok',
-        user: { id: 'u1', email: 'new@example.com', name: null, role: null, banned: false },
+          token: 'tok',
+          user: { id: 'u1', email: 'new@example.com', name: null, role: null, banned: false },
         };
       },
       updateUserName: async (id: string, name: string) => { updated = { id, name }; },
@@ -135,7 +135,7 @@ describe('verifyExtensionAuthCode', () => {
     await expect(verifyExtensionAuthCode({ email: 'new@example.com', code: '123456', name: 'Ignored User' }, deps))
       .resolves.toEqual({
         token: 'tok',
-        user: { id: 'u1', email: 'new@example.com', name: 'new@example.com', role: 'user' },
+        user: { id: 'u1', email: 'new@example.com', name: null, role: 'user' },
       });
     expect(verifiedWith).toEqual({ email: 'new@example.com', code: '123456', name: undefined });
     expect(updated).toBeNull();

@@ -18,12 +18,12 @@ export async function POST(request: Request) {
         const [row] = await db.select().from(user).where(eq(user.email, email));
         return row ?? null;
       },
-      sendCode: async (email) => {
+      sendCode: async (email, name) => {
         const otp = await auth.api.createVerificationOTP({
           body: { email, type: 'sign-in' },
           headers: request.headers,
         });
-        const { subject, html } = buildOtpEmail(otp, email);
+        const { subject, html } = buildOtpEmail(otp, name);
         await sendEmail({ to: email, subject, html });
       },
     });
