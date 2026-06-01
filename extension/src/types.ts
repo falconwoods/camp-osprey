@@ -1,5 +1,6 @@
 export interface Trip {
   id: string
+  clientId?: string
   name: string
   parks: Park[]           // index 0 = highest priority
   dateRanges: DateRange[]
@@ -9,6 +10,8 @@ export interface Trip {
   lastMatch: MatchedSite | null
   attempted: string[]     // "parkId|checkIn|checkOut" dedup keys
   createdAt: number
+  updatedAt?: number
+  deletedAt?: number | null
 }
 
 export interface Park {
@@ -95,6 +98,14 @@ export type LogLevel = 'debug' | 'info' | 'warning' | 'error'
 
 export type BookingStatus = 'found' | 'reserved' | 'paid' | 'failed'
 
+export interface ClientInfo {
+  extensionVersion?: string
+  userAgent?: string
+  platformOs?: string
+  platformArch?: string
+  platformNaclArch?: string
+}
+
 export interface DebugLogEntry {
   ts: string
   level: LogLevel
@@ -117,6 +128,7 @@ export interface DebugLogEntry {
 
 export interface StorageData {
   trips: Trip[]
+  clientId: string | null
   payment: PaymentConfig | null
   settings: Settings
   debugLog: DebugLogEntry[]

@@ -136,6 +136,13 @@ describe('extension auth client', () => {
         body: expect.stringContaining('"event":"trip_scan_error"'),
       }),
     )
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body.clientId).toEqual(expect.any(String))
+    expect(body.clientInfo).toEqual(expect.objectContaining({
+      extensionVersion: '0.1.0',
+      platformOs: 'mac',
+      platformArch: 'arm',
+    }))
     const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer tok')
   })

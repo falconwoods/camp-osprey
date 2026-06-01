@@ -29,6 +29,15 @@ interface TripSnapshot {
   mode: string;
   status?: string;
   attempted?: string[];
+  createdAt?: string | number;
+  updatedAt?: string | number;
+  deletedAt?: string | number | null;
+}
+
+function parseDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 export async function POST(
@@ -47,21 +56,27 @@ export async function POST(
 
   const body = await request.json() as {
     outcome: Outcome;
+    clientId?: string;
     matchedSite?: MatchedSite;
     error?: string;
+    sendEmail?: boolean;
     tripSnapshot?: TripSnapshot;
   };
 
-  const { outcome, matchedSite, error: bookingError, tripSnapshot } = body;
+  const { outcome, clientId, matchedSite, error: bookingError, sendEmail: shouldSendEmail = true, tripSnapshot } = body;
   let [trip] = await db
     .select()
     .from(trips)
     .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)));
 
   if (!trip && tripSnapshot) {
+    const createdAt = parseDate(tripSnapshot.createdAt) ?? new Date();
+    const updatedAt = parseDate(tripSnapshot.updatedAt) ?? createdAt;
+    const deletedAt = tripSnapshot.deletedAt === null ? null : parseDate(tripSnapshot.deletedAt);
     [trip] = await db.insert(trips).values({
       id,
       userId:     session.user.id,
+      clientId,
       name:       tripSnapshot.name,
       parks:      tripSnapshot.parks,
       dateRanges: tripSnapshot.dateRanges,
@@ -70,6 +85,9 @@ export async function POST(
       status:     tripSnapshot.status ?? 'idle',
       lastMatch:  matchedSite ?? null,
       attempted:  tripSnapshot.attempted ?? [],
+      deletedAt,
+      createdAt,
+      updatedAt,
     }).returning();
 
     console.info('[result] created missing trip from result payload:', {
@@ -101,7 +119,7 @@ export async function POST(
   const statusMap: Record<Outcome, string> = {
     found:       trip.status as string,
     hold_placed: 'paused',
-    booked:      'completed',
+    booked:      'paid',
     failed:      'idle',
   };
 
@@ -127,32 +145,34 @@ export async function POST(
     .returning();
 
   let emailSent = false;
-  try {
-    const { subject, html } = buildResultEmail(
-      outcome,
-      matchedSite ?? null,
-      trip.name,
-      session.user.name,
-    );
-    await sendEmail({ to: session.user.email, subject, html });
-    emailSent = true;
-    console.info('[result] email sent:', {
-      ...resultContext,
-      bookingResultId: result.id,
-      to: session.user.email,
-      subject,
-    });
-    await db
-      .update(bookingResults)
-      .set({ emailSent: true })
-      .where(eq(bookingResults.id, result.id));
-  } catch (err) {
-    console.error('[result] email send failed:', {
-      ...resultContext,
-      bookingResultId: result.id,
-      to: session.user.email,
-      error: err,
-    });
+  if (shouldSendEmail) {
+    try {
+      const { subject, html } = buildResultEmail(
+        outcome,
+        matchedSite ?? null,
+        trip.name,
+        session.user.name,
+      );
+      await sendEmail({ to: session.user.email, subject, html });
+      emailSent = true;
+      console.info('[result] email sent:', {
+        ...resultContext,
+        bookingResultId: result.id,
+        to: session.user.email,
+        subject,
+      });
+      await db
+        .update(bookingResults)
+        .set({ emailSent: true })
+        .where(eq(bookingResults.id, result.id));
+    } catch (err) {
+      console.error('[result] email send failed:', {
+        ...resultContext,
+        bookingResultId: result.id,
+        to: session.user.email,
+        error: err,
+      });
+    }
   }
 
   return withExtensionCors(request, NextResponse.json({ ok: true, emailSent }));

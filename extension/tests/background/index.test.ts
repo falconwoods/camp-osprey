@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   isLoggedIn: vi.fn(),
   validateAuth: vi.fn(),
   sendTripResult: vi.fn(),
+  syncTripToServer: vi.fn(),
   sendExtensionLogs: vi.fn(),
   watchLoginChanges: vi.fn(),
   getAvailability: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('../../src/auth', () => ({
 
 vi.mock('../../src/serverApi', () => ({
   sendTripResult: mocks.sendTripResult,
+  syncTripToServer: mocks.syncTripToServer,
   sendExtensionLogs: mocks.sendExtensionLogs,
 }))
 
@@ -67,6 +69,7 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
 function makeStorage(trips: Trip[], settings: Partial<Settings> = {}): StorageData {
   return {
     trips,
+    clientId: 'client-1',
     payment: null,
     settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info', ...settings },
     debugLog: [],
@@ -333,8 +336,9 @@ describe('background scanner scheduling', () => {
     const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
     listener({ type: 'SCAN_NOW', tripId: trip.id })
 
-    await vi.waitFor(() => expect(mocks.sendTripResult).toHaveBeenCalledWith(trip.id, {
+    await vi.waitFor(() => expect(mocks.sendTripResult).toHaveBeenCalledWith(trip.id, expect.objectContaining({
       outcome: 'found',
+      sendEmail: true,
       matchedSite: expect.objectContaining({
         parkName: 'Park 1',
         sectionName: 'Main',
@@ -354,7 +358,7 @@ describe('background scanner scheduling', () => {
         status: 'scanning',
         attempted: [],
       }),
-    }))
+    })))
     expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
       level: 'warning',
       event: 'server_email_not_sent',

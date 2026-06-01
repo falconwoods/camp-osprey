@@ -3,10 +3,19 @@ import { isLoggedIn } from '../background/login'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { openOptionsAccount, requireServerAuthForStart } from '../startAuthGate'
+import { syncTripToServer } from '../serverApi'
 import type { Trip, MatchedSite } from '../types'
 
 // Apply saved theme immediately before render
 getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
+
+async function syncTripBestEffort(trip: Trip): Promise<void> {
+  try {
+    await syncTripToServer(trip)
+  } catch (err) {
+    console.warn('Trip sync failed:', err)
+  }
+}
 
 document.getElementById('settings-link')!.addEventListener('click', e => {
   e.preventDefault()
@@ -234,6 +243,9 @@ async function render() {
       await updateTrip(id, action === 'start'
         ? { status: 'scanning', lastMatch: null, attempted: [] }
         : { status: 'paused' })
+      const { trips } = await getStorage()
+      const updatedTrip = trips.find(t => t.id === id)
+      if (updatedTrip) void syncTripBestEffort(updatedTrip)
       if (action === 'start') {
         chrome.storage.local.remove('campOspreyTarget')
         chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })

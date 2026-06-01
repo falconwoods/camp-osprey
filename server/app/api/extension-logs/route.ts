@@ -3,6 +3,8 @@ import { getSession } from '@/lib/session';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 import {
   filterAcceptedExtensionLogs,
+  normalizeExtensionClientInfo,
+  normalizeExtensionLogClientId,
   normalizeExtensionLogEntries,
   sendExtensionLogsToLoki,
 } from '@/lib/extension-logs';
@@ -17,6 +19,8 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
+  const clientId = normalizeExtensionLogClientId(body);
+  const clientInfo = normalizeExtensionClientInfo(body);
   const entries = normalizeExtensionLogEntries(body);
   const accepted = filterAcceptedExtensionLogs(entries);
 
@@ -24,6 +28,8 @@ export async function POST(request: Request) {
     await sendExtensionLogsToLoki(accepted, {
       userId: session.user.id,
       userEmail: session.user.email,
+      clientId,
+      clientInfo,
     });
   } catch (err) {
     console.error('[extension-logs] loki push failed:', err);

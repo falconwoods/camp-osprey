@@ -1,4 +1,4 @@
-const ALLOWED_METHODS = 'GET, POST, OPTIONS';
+const ALLOWED_METHODS = 'GET, POST, PUT, DELETE, OPTIONS';
 const ALLOWED_HEADERS = 'Content-Type, Authorization';
 const MAX_AGE_SECONDS = '600';
 

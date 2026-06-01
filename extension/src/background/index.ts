@@ -4,7 +4,7 @@ import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
 import type { AvailableSite, DebugLogEntry, MatchedSite, Trip } from '../types'
 import { validateAuth } from '../auth'
-import { sendTripResult } from '../serverApi'
+import { sendTripResult, syncTripToServer } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
 
 const ALARM_NAME = 'scan'
@@ -23,6 +23,20 @@ let contentLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 
 function logEntry(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
   return addDebugLog(entry)
+}
+
+async function syncTripBestEffort(trip: Trip | undefined): Promise<void> {
+  if (!trip) return
+  try {
+    await syncTripToServer(trip)
+  } catch (err) {
+    console.warn('Trip sync failed:', err)
+  }
+}
+
+async function syncStoredTripBestEffort(tripId: string): Promise<void> {
+  const { trips } = await getStorage()
+  await syncTripBestEffort(trips.find(t => t.id === tripId))
 }
 
 function scheduleContentLogFlush(): void {
@@ -343,7 +357,7 @@ function isSameMatch(match: MatchedSite | null, site: AvailableSite): boolean {
     match.checkOut === site.checkOut
 }
 
-async function reportFoundResult(trip: Trip, matchedSite: MatchedSite): Promise<void> {
+async function reportFoundResult(trip: Trip, matchedSite: MatchedSite, sendEmail: boolean): Promise<void> {
   try {
     await logEntry({
       level: 'info',
@@ -360,6 +374,7 @@ async function reportFoundResult(trip: Trip, matchedSite: MatchedSite): Promise<
     const result = await sendTripResult(trip.id, {
       outcome: 'found',
       matchedSite,
+      sendEmail,
       tripSnapshot: {
         name: trip.name,
         parks: trip.parks,
@@ -368,6 +383,9 @@ async function reportFoundResult(trip: Trip, matchedSite: MatchedSite): Promise<
         mode: trip.mode,
         status: trip.status,
         attempted: trip.attempted,
+        createdAt: trip.createdAt,
+        updatedAt: trip.updatedAt,
+        deletedAt: trip.deletedAt,
       },
     })
     await logEntry({
@@ -382,8 +400,8 @@ async function reportFoundResult(trip: Trip, matchedSite: MatchedSite): Promise<
   } catch (err) {
     await logEntry({
       level: 'error',
-      event: 'server_email_failed',
-      message: 'Site found email failed',
+      event: 'server_result_failed',
+      message: 'Site found result reporting failed',
       tripId: trip.id,
       tripName: trip.name,
       parkName: matchedSite.parkName,
@@ -450,9 +468,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
     metadata: { availableCount },
   })
 
-  if (emailOnSiteFound) {
-    await reportFoundResult(trip, matchedSite)
-  }
+  await reportFoundResult(trip, matchedSite, emailOnSiteFound)
 
   if (trip.mode === 'notify') {
     await notify(
@@ -462,6 +478,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
       true,
     )
     await updateTrip(trip.id, { lastMatch: matchedSite })
+    await syncStoredTripBestEffort(trip.id)
     return
   }
 
@@ -491,6 +508,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
 
   if (trip.mode === 'hold') {
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
+    await syncStoredTripBestEffort(trip.id)
     await notify(
       `Site Available — Reserve Now`,
       `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}\nBC Parks is opening — click Reserve in your browser.`,
@@ -515,6 +533,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
 
   if (trip.mode === 'autopay') {
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
+    await syncStoredTripBestEffort(trip.id)
     await notify(
       `Site Available — Auto-paying`,
       `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}`,
@@ -632,6 +651,7 @@ chrome.runtime.onMessage.addListener((msg: {
         metadata: { attemptKey: msg.attemptKey ?? null },
       })
       updateTrip(msg.tripId!, { status: 'scanning', lastMatch: msg.attemptKey ? null : trip.lastMatch, attempted })
+        .then(() => syncStoredTripBestEffort(msg.tripId!))
     })
     return
   }
@@ -658,6 +678,7 @@ chrome.runtime.onMessage.addListener((msg: {
       })
       updateTrip(msg.tripId!, match ? { status: 'reserved', lastMatch: match } : { status: 'reserved' })
         .then(async () => {
+          await syncStoredTripBestEffort(msg.tripId!)
           if (match) {
             const siteDetail = `${match.parkName} › ${match.sectionName ? `${match.sectionName} › ` : ''}Site ${match.siteName}`
             await notify(
@@ -692,6 +713,9 @@ chrome.runtime.onMessage.addListener((msg: {
                 mode: trip.mode,
                 status: 'reserved',
                 attempted: trip.attempted,
+                createdAt: trip.createdAt,
+                updatedAt: trip.updatedAt,
+                deletedAt: trip.deletedAt,
               },
             })
             await logEntry({
@@ -743,13 +767,54 @@ chrome.runtime.onMessage.addListener((msg: {
         status: 'paid',
         metadata: { confirmationNumber: msg.confirmationNumber ?? 'unknown' },
       })
-      updateTrip(msg.tripId!, match ? { status: 'paid', lastMatch: match } : { status: 'paid' }).then(() => {
+      updateTrip(msg.tripId!, match ? { status: 'paid', lastMatch: match } : { status: 'paid' }).then(async () => {
+        await syncStoredTripBestEffort(msg.tripId!)
         notify(
           'Booking Paid',
           `${detail}${detail ? '\n' : ''}Paid: ${formatDateTime(paidAt)}\nConfirmation: ${msg.confirmationNumber ?? 'unknown'}`,
           undefined,
           true,
         )
+        if (!trip) return
+        try {
+          const result = await sendTripResult(msg.tripId!, {
+            outcome: 'booked',
+            matchedSite: match,
+            sendEmail: true,
+            tripSnapshot: {
+              name: trip.name,
+              parks: trip.parks,
+              dateRanges: trip.dateRanges,
+              filters: trip.filters,
+              mode: trip.mode,
+              status: 'paid',
+              attempted: trip.attempted,
+              createdAt: trip.createdAt,
+              updatedAt: trip.updatedAt,
+              deletedAt: trip.deletedAt,
+            },
+          })
+          await logEntry({
+            level: result.emailSent ? 'info' : 'warning',
+            event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+            message: result.emailSent ? 'Booking paid email sent' : 'Booking paid email not sent',
+            tripId: msg.tripId!,
+            tripName: trip.name,
+            parkName: match?.parkName,
+            siteName: match?.siteName,
+          })
+        } catch (err) {
+          await logEntry({
+            level: 'error',
+            event: 'server_result_failed',
+            message: 'Booking paid result reporting failed',
+            tripId: msg.tripId!,
+            tripName: trip.name,
+            parkName: match?.parkName,
+            siteName: match?.siteName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
       })
     })
   }
@@ -773,13 +838,55 @@ chrome.runtime.onMessage.addListener((msg: {
         status: 'failed',
         error: msg.error ?? 'Unknown error',
       })
-      updateTrip(msg.tripId!, { status: 'failed' }).then(() => {
+      updateTrip(msg.tripId!, { status: 'failed' }).then(async () => {
+        await syncStoredTripBestEffort(msg.tripId!)
         notify(
           '❌ Payment Failed',
           `${detail}${detail ? '\n' : ''}${msg.error ?? 'Unknown error — check BC Parks tab.'}`,
           'https://camping.bcparks.ca/cart',
           true,
         )
+        if (!trip) return
+        try {
+          const result = await sendTripResult(msg.tripId!, {
+            outcome: 'failed',
+            matchedSite: m,
+            error: msg.error ?? 'Unknown error',
+            sendEmail: true,
+            tripSnapshot: {
+              name: trip.name,
+              parks: trip.parks,
+              dateRanges: trip.dateRanges,
+              filters: trip.filters,
+              mode: trip.mode,
+              status: 'failed',
+              attempted: trip.attempted,
+              createdAt: trip.createdAt,
+              updatedAt: trip.updatedAt,
+              deletedAt: trip.deletedAt,
+            },
+          })
+          await logEntry({
+            level: result.emailSent ? 'info' : 'warning',
+            event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+            message: result.emailSent ? 'Booking failure email sent' : 'Booking failure email not sent',
+            tripId: msg.tripId!,
+            tripName: trip.name,
+            parkName: m?.parkName,
+            siteName: m?.siteName,
+          })
+        } catch (err) {
+          await logEntry({
+            level: 'error',
+            event: 'server_result_failed',
+            message: 'Booking failure result reporting failed',
+            tripId: msg.tripId!,
+            tripName: trip.name,
+            parkName: m?.parkName,
+            siteName: m?.siteName,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
       })
     })
   }

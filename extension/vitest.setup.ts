@@ -45,6 +45,8 @@ const chrome = {
     query: vi.fn(),
   },
   runtime: {
+    getManifest: vi.fn(() => ({ version: '0.1.0' })),
+    getPlatformInfo: vi.fn(cb => cb({ os: 'mac', arch: 'arm', nacl_arch: 'arm' })),
     getURL: vi.fn((path: string) => path),
     openOptionsPage: vi.fn(),
     sendMessage: vi.fn(),

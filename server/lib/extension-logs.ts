@@ -23,6 +23,16 @@ export interface ExtensionLogEntry {
 export interface ExtensionLogContext {
   userId: string;
   userEmail: string;
+  clientId?: string;
+  clientInfo?: ExtensionClientInfo;
+}
+
+export interface ExtensionClientInfo {
+  extensionVersion?: string;
+  userAgent?: string;
+  platformOs?: string;
+  platformArch?: string;
+  platformNaclArch?: string;
 }
 
 const LOG_LEVEL_RANK: Record<ExtensionLogLevel, number> = {
@@ -56,6 +66,26 @@ export function normalizeExtensionLogEntries(body: unknown): ExtensionLogEntry[]
   return entries
     .map(normalizeExtensionLogEntry)
     .filter((entry): entry is ExtensionLogEntry => Boolean(entry));
+}
+
+export function normalizeExtensionLogClientId(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const clientId = (body as { clientId?: unknown }).clientId;
+  return typeof clientId === 'string' && clientId ? clientId : undefined;
+}
+
+export function normalizeExtensionClientInfo(body: unknown): ExtensionClientInfo | undefined {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const clientInfo = (body as { clientInfo?: unknown }).clientInfo;
+  if (!clientInfo || typeof clientInfo !== 'object' || Array.isArray(clientInfo)) return undefined;
+
+  const input = clientInfo as Partial<Record<keyof ExtensionClientInfo, unknown>>;
+  const output: ExtensionClientInfo = {};
+  for (const field of ['extensionVersion', 'userAgent', 'platformOs', 'platformArch', 'platformNaclArch'] as const) {
+    if (typeof input[field] === 'string' && input[field]) output[field] = input[field];
+  }
+
+  return Object.keys(output).length > 0 ? output : undefined;
 }
 
 function normalizeExtensionLogEntry(value: unknown): ExtensionLogEntry | null {
@@ -145,6 +175,8 @@ function groupEntriesForLoki(entries: ExtensionLogEntry[], context: ExtensionLog
         ...entry,
         userId: context.userId,
         userEmail: context.userEmail,
+        clientId: context.clientId,
+        clientInfo: context.clientInfo,
       }),
     ]),
   }));

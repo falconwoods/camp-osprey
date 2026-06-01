@@ -1,4 +1,4 @@
-import { getAuth, getPendingStartTripId, getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
+import { getAuth, getClientId, getPendingStartTripId, getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
@@ -7,6 +7,7 @@ import { isLoggedIn, watchLoginChanges } from '../background/login'
 import { ALL_LOG_LEVELS, formatDebugLogAsJsonl, renderDebugLogRows } from '../debugLog'
 import { renderAccountPanelHTML, bindAccountPanel } from '../accountPanel'
 import { consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
+import { softDeleteTripOnServer, syncTripToServer } from '../serverApi'
 import type { AuthState, Trip, DateRange, Park, Theme, LogLevel, Settings } from '../types'
 
 // Apply saved theme before anything renders
@@ -21,6 +22,14 @@ let dateMode: 'specific' | 'recurring' = 'specific'
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus'
+
+async function syncTripBestEffort(trip: Trip): Promise<void> {
+  try {
+    await syncTripToServer(trip)
+  } catch (err) {
+    console.warn('Trip sync failed:', err)
+  }
+}
 
 function icon(name: IconName): string {
   const attrs = 'class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
@@ -284,6 +293,9 @@ async function renderTripList() {
         await startTripNow(id)
       } else {
         await updateTrip(id, { status: 'paused' })
+        const { trips: updatedTrips } = await getStorage()
+        const updatedTrip = updatedTrips.find(t => t.id === id)
+        if (updatedTrip) void syncTripBestEffort(updatedTrip)
         chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
         chrome.storage.local.remove('campOspreyTarget')
       }
@@ -305,6 +317,9 @@ async function deleteTripById(id: string): Promise<void> {
   const trip = trips.find(t => t.id === id)
   const label = trip?.name ? `"${trip.name}"` : 'this trip'
   if (!trip || !confirm(`Delete ${label}?`)) return
+  void softDeleteTripOnServer({ ...trip, deletedAt: Date.now(), updatedAt: Date.now() }).catch(err => {
+    console.warn('Trip delete sync failed:', err)
+  })
   await saveTrips(trips.filter(t => t.id !== id))
   if (editingTripId === id) editingTripId = null
   await renderTripList()
@@ -319,6 +334,9 @@ async function startTripNow(id: string): Promise<boolean> {
   }
   chrome.storage.local.remove('campOspreyTarget')
   await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
+  const { trips: updatedTrips } = await getStorage()
+  const updatedTrip = updatedTrips.find(t => t.id === id)
+  if (updatedTrip) void syncTripBestEffort(updatedTrip)
   chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
   return true
 }
@@ -623,15 +641,17 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
   if (hasErrors) return
 
   const { trips } = await getStorage()
+  const clientId = await getClientId()
+  const now = Date.now()
   const savedTripId = editingTripId ?? crypto.randomUUID()
   if (editingTripId) {
     const idx = trips.findIndex(t => t.id === editingTripId)
-    if (idx !== -1) trips[idx] = { ...trips[idx], name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'idle' }
+    if (idx !== -1) trips[idx] = { ...trips[idx], clientId: trips[idx].clientId ?? clientId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'idle', updatedAt: now, deletedAt: null }
   } else {
     // Transfer the date mode saved under 'datemode_new' to the real trip ID
     const savedMode = localStorage.getItem('datemode_new')
     if (savedMode) localStorage.setItem(`datemode_${savedTripId}`, savedMode)
-    trips.push({ id: savedTripId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'idle', lastMatch: null, attempted: [], createdAt: Date.now() })
+    trips.push({ id: savedTripId, clientId, name, parks: tripParks, dateRanges: tripDates, mode, filters: { noWalkin, noDouble }, status: 'idle', lastMatch: null, attempted: [], createdAt: now, updatedAt: now, deletedAt: null })
   }
   await saveTrips(trips)
 
@@ -640,6 +660,9 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
     await showAccountTab()
     return
   }
+
+  const savedTrip = trips.find(t => t.id === savedTripId)
+  if (savedTrip) void syncTripBestEffort(savedTrip)
 
   if (!(await startTripNow(savedTripId))) return
   document.getElementById('back-btn')!.click()

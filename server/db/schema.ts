@@ -61,6 +61,7 @@ export const verification = pgTable('verification', {
 export const trips = pgTable('trips', {
   id:          text('id').primaryKey(),
   userId:      text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  clientId:    text('clientId'),
   name:        text('name').notNull(),
   parks:       jsonb('parks').notNull(),
   dateRanges:  jsonb('dateRanges').notNull(),
@@ -69,10 +70,12 @@ export const trips = pgTable('trips', {
   status:      text('status').notNull().default('idle'),
   lastMatch:   jsonb('lastMatch'),
   attempted:   text('attempted').array().notNull().default([]),
+  deletedAt:   timestamp('deletedAt'),
   createdAt:   timestamp('createdAt').notNull().defaultNow(),
   updatedAt:   timestamp('updatedAt').notNull().defaultNow(),
 }, (t) => [
   index('trips_user_idx').on(t.userId),
+  index('trips_client_idx').on(t.clientId),
 ]);
 
 export const bookingResults = pgTable('booking_results', {

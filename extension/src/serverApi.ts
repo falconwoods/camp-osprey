@@ -1,6 +1,6 @@
-import { getAuth } from './storage'
+import { getAuth, getClientId } from './storage'
 import { BACKEND_BASE_URL } from './config'
-import type { DebugLogEntry, MatchedSite, Trip } from './types'
+import type { ClientInfo, DebugLogEntry, MatchedSite, Trip } from './types'
 
 export class ServerApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -40,26 +40,98 @@ export interface TripResultPayload {
   outcome: 'found' | 'hold_placed' | 'booked' | 'failed'
   matchedSite?: MatchedSite
   error?: string
-  tripSnapshot?: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted'>
+  sendEmail?: boolean
+  tripSnapshot?: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>
+}
+
+function tripSyncPayload(trip: Trip, clientId: string) {
+  return {
+    id: trip.id,
+    clientId: trip.clientId ?? clientId,
+    name: trip.name,
+    parks: trip.parks,
+    dateRanges: trip.dateRanges,
+    filters: trip.filters,
+    mode: trip.mode,
+    status: trip.status,
+    lastMatch: trip.lastMatch,
+    attempted: trip.attempted,
+    createdAt: new Date(trip.createdAt).toISOString(),
+    updatedAt: new Date(trip.updatedAt ?? trip.createdAt).toISOString(),
+    deletedAt: trip.deletedAt ? new Date(trip.deletedAt).toISOString() : null,
+  }
+}
+
+function getPlatformInfo(): Promise<chrome.runtime.PlatformInfo | null> {
+  return new Promise(resolve => {
+    try {
+      if (!chrome.runtime.getPlatformInfo) {
+        resolve(null)
+        return
+      }
+      chrome.runtime.getPlatformInfo(info => resolve(info))
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+async function getClientInfo(): Promise<ClientInfo> {
+  const platform = await getPlatformInfo()
+  return {
+    extensionVersion: chrome.runtime.getManifest?.().version,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    platformOs: platform?.os,
+    platformArch: platform?.arch,
+    platformNaclArch: platform?.nacl_arch,
+  }
 }
 
 export async function sendTripResult(
   tripId: string,
   payload: TripResultPayload,
 ): Promise<{ ok: true; emailSent: boolean }> {
+  const clientId = await getClientId()
   return serverFetch(`/api/trips/${encodeURIComponent(tripId)}/result`, {
     method: 'POST',
     auth: true,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, clientId }),
+  })
+}
+
+export async function syncTripToServer(trip: Trip): Promise<Trip> {
+  const auth = await getAuth()
+  if (!auth.token) return trip
+  const clientId = await getClientId()
+  return serverFetch<Trip>(`/api/trips/${encodeURIComponent(trip.id)}`, {
+    method: 'PUT',
+    auth: true,
+    body: JSON.stringify(tripSyncPayload(trip, clientId)),
+  })
+}
+
+export async function softDeleteTripOnServer(trip: Trip): Promise<{ ok: true }> {
+  const auth = await getAuth()
+  if (!auth.token) return { ok: true }
+  const clientId = await getClientId()
+  return serverFetch(`/api/trips/${encodeURIComponent(trip.id)}`, {
+    method: 'DELETE',
+    auth: true,
+    body: JSON.stringify({
+      clientId: trip.clientId ?? clientId,
+      deletedAt: new Date(trip.deletedAt ?? Date.now()).toISOString(),
+    }),
   })
 }
 
 export async function sendExtensionLogs(
   entries: DebugLogEntry[],
 ): Promise<{ ok: true; accepted: number }> {
+  const clientId = await getClientId()
+  const clientInfo = await getClientInfo()
   return serverFetch('/api/extension-logs', {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ entries }),
+    body: JSON.stringify({ clientId, clientInfo, entries }),
   })
 }

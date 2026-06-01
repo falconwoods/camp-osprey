@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   filterAcceptedExtensionLogs,
   getServerLogMinLevel,
+  normalizeExtensionClientInfo,
+  normalizeExtensionLogClientId,
   normalizeExtensionLogEntries,
   sendExtensionLogsToLoki,
 } from '../lib/extension-logs';
@@ -36,6 +38,30 @@ describe('extension log ingestion helpers', () => {
     ]);
   });
 
+  it('normalizes the extension client id from log batches', () => {
+    expect(normalizeExtensionLogClientId({ clientId: 'client-1', entries: [] })).toBe('client-1');
+    expect(normalizeExtensionLogClientId({ clientId: '', entries: [] })).toBeUndefined();
+  });
+
+  it('normalizes extension client info from log batches', () => {
+    expect(normalizeExtensionClientInfo({
+      clientInfo: {
+        extensionVersion: '0.1.0',
+        userAgent: 'Mozilla/5.0',
+        platformOs: 'mac',
+        platformArch: 'arm',
+        platformNaclArch: 'arm',
+        ignored: 'value',
+      },
+    })).toEqual({
+      extensionVersion: '0.1.0',
+      userAgent: 'Mozilla/5.0',
+      platformOs: 'mac',
+      platformArch: 'arm',
+      platformNaclArch: 'arm',
+    });
+  });
+
   it('pushes accepted logs to Loki without auth', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })));
 
@@ -48,6 +74,8 @@ describe('extension log ingestion helpers', () => {
     }], {
       userId: 'user-1',
       userEmail: 'user@example.com',
+      clientId: 'client-1',
+      clientInfo: { extensionVersion: '0.1.0', platformOs: 'mac', platformArch: 'arm' },
     });
 
     expect(fetch).toHaveBeenCalledWith(
@@ -64,5 +92,8 @@ describe('extension log ingestion helpers', () => {
       level: 'error',
     });
     expect(body.streams[0].values[0][1]).toContain('"userId":"user-1"');
+    expect(body.streams[0].values[0][1]).toContain('"clientId":"client-1"');
+    expect(body.streams[0].values[0][1]).toContain('"clientInfo"');
+    expect(body.streams[0].values[0][1]).toContain('"platformOs":"mac"');
   });
 });

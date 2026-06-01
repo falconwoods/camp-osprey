@@ -7,6 +7,7 @@ let debugLogWriteQueue = Promise.resolve()
 
 const DEFAULTS: StorageData = {
   trips: [],
+  clientId: null,
   payment: null,
   settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info' },
   debugLog: [],
@@ -28,9 +29,22 @@ export async function getStorage(): Promise<StorageData> {
   data.settings = { ...DEFAULTS.settings, ...(data.settings ?? {}) }
   data.trips = data.trips.map(trip => ({
     ...trip,
+    updatedAt: trip.updatedAt ?? trip.createdAt ?? Date.now(),
+    deletedAt: trip.deletedAt ?? null,
     status: (trip.status as string) === 'completed' ? 'paid' : trip.status,
   }))
   return data
+}
+
+export async function getClientId(): Promise<string> {
+  const result = await promisify<Record<string, unknown>>(cb =>
+    chrome.storage.local.get(['clientId'], cb)
+  )
+  if (typeof result['clientId'] === 'string' && result['clientId']) return result['clientId']
+
+  const clientId = crypto.randomUUID()
+  await promisify<void>(cb => chrome.storage.local.set({ clientId }, cb))
+  return clientId
 }
 
 export async function saveTrips(trips: Trip[]): Promise<void> {
@@ -144,6 +158,6 @@ export async function updateTrip(tripId: string, updates: Partial<Trip>): Promis
   const { trips } = await getStorage()
   const idx = trips.findIndex(t => t.id === tripId)
   if (idx === -1) throw new Error(`Trip ${tripId} not found`)
-  trips[idx] = { ...trips[idx], ...updates }
+  trips[idx] = { ...trips[idx], ...updates, updatedAt: Date.now() }
   await saveTrips(trips)
 }
