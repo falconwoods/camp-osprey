@@ -5,10 +5,31 @@ import { extractCampsiteName, extractSelectedCampsiteName, findDetailsControl, f
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
 // We write logs to a hidden DOM element instead, readable from the page context.
 const _dbg: string[] = []
+let activeTargetSite: TargetSite | null = null
+
 function dbg(msg: string, data?: unknown): void {
   const line = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg
   _dbg.push(`[${new Date().toLocaleTimeString()}] ${line}`)
   console.log(`[CampOsprey] ${line}`)
+  chrome.runtime.sendMessage({
+    type: 'CONTENT_DEBUG_LOG',
+    level: msg.includes('FAILED') || msg.includes('error') || msg.includes('MATCH_FAILED') ? 'warning' : 'info',
+    event: 'content_script_log',
+    message: msg,
+    tripId: activeTargetSite?.tripId,
+    parkName: activeTargetSite?.parkName,
+    siteName: activeTargetSite?.siteName,
+    checkIn: activeTargetSite?.checkIn,
+    checkOut: activeTargetSite?.checkOut,
+    metadata: {
+      data: data ?? null,
+      path: window.location.pathname,
+      url: window.location.href,
+    },
+  }, () => {
+    // Ignore missing receiver / closed extension context; DevTools DOM log remains available.
+    void chrome.runtime.lastError
+  })
   // Write to hidden DOM element so DevTools console can access it:
   // copy(document.getElementById('__cs_log').textContent)
   let el = document.getElementById('__cs_log')
@@ -52,6 +73,7 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
   }
   const target = result?.['campOspreyTarget'] as TargetSite | undefined
   if (!target) { dbg('no campOspreyTarget in storage'); return }
+  activeTargetSite = target
   const age = Math.round((Date.now() - target.setAt) / 1000)
   dbg('target loaded', { ...target, ageSeconds: age })
   if (age > 300) { dbg('target is stale, ignoring'); return }
@@ -515,6 +537,7 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
         const urlBefore = window.location.href
         reserveBtn.click()
         dbg(`clicked reserve on panel ${i}`)
+        dbg(`panel ${i} waiting for reserve outcome`, { urlBefore })
 
         // Poll for outcome (up to 4s):
         //   - URL changed → navigation succeeded, site is ours
@@ -528,6 +551,15 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
           const dialog = document.querySelector('mat-dialog-container, [role="dialog"]')
           if (dialog) {
             const dialogText = (dialog.textContent ?? '').toLowerCase()
+            const dialogTitle = (dialog.querySelector('h1,h2,h3,[mat-dialog-title]')?.textContent ?? '').trim()
+            const dialogButtons = Array.from(dialog.querySelectorAll('button'))
+              .map(button => (button.textContent ?? '').trim().replace(/\s+/g, ' '))
+              .filter(Boolean)
+            dbg(`panel ${i} dialog seen`, {
+              title: dialogTitle,
+              buttons: dialogButtons,
+              snippet: dialogText.replace(/\s+/g, ' ').substring(0, 160),
+            })
             if (dialogText.includes('park alerts')) {
               const acknowledgeBtn = findDialogButton(dialog, ['acknowledge'])
               dbg(`panel ${i} park alerts dialog`, { acknowledgeFound: !!acknowledgeBtn })
@@ -559,6 +591,10 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
 
           if (window.location.href !== urlBefore) {
             navigated = true
+            dbg(`panel ${i} reserve navigation detected`, {
+              from: urlBefore,
+              to: window.location.href,
+            })
             break
           }
           const liveText = (contextEl.textContent ?? '').toLowerCase()
@@ -573,6 +609,11 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
         }
 
         if (navigated) return true
+        dbg(`panel ${i} reserve outcome timed out or did not navigate`, {
+          currentUrl: window.location.href,
+          dialogPresent: !!document.querySelector('mat-dialog-container, [role="dialog"]'),
+          elapsedMs: Date.now() - startTime,
+        })
         if (!alreadyOpen) { header.click(); await sleep(300) }
         continue  // any failure — try next panel
       }

@@ -251,4 +251,23 @@ describe('addDebugLog', () => {
       expect.objectContaining({ level: 'error', event: 'error_event' }),
     ])
   })
+
+  it('force queues server logs below the configured sync level', async () => {
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({
+      debugLog: [],
+      settings: { pollIntervalSeconds: 60, debugMode: false, theme: 'auto', logSyncMinLevel: 'error' },
+      [PENDING_SERVER_LOGS_KEY]: [],
+    }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog(
+      { level: 'info', event: 'content_script_log', message: 'dialog seen' },
+      { forceServerSync: true },
+    )
+
+    const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(setCall[PENDING_SERVER_LOGS_KEY]).toEqual([
+      expect.objectContaining({ level: 'info', event: 'content_script_log', message: 'dialog seen' }),
+    ])
+  })
 })

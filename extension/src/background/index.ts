@@ -19,9 +19,18 @@ const activeMatchKeys = new Set<string>()
 const authNotificationKeys = new Set<string>()
 const AUTH_NOTIFICATION_SUPPRESSIONS_KEY = 'campOspreyAuthNotificationSuppressions'
 type AuthNotificationKind = 'server' | 'bcparks'
+let contentLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 
 function logEntry(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
   return addDebugLog(entry)
+}
+
+function scheduleContentLogFlush(): void {
+  if (contentLogFlushTimer) return
+  contentLogFlushTimer = setTimeout(() => {
+    contentLogFlushTimer = null
+    void flushPendingServerLogs()
+  }, 3000)
 }
 
 function authNotificationKey(kind: AuthNotificationKind, tripId: string): string {
@@ -510,12 +519,34 @@ async function notify(title: string, message: string, url?: string, persist = fa
 
 chrome.runtime.onMessage.addListener((msg: {
   type: string
+  level?: DebugLogEntry['level']
+  event?: string
+  message?: string
   tripId?: string
+  parkName?: string
+  siteName?: string
+  checkIn?: string
+  checkOut?: string
+  metadata?: Record<string, unknown>
   confirmationNumber?: string
   error?: string
   attemptKey?: string
   resetActiveMatch?: boolean
 }) => {
+  if (msg.type === 'CONTENT_DEBUG_LOG') {
+    void addDebugLog({
+      level: msg.level ?? 'info',
+      event: msg.event ?? 'content_script_log',
+      message: msg.message ?? 'Content script log',
+      tripId: msg.tripId,
+      parkName: msg.parkName,
+      siteName: msg.siteName,
+      checkIn: msg.checkIn,
+      checkOut: msg.checkOut,
+      metadata: msg.metadata,
+    }, { forceServerSync: true }).then(scheduleContentLogFlush)
+    return
+  }
   if (msg.type === 'SCAN_NOW') {
     if (msg.tripId) stoppedTripIds.delete(msg.tripId)
     if (msg.tripId && msg.resetActiveMatch) clearActiveMatchesForTrip(msg.tripId)

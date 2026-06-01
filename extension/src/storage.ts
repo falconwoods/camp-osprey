@@ -105,7 +105,10 @@ export async function clearPendingStartTripId(): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.remove(PENDING_START_KEY, cb))
 }
 
-export async function addDebugLog(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
+export async function addDebugLog(
+  entry: Omit<DebugLogEntry, 'ts'> & { ts?: string },
+  options: { forceServerSync?: boolean } = {},
+): Promise<void> {
   const write = async () => {
     const { debugLog, settings } = await getStorage()
     const pendingResult = await promisify<Record<string, unknown>>(cb =>
@@ -120,7 +123,7 @@ export async function addDebugLog(entry: Omit<DebugLogEntry, 'ts'> & { ts?: stri
       ts: entry.ts ?? new Date().toISOString(),
     }
     const newLog = [...existing, structuredEntry].slice(-MAX_DEBUG_LOG_ENTRIES)
-    const nextPending = shouldSyncLog(structuredEntry, settings)
+    const nextPending = options.forceServerSync || shouldSyncLog(structuredEntry, settings)
       ? [...pending, structuredEntry].slice(-MAX_PENDING_SERVER_LOG_ENTRIES)
       : pending
     await promisify<void>(cb => chrome.storage.local.set({
