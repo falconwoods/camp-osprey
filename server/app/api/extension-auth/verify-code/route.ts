@@ -1,13 +1,16 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { user } from '@/db/schema';
+import { user, userAuthEvents } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 import {
   jsonForExtensionAuthError,
+  normalizeExtensionClientInfo,
+  normalizeExtensionClientId,
   readExtensionAuthJson,
   verifyExtensionAuthCode,
 } from '@/lib/extension-auth';
+import { buildRequestContext } from '../../../../lib/request-context';
 
 type BetterAuthUser = {
   id: string;
@@ -20,9 +23,13 @@ type BetterAuthUser = {
 export async function POST(request: Request) {
   try {
     const body = await readExtensionAuthJson(request);
+    const clientId = normalizeExtensionClientId(body);
+    const clientInfo = normalizeExtensionClientInfo(body);
+    let existingUserBeforeVerify = false;
     const result = await verifyExtensionAuthCode(body, {
       findUserByEmail: async (email) => {
         const [row] = await db.select().from(user).where(eq(user.email, email));
+        existingUserBeforeVerify = Boolean(row);
         return row ?? null;
       },
       verifyCode: async (email, code) => {
@@ -47,6 +54,17 @@ export async function POST(request: Request) {
         };
       },
     });
+
+    try {
+      const context = await buildRequestContext(request, clientId, clientInfo);
+      await db.insert(userAuthEvents).values({
+        userId: result.user.id,
+        eventType: existingUserBeforeVerify ? 'login' : 'signup',
+        ...context,
+      });
+    } catch (err) {
+      console.error('[extension-auth] auth event insert failed:', err);
+    }
 
     return withExtensionCors(request, Response.json(result));
   } catch (err) {

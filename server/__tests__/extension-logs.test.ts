@@ -75,6 +75,8 @@ describe('extension log ingestion helpers', () => {
       userId: 'user-1',
       userEmail: 'user@example.com',
       clientId: 'client-1',
+      ipAddress: '203.0.113.10',
+      country: 'CA',
       clientInfo: { extensionVersion: '0.1.0', platformOs: 'mac', platformArch: 'arm' },
     });
 
@@ -93,6 +95,8 @@ describe('extension log ingestion helpers', () => {
     });
     expect(body.streams[0].values[0][1]).toContain('"userId":"user-1"');
     expect(body.streams[0].values[0][1]).toContain('"clientId":"client-1"');
+    expect(body.streams[0].values[0][1]).toContain('"ipAddress":"203.0.113.10"');
+    expect(body.streams[0].values[0][1]).toContain('"country":"CA"');
     expect(body.streams[0].values[0][1]).toContain('"clientInfo"');
     expect(body.streams[0].values[0][1]).toContain('"platformOs":"mac"');
   });

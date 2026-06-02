@@ -29,6 +29,13 @@
       "when": 1780344266299,
       "tag": "0003_bizarre_punisher",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780346938358,
+      "tag": "0004_redundant_hercules",
+      "breakpoints": true
     }
   ]
 }

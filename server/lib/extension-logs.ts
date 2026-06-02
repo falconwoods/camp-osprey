@@ -24,6 +24,8 @@ export interface ExtensionLogContext {
   userId: string;
   userEmail: string;
   clientId?: string;
+  ipAddress?: string;
+  country?: string;
   clientInfo?: ExtensionClientInfo;
 }
 
@@ -176,6 +178,8 @@ function groupEntriesForLoki(entries: ExtensionLogEntry[], context: ExtensionLog
         userId: context.userId,
         userEmail: context.userEmail,
         clientId: context.clientId,
+        ipAddress: context.ipAddress,
+        country: context.country,
         clientInfo: context.clientInfo,
       }),
     ]),

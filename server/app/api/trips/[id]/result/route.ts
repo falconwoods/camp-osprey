@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { sendEmail, buildResultEmail } from '@/lib/email';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
+import { buildRequestContext, normalizeRequestClientInfo } from '../../../../../lib/request-context';
 
 type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
 
@@ -57,6 +58,7 @@ export async function POST(
   const body = await request.json() as {
     outcome: Outcome;
     clientId?: string;
+    clientInfo?: unknown;
     matchedSite?: MatchedSite;
     error?: string;
     sendEmail?: boolean;
@@ -64,6 +66,7 @@ export async function POST(
   };
 
   const { outcome, clientId, matchedSite, error: bookingError, sendEmail: shouldSendEmail = true, tripSnapshot } = body;
+  const requestContext = await buildRequestContext(request, clientId, normalizeRequestClientInfo(body));
   let [trip] = await db
     .select()
     .from(trips)
@@ -141,6 +144,7 @@ export async function POST(
       matchedSite: matchedSite ?? null,
       error:       bookingError ?? null,
       emailSent:   false,
+      ...requestContext,
     })
     .returning();
 

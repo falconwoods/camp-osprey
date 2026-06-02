@@ -10,5 +10,5 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: { url: process.env.DATABASE_URL! },
-  tablesFilter: ['user*', 'session*', 'account*', 'verification*', 'trips*', 'booking_results*'],
+  tablesFilter: ['user*', 'session*', 'account*', 'verification*', 'trips*', 'booking_results*', 'user_auth_events*'],
 });

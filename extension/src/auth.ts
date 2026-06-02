@@ -1,6 +1,6 @@
 import type { ServerUser } from './types'
-import { clearAuthSession, getAuth, saveAuth } from './storage'
-import { serverFetch } from './serverApi'
+import { clearAuthSession, getAuth, getClientId, saveAuth } from './storage'
+import { getClientInfo, serverFetch } from './serverApi'
 
 export interface RequestCodeInput {
   email: string
@@ -12,16 +12,18 @@ export interface VerifyCodeInput {
 }
 
 export async function requestCode(input: RequestCodeInput): Promise<{ ok: true; isNewUser: boolean }> {
+  const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
   return serverFetch('/api/extension-auth/request-code', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, clientId, clientInfo }),
   })
 }
 
 export async function verifyCode(input: VerifyCodeInput): Promise<{ token: string; user: ServerUser }> {
+  const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
   const result = await serverFetch<{ token: string; user: ServerUser }>('/api/extension-auth/verify-code', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, clientId, clientInfo }),
   })
   await saveAuth({ token: result.token, user: result.user, lastEmail: result.user.email })
   return result

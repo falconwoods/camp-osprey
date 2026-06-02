@@ -179,7 +179,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       const serverLoggedIn = await validateAuth()
       if (!serverLoggedIn) {
         await logEntry({
-          level: 'warning',
+          level: 'debug',
           event: 'server_auth_missing',
           message: 'Not signed in to server; skipping scan',
           tripId: trip.id,

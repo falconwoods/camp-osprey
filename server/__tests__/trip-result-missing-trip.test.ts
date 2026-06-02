@@ -81,9 +81,22 @@ describe('trip result route missing trip recovery', () => {
     const { POST } = await import('../app/api/trips/[id]/result/route');
     const request = new Request('http://localhost:4000/api/trips/trip-1/result', {
       method: 'POST',
-      headers: { Origin: 'chrome-extension://acnelnljljoipopaijlhljbagpnapjoj' },
+      headers: {
+        Origin: 'chrome-extension://acnelnljljoipopaijlhljbagpnapjoj',
+        'x-forwarded-for': '203.0.113.10',
+        'x-vercel-ip-country': 'CA',
+        'x-vercel-ip-country-region': 'BC',
+        'x-vercel-ip-city': 'Vancouver',
+      },
       body: JSON.stringify({
         outcome: 'hold_placed',
+        clientId: 'client-1',
+        clientInfo: {
+          userAgent: 'test-agent',
+          platformOs: 'mac',
+          platformArch: 'arm',
+          extensionVersion: '0.1.0',
+        },
         matchedSite: {
           parkName: 'Alice Lake',
           sectionName: 'Main',
@@ -125,5 +138,20 @@ describe('trip result route missing trip recovery', () => {
       'Alice Lake',
       'Eric',
     );
+    const resultInsert = mocks.db.insert.mock.results[1].value.values;
+    expect(resultInsert).toHaveBeenCalledWith(expect.objectContaining({
+      tripId: 'trip-1',
+      userId: 'user-1',
+      outcome: 'hold_placed',
+      clientId: 'client-1',
+      ipAddress: '203.0.113.10',
+      country: 'CA',
+      region: 'BC',
+      city: 'Vancouver',
+      userAgent: 'test-agent',
+      platformOs: 'mac',
+      platformArch: 'arm',
+      extensionVersion: '0.1.0',
+    }));
   });
 });

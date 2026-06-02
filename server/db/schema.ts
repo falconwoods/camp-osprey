@@ -86,8 +86,36 @@ export const bookingResults = pgTable('booking_results', {
   matchedSite: jsonb('matchedSite'),
   error:       text('error'),
   emailSent:   boolean('emailSent').notNull().default(false),
+  clientId:    text('clientId'),
+  ipAddress:   text('ipAddress'),
+  country:     text('country'),
+  region:      text('region'),
+  city:        text('city'),
+  userAgent:   text('userAgent'),
+  platformOs:  text('platformOs'),
+  platformArch: text('platformArch'),
+  extensionVersion: text('extensionVersion'),
   createdAt:   timestamp('createdAt').notNull().defaultNow(),
 }, (t) => [
   index('booking_results_trip_idx').on(t.tripId),
   index('booking_results_user_idx').on(t.userId),
+]);
+
+export const userAuthEvents = pgTable('user_auth_events', {
+  id:               serial('id').primaryKey(),
+  userId:           text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  eventType:        text('eventType').notNull(),
+  clientId:         text('clientId'),
+  ipAddress:        text('ipAddress'),
+  country:          text('country'),
+  region:           text('region'),
+  city:             text('city'),
+  userAgent:        text('userAgent'),
+  platformOs:       text('platformOs'),
+  platformArch:     text('platformArch'),
+  extensionVersion: text('extensionVersion'),
+  createdAt:        timestamp('createdAt').notNull().defaultNow(),
+}, (t) => [
+  index('user_auth_events_user_idx').on(t.userId),
+  index('user_auth_events_type_idx').on(t.eventType),
 ]);

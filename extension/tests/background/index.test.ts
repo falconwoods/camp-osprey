@@ -227,6 +227,12 @@ describe('background scanner scheduling', () => {
       expect.objectContaining({ title: 'Sign In Required' }),
       expect.any(Function)
     )
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'debug',
+      event: 'server_auth_missing',
+      tripId: trip.id,
+      tripName: trip.name,
+    }))
   })
 
   it('does not repeat server sign-in notifications on every scan cycle', async () => {

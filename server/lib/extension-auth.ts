@@ -59,9 +59,23 @@ export type VerifyCodeDeps = {
   updateUserName?: (userId: string, name: string) => Promise<void>;
 };
 
+export interface ExtensionAuthClientInfo {
+  extensionVersion?: string;
+  userAgent?: string;
+  platformOs?: string;
+  platformArch?: string;
+  platformNaclArch?: string;
+}
+
 const pendingOtpNames = new Map<string, { name: string; expiresAt: number }>();
 
-function getExtensionAuthBody(body: unknown): { email?: unknown; code?: unknown; name?: unknown } {
+function getExtensionAuthBody(body: unknown): {
+  email?: unknown;
+  code?: unknown;
+  name?: unknown;
+  clientId?: unknown;
+  clientInfo?: unknown;
+} {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
   return body;
 }
@@ -100,6 +114,27 @@ export function normalizeExtensionCode(value: unknown): string {
   const code = value.trim();
   if (!/^\d{6}$/.test(code)) throw extensionAuthError('invalid_code');
   return code;
+}
+
+export function normalizeExtensionClientId(body: unknown): string | undefined {
+  const requestBody = getExtensionAuthBody(body);
+  return typeof requestBody.clientId === 'string' && requestBody.clientId
+    ? requestBody.clientId
+    : undefined;
+}
+
+export function normalizeExtensionClientInfo(body: unknown): ExtensionAuthClientInfo | undefined {
+  const requestBody = getExtensionAuthBody(body);
+  const clientInfo = (requestBody as { clientInfo?: unknown }).clientInfo;
+  if (!clientInfo || typeof clientInfo !== 'object' || Array.isArray(clientInfo)) return undefined;
+
+  const input = clientInfo as Partial<Record<keyof ExtensionAuthClientInfo, unknown>>;
+  const output: ExtensionAuthClientInfo = {};
+  for (const field of ['extensionVersion', 'userAgent', 'platformOs', 'platformArch', 'platformNaclArch'] as const) {
+    if (typeof input[field] === 'string' && input[field]) output[field] = input[field];
+  }
+
+  return Object.keys(output).length > 0 ? output : undefined;
 }
 
 function getErrorField(err: unknown, field: string): unknown {

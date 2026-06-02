@@ -8,6 +8,7 @@ import {
   normalizeExtensionLogEntries,
   sendExtensionLogsToLoki,
 } from '@/lib/extension-logs';
+import { getClientIp, getRequestCountry } from '../../../lib/request-context';
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -29,6 +30,8 @@ export async function POST(request: Request) {
       userId: session.user.id,
       userEmail: session.user.email,
       clientId,
+      ipAddress: getClientIp(request.headers),
+      country: getRequestCountry(request.headers),
       clientInfo,
     });
   } catch (err) {

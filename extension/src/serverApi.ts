@@ -76,7 +76,7 @@ function getPlatformInfo(): Promise<chrome.runtime.PlatformInfo | null> {
   })
 }
 
-async function getClientInfo(): Promise<ClientInfo> {
+export async function getClientInfo(): Promise<ClientInfo> {
   const platform = await getPlatformInfo()
   return {
     extensionVersion: chrome.runtime.getManifest?.().version,
@@ -91,11 +91,11 @@ export async function sendTripResult(
   tripId: string,
   payload: TripResultPayload,
 ): Promise<{ ok: true; emailSent: boolean }> {
-  const clientId = await getClientId()
+  const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
   return serverFetch(`/api/trips/${encodeURIComponent(tripId)}/result`, {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ ...payload, clientId }),
+    body: JSON.stringify({ ...payload, clientId, clientInfo }),
   })
 }
 

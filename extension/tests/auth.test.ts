@@ -20,7 +20,16 @@ describe('extension auth client', () => {
     await expect(requestCode({ email: 'user@example.com' })).resolves.toEqual({ ok: true, isNewUser: false })
 
     const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
-    expect(body).toEqual({ email: 'user@example.com' })
+    expect(body).toEqual(expect.objectContaining({
+      email: 'user@example.com',
+      clientId: expect.any(String),
+      clientInfo: expect.objectContaining({
+        extensionVersion: '0.1.0',
+        platformOs: 'mac',
+        platformArch: 'arm',
+      }),
+    }))
+    expect(body.name).toBeUndefined()
   })
 
   it('stores auth after verifying code without sending name', async () => {
@@ -32,7 +41,17 @@ describe('extension auth client', () => {
     await verifyCode({ email: 'user@example.com', code: '123456' })
 
     const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
-    expect(body).toEqual({ email: 'user@example.com', code: '123456' })
+    expect(body).toEqual(expect.objectContaining({
+      email: 'user@example.com',
+      code: '123456',
+      clientId: expect.any(String),
+      clientInfo: expect.objectContaining({
+        extensionVersion: '0.1.0',
+        platformOs: 'mac',
+        platformArch: 'arm',
+      }),
+    }))
+    expect(body.name).toBeUndefined()
     await expect(getAuth()).resolves.toEqual({
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
@@ -111,6 +130,13 @@ describe('extension auth client', () => {
     )
     const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer tok')
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string)
+    expect(body.clientId).toEqual(expect.any(String))
+    expect(body.clientInfo).toEqual(expect.objectContaining({
+      extensionVersion: '0.1.0',
+      platformOs: 'mac',
+      platformArch: 'arm',
+    }))
   })
 
   it('sends extension logs in a bearer-authenticated batch', async () => {
