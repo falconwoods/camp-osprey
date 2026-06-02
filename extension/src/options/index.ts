@@ -1,4 +1,4 @@
-import { getAuth, getClientId, getPendingStartTripId, getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
+import { getAuth, getClientId, getDebugLog, getPendingStartTripId, getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
@@ -363,7 +363,7 @@ watchLoginChanges(() => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
     if (activeTab === 'trips' && ('trips' in changes || 'auth' in changes)) void renderTripList()
-    if (activeTab === 'logs' && 'debugLog' in changes) void refreshDebugLog()
+    if (activeTab === 'logs' && 'debugLog' in changes) scheduleDebugLogRefresh()
   }
 })
 
@@ -796,6 +796,7 @@ async function savePaymentFromForm(): Promise<void> {
 let selectedTheme: Theme = 'auto'
 let selectedLogLevels = new Set<LogLevel>(ALL_LOG_LEVELS)
 let logAutoScroll = true
+let refreshDebugLogTimer: ReturnType<typeof setTimeout> | null = null
 
 function updateLogsTabVisibility(enabled: boolean): void {
   debugModeEnabled = enabled
@@ -883,11 +884,23 @@ document.getElementById('test-notif-btn')?.addEventListener('click', () => {
 })
 
 async function refreshDebugLog() {
-  const { debugLog } = await getStorage()
+  if (refreshDebugLogTimer) {
+    clearTimeout(refreshDebugLogTimer)
+    refreshDebugLogTimer = null
+  }
+  const debugLog = await getDebugLog()
   const box = document.getElementById('debug-log-box')
   if (!box) return
   box.innerHTML = renderDebugLogRows(debugLog, selectedLogLevels)
   if (logAutoScroll) box.scrollTop = box.scrollHeight
+}
+
+function scheduleDebugLogRefresh(): void {
+  if (refreshDebugLogTimer) return
+  refreshDebugLogTimer = setTimeout(() => {
+    refreshDebugLogTimer = null
+    void refreshDebugLog()
+  }, 250)
 }
 
 document.querySelectorAll('.log-level-btn').forEach(btn => {
@@ -929,7 +942,6 @@ async function init(): Promise<void> {
   await loadSettingsForm()
   await routeFromHash()
   await renderTripList()
-  await refreshDebugLog()
 }
 
 void init()

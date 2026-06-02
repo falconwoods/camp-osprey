@@ -160,8 +160,24 @@ describe('addDebugLog', () => {
     expect(setCall.debugLog[800]).toEqual(expect.objectContaining({ event: 'availability_result' }))
   })
 
-  it('keeps a larger local log history cap for long debug runs', async () => {
-    expect(MAX_DEBUG_LOG_ENTRIES).toBe(100_000)
+  it('keeps a bounded local log history because server sync owns durable history', async () => {
+    expect(MAX_DEBUG_LOG_ENTRIES).toBe(2_000)
+  })
+
+  it('trims local logs to the recent debug buffer', async () => {
+    const existing = Array.from({ length: MAX_DEBUG_LOG_ENTRIES }, (_, i) => entry(i))
+    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({ debugLog: existing }))
+    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+
+    await addDebugLog({ level: 'debug', event: 'availability_result', message: 'latest' })
+
+    const setCall = (chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(setCall.debugLog).toHaveLength(MAX_DEBUG_LOG_ENTRIES)
+    expect(setCall.debugLog[0]).toEqual(existing[1])
+    expect(setCall.debugLog[MAX_DEBUG_LOG_ENTRIES - 1]).toEqual(expect.objectContaining({
+      event: 'availability_result',
+      message: 'latest',
+    }))
   })
 
   it('adds an ISO timestamp to each structured log entry', async () => {

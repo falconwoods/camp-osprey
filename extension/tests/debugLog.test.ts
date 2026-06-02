@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DebugLogEntry, LogLevel } from '../src/types'
 import {
   EMPTY_DEBUG_LOG_MESSAGE,
+  MAX_RENDERED_DEBUG_LOG_ROWS,
   filterDebugLog,
   formatDebugLogAsJsonl,
   renderDebugLogRows,
@@ -101,5 +102,19 @@ describe('structured debug log helpers', () => {
     ]
 
     expect(formatDebugLogAsJsonl(entries, new Set<LogLevel>(['info']))).toBe(JSON.stringify(entries[1]))
+  })
+
+  it('renders only the newest bounded set of matching rows', () => {
+    const entries = Array.from({ length: MAX_RENDERED_DEBUG_LOG_ROWS + 2 }, (_, i) =>
+      entry({ event: `event_${i}`, message: `entry ${i}` })
+    )
+
+    const html = renderDebugLogRows(entries, new Set<LogLevel>(['info']))
+
+    expect(html).toContain(`Showing newest ${MAX_RENDERED_DEBUG_LOG_ROWS.toLocaleString()}`)
+    expect(html).not.toContain('>event_0<')
+    expect(html).not.toContain('>event_1<')
+    expect(html).toContain('>event_2<')
+    expect(html).toContain(`>event_${MAX_RENDERED_DEBUG_LOG_ROWS + 1}<`)
   })
 })

@@ -2,6 +2,7 @@ import type { DebugLogEntry, LogLevel } from './types'
 
 export const EMPTY_DEBUG_LOG_MESSAGE = 'No log entries match the selected filters.'
 export const ALL_LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warning', 'error']
+export const MAX_RENDERED_DEBUG_LOG_ROWS = 500
 
 const METADATA_FIELDS: Array<keyof DebugLogEntry> = [
   'tripName',
@@ -18,14 +19,20 @@ export function filterDebugLog(entries: DebugLogEntry[], levels: Set<LogLevel>):
   return entries.filter(entry => levels.has(entry.level))
 }
 
-export function renderDebugLogRows(entries: DebugLogEntry[], levels: Set<LogLevel>): string {
+export function renderDebugLogRows(
+  entries: DebugLogEntry[],
+  levels: Set<LogLevel>,
+  maxRows = MAX_RENDERED_DEBUG_LOG_ROWS,
+): string {
   const filtered = filterDebugLog(entries, levels)
+  const visible = filtered.slice(-maxRows)
+  const hiddenCount = filtered.length - visible.length
 
-  if (filtered.length === 0) {
+  if (visible.length === 0) {
     return `<div class="log-empty">${escapeHtml(EMPTY_DEBUG_LOG_MESSAGE)}</div>`
   }
 
-  return filtered.map(entry => {
+  const rows = visible.map(entry => {
     const rowClasses = [
       'log-row',
       `log-row--${entry.level}`,
@@ -43,6 +50,13 @@ export function renderDebugLogRows(entries: DebugLogEntry[], levels: Set<LogLeve
       '</div>',
     ].join('')
   }).join('')
+
+  if (hiddenCount <= 0) return rows
+
+  return [
+    `<div class="log-empty">Showing newest ${visible.length.toLocaleString()} of ${filtered.length.toLocaleString()} matching local log entries.</div>`,
+    rows,
+  ].join('')
 }
 
 export function formatDebugLogAsJsonl(entries: DebugLogEntry[], levels: Set<LogLevel>): string {

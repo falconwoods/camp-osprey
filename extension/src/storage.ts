@@ -1,6 +1,6 @@
 import type { AuthState, StorageData, Trip, PaymentConfig, Settings, DebugLogEntry } from './types'
 
-export const MAX_DEBUG_LOG_ENTRIES = 100_000
+export const MAX_DEBUG_LOG_ENTRIES = 2_000
 export const MAX_PENDING_SERVER_LOG_ENTRIES = 10_000
 export const PENDING_SERVER_LOGS_KEY = 'pendingServerLogs'
 let debugLogWriteQueue = Promise.resolve()
@@ -34,6 +34,15 @@ export async function getStorage(): Promise<StorageData> {
     status: (trip.status as string) === 'completed' ? 'paid' : trip.status,
   }))
   return data
+}
+
+export async function getDebugLog(): Promise<DebugLogEntry[]> {
+  const result = await promisify<Record<string, unknown>>(cb =>
+    chrome.storage.local.get(['debugLog'], cb)
+  )
+  return Array.isArray(result['debugLog'])
+    ? result['debugLog'].filter(isDebugLogEntry)
+    : []
 }
 
 export async function getClientId(): Promise<string> {
