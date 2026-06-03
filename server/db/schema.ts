@@ -1,6 +1,6 @@
 import {
   pgTable, text, boolean, timestamp, serial,
-  integer, jsonb, index,
+  integer, jsonb, index, uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 // ── better-auth required tables ───────────────────────────────────────────────
@@ -118,4 +118,109 @@ export const userAuthEvents = pgTable('user_auth_events', {
 }, (t) => [
   index('user_auth_events_user_idx').on(t.userId),
   index('user_auth_events_type_idx').on(t.eventType),
+]);
+
+export const userPointAccounts = pgTable('user_point_accounts', {
+  userId:    text('userId').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+  balance:   integer('balance').notNull().default(0),
+  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export const pointTransactions = pgTable('point_transactions', {
+  id:             serial('id').primaryKey(),
+  userId:         text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  type:           text('type').notNull(),
+  pointsDelta:    integer('pointsDelta').notNull(),
+  balanceAfter:   integer('balanceAfter').notNull(),
+  sourceType:     text('sourceType').notNull(),
+  sourceId:       text('sourceId').notNull(),
+  idempotencyKey: text('idempotencyKey').notNull(),
+  metadata:       jsonb('metadata'),
+  createdAt:      timestamp('createdAt').notNull().defaultNow(),
+}, (t) => [
+  index('point_transactions_user_idx').on(t.userId),
+  uniqueIndex('point_transactions_idempotency_idx').on(t.idempotencyKey),
+]);
+
+export const stripeCheckoutSessions = pgTable('stripe_checkout_sessions', {
+  id:                    serial('id').primaryKey(),
+  userId:                text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  packageId:             text('packageId').notNull(),
+  stripePriceId:         text('stripePriceId').notNull(),
+  stripeSessionId:       text('stripeSessionId').notNull(),
+  stripePaymentIntentId: text('stripePaymentIntentId'),
+  stripeCustomerId:      text('stripeCustomerId'),
+  status:                text('status').notNull(),
+  points:                integer('points').notNull(),
+  amountTotal:           integer('amountTotal'),
+  currency:              text('currency'),
+  metadata:              jsonb('metadata'),
+  createdAt:             timestamp('createdAt').notNull().defaultNow(),
+  updatedAt:             timestamp('updatedAt').notNull().defaultNow(),
+}, (t) => [
+  index('stripe_checkout_sessions_user_idx').on(t.userId),
+  uniqueIndex('stripe_checkout_sessions_session_idx').on(t.stripeSessionId),
+]);
+
+export const stripeWebhookEvents = pgTable('stripe_webhook_events', {
+  stripeEventId: text('stripeEventId').primaryKey(),
+  eventType:     text('eventType').notNull(),
+  processedAt:   timestamp('processedAt'),
+  status:        text('status').notNull(),
+  error:         text('error'),
+  createdAt:     timestamp('createdAt').notNull().defaultNow(),
+  updatedAt:     timestamp('updatedAt').notNull().defaultNow(),
+});
+
+export const bookingPaymentEvents = pgTable('booking_payment_events', {
+  id:                    serial('id').primaryKey(),
+  userId:                text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  tripId:                text('tripId').references(() => trips.id, { onDelete: 'set null' }),
+  clientEventId:         text('clientEventId'),
+  idempotencyKey:        text('idempotencyKey').notNull(),
+  provider:              text('provider').notNull(),
+  confirmationNumber:    text('confirmationNumber'),
+  providerReservationId: text('providerReservationId'),
+  providerTransactionId: text('providerTransactionId'),
+  parkName:              text('parkName').notNull(),
+  campgroundName:        text('campgroundName'),
+  sectionName:           text('sectionName'),
+  siteName:              text('siteName').notNull(),
+  resourceId:            text('resourceId'),
+  checkIn:               text('checkIn').notNull(),
+  checkOut:              text('checkOut').notNull(),
+  paidAt:                timestamp('paidAt'),
+  bookingUrl:            text('bookingUrl'),
+  amountPaid:            integer('amountPaid'),
+  currency:              text('currency'),
+  clientId:              text('clientId'),
+  ipAddress:             text('ipAddress'),
+  country:               text('country'),
+  region:                text('region'),
+  city:                  text('city'),
+  userAgent:             text('userAgent'),
+  platformOs:            text('platformOs'),
+  platformArch:          text('platformArch'),
+  extensionVersion:      text('extensionVersion'),
+  rawProviderSnapshot:   jsonb('rawProviderSnapshot'),
+  createdAt:             timestamp('createdAt').notNull().defaultNow(),
+}, (t) => [
+  index('booking_payment_events_user_idx').on(t.userId),
+  index('booking_payment_events_trip_idx').on(t.tripId),
+  uniqueIndex('booking_payment_events_idempotency_idx').on(t.idempotencyKey),
+]);
+
+export const bookingPointCharges = pgTable('booking_point_charges', {
+  id:                    serial('id').primaryKey(),
+  userId:                text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  bookingPaymentEventId: integer('bookingPaymentEventId').notNull().references(() => bookingPaymentEvents.id, { onDelete: 'cascade' }),
+  pointTransactionId:    integer('pointTransactionId').references(() => pointTransactions.id, { onDelete: 'set null' }),
+  pointsCharged:         integer('pointsCharged').notNull(),
+  status:                text('status').notNull(),
+  idempotencyKey:        text('idempotencyKey').notNull(),
+  createdAt:             timestamp('createdAt').notNull().defaultNow(),
+}, (t) => [
+  index('booking_point_charges_user_idx').on(t.userId),
+  uniqueIndex('booking_point_charges_idempotency_idx').on(t.idempotencyKey),
 ]);
