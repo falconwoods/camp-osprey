@@ -143,3 +143,70 @@ export async function sendExtensionLogs(
     body: JSON.stringify({ clientId, clientInfo, entries }),
   })
 }
+
+export interface PointsSummary {
+  balance: number
+  packages: Array<{ id: string; name: string; points: number }>
+  successfulBookingPointCost: number
+  recentTransactions: Array<{
+    id: number
+    type: string
+    pointsDelta: number
+    balanceAfter: number
+    sourceType: string
+    sourceId: string
+    createdAt: string
+  }>
+}
+
+export async function getPointsSummary(): Promise<PointsSummary> {
+  return serverFetch('/api/points', { method: 'GET', auth: true })
+}
+
+export async function createPointCheckout(packageId: string): Promise<{ checkoutUrl: string; stripeSessionId: string }> {
+  return serverFetch('/api/stripe/checkout', {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({ packageId }),
+  })
+}
+
+export interface BookingPaymentEventPayload {
+  tripId?: string
+  clientEventId?: string
+  idempotencyKey?: string
+  provider: 'bc_parks'
+  confirmationNumber?: string
+  providerReservationId?: string
+  providerTransactionId?: string
+  parkName: string
+  campgroundName?: string
+  sectionName?: string
+  siteName: string
+  resourceId?: string
+  checkIn: string
+  checkOut: string
+  paidAt?: string
+  bookingUrl?: string
+  amountPaid?: number
+  currency?: string
+  rawProviderSnapshot?: unknown
+}
+
+export async function sendBookingPaymentEvent(
+  payload: BookingPaymentEventPayload,
+): Promise<{
+  ok: true
+  bookingPaymentEventId: number
+  chargeStatus: 'charged' | 'failed_insufficient_points' | 'duplicate_ignored'
+  pointTransactionId: number | null
+  balanceAfter: number | null
+  duplicate: boolean
+}> {
+  const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
+  return serverFetch('/api/booking-payment-events', {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({ ...payload, clientId, clientInfo }),
+  })
+}
