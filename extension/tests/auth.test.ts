@@ -76,6 +76,26 @@ describe('extension auth client', () => {
     })
   })
 
+  it('stores a refreshed auth token returned by the server', async () => {
+    await saveAuth({ token: 'old-token', user: null, lastEmail: 'user@example.com' })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      id: 'u1',
+      email: 'user@example.com',
+      name: 'Eric',
+      role: 'user',
+    }), {
+      status: 200,
+      headers: { 'set-auth-token': 'new-token' },
+    })))
+
+    await expect(validateAuth()).resolves.toBe(true)
+    await expect(getAuth()).resolves.toEqual({
+      token: 'new-token',
+      user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
+      lastEmail: 'user@example.com',
+    })
+  })
+
   it('clears token and user when validation fails', async () => {
     await saveAuth({
       token: 'bad',

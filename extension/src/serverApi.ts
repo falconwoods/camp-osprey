@@ -1,4 +1,4 @@
-import { getAuth, getClientId } from './storage'
+import { getAuth, getClientId, saveAuth } from './storage'
 import { BACKEND_BASE_URL } from './config'
 import type { ClientInfo, DebugLogEntry, MatchedSite, Trip } from './types'
 
@@ -28,6 +28,14 @@ export async function serverFetch<T>(
     ...options,
     headers,
   })
+
+  const refreshedToken = options.auth ? response.headers.get('set-auth-token') : null
+  if (refreshedToken) {
+    const auth = await getAuth()
+    if (auth.token && auth.token !== refreshedToken) {
+      await saveAuth({ ...auth, token: refreshedToken })
+    }
+  }
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {

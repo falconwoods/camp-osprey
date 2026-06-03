@@ -35,7 +35,8 @@ export async function validateAuth(): Promise<boolean> {
 
   try {
     const user = await serverFetch<ServerUser>('/api/user', { method: 'GET', auth: true })
-    await saveAuth({ token: auth.token, user, lastEmail: user.email })
+    const latestAuth = await getAuth()
+    await saveAuth({ token: latestAuth.token ?? auth.token, user, lastEmail: user.email })
     return true
   } catch {
     await clearAuthSession()
