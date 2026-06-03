@@ -198,7 +198,7 @@ export async function recordBookingPaymentEventInDb(input: {
       where "userId" = ${input.userId}
       for update
     `);
-    const account = rows[0];
+    const account = (rows as unknown as Array<{ userId: string; balance: number }>)[0];
     if (!account) throw new Error(`Point account not found for user ${input.userId}`);
 
     if (Number(account.balance) < input.pointCost) {

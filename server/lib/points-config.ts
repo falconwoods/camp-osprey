@@ -18,9 +18,10 @@ function parsePositiveInteger(name: string, value: string | undefined, fallback:
 function isPointPackage(value: unknown): value is PointPackage {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const pkg = value as Partial<PointPackage>;
+  const points = pkg.points;
   return typeof pkg.id === 'string' && pkg.id.trim().length > 0
     && typeof pkg.name === 'string' && pkg.name.trim().length > 0
-    && Number.isInteger(pkg.points) && pkg.points > 0
+    && typeof points === 'number' && Number.isInteger(points) && points > 0
     && typeof pkg.stripePriceId === 'string' && pkg.stripePriceId.trim().startsWith('price_');
 }
 

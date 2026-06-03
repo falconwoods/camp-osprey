@@ -68,7 +68,7 @@ export async function applyPointTransactionInDb(
         where "userId" = ${userId}
         for update
       `);
-      const account = rows[0];
+      const account = (rows as unknown as Array<{ userId: string; balance: number }>)[0];
       if (!account) throw new Error(`Point account not found for user ${userId}`);
       return { userId: account.userId, balance: Number(account.balance) };
     },
