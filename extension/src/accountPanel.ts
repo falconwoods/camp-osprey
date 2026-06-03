@@ -27,7 +27,6 @@ export function renderAccountPanelHTML(auth: AuthState, pendingTripId: string | 
       ? `<div class="hint">Role: ${escapeHtml(auth.user.role)}</div>`
       : ''
     return `<div class="section account-summary account-management">
-      <div class="settings-card-title">Account</div>
       <div class="account-management-row">
         <div>
           <div class="account-management-label">Signed in as</div>
@@ -43,7 +42,6 @@ export function renderAccountPanelHTML(auth: AuthState, pendingTripId: string | 
     ? '<p class="account-management-copy">Sign in to continue starting this trip.</p>'
     : '<p class="account-management-copy">Sign in to start trips and receive booking updates.</p>'
   return `<div class="section account-summary account-management account-management-empty">
-    <div class="settings-card-title">Account</div>
     <div class="account-management-row">
       <div>
         <div class="account-management-label">Not signed in</div>
