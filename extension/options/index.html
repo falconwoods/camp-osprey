@@ -6,15 +6,15 @@
   <style>
     /* ── Theme variables ─────────────────────────────────────── */
     :root, [data-theme="dark"] {
-      --bg:           #0b1f16;
-      --bg-card:      #11291f;
-      --bg-input:     #0c2017;
+      --bg:           #102239;
+      --bg-card:      #152a42;
+      --bg-input:     #102239;
       --bg-blue:      rgba(125,183,215,0.13);
-      --border:       #254b38;
-      --text:         #edf7ef;
-      --text-muted:   #9db6a6;
-      --text-subtle:  #c6d8cc;
-      --text-dim:     #789184;
+      --border:       #27435e;
+      --text:         #edf5ff;
+      --text-muted:   #91a9bb;
+      --text-subtle:  #bfd0df;
+      --text-dim:     #6f879a;
       --green:        #7ddc9c;
       --green-subtle: rgba(125,220,156,0.14);
       --green-border: rgba(125,220,156,0.3);
@@ -126,7 +126,6 @@
     .trip-list-item.failed    { border-left-color: #ef4444; }
     .trip-list-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 7px; }
     .trip-list-name { font-weight: 800; font-size: 19px; line-height: 1.2; }
-    .trip-edit-hint { color: var(--text-subtle); font-size: 12px; font-weight: 500; margin-left: 12px; }
     .trip-list-meta { color: var(--text-subtle); font-size: 14px; margin-top: 8px; margin-bottom: 10px; }
     .trip-action-zone { display: flex; flex-direction: column; align-items: stretch; gap: 8px; flex-shrink: 0; }
     .match-info { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 9px 12px; font-size: 13px; color: var(--green); margin-top: 12px; }
@@ -141,14 +140,14 @@
     .header-account { margin-left: auto; flex: 0 1 auto; }
     .account-cta { display: flex; align-items: center; gap: 12px; border-radius: 8px; }
     .account-cta-signed-in { width: fit-content; min-width: 300px; justify-content: flex-start; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 12px; font-size: 14px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
-    .account-cta-warning { width: fit-content; min-width: 300px; background: var(--amber-subtle); border: 1px solid var(--amber-border); color: var(--amber); padding: 10px 12px; }
+    .account-cta-warning { width: fit-content; min-width: 300px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 12px; }
     .account-cta-copy { flex: 1; font-size: 13px; line-height: 1.35; }
     .account-cta-copy strong { font-size: 15px; }
     .account-check, .account-lock { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .account-check { width: 22px; height: 22px; border-radius: 999px; background: var(--green); color: #fff; }
-    .account-lock { width: 34px; height: 34px; border-radius: 999px; border: 1px solid var(--amber-border); color: var(--amber); }
+    .account-lock { width: 22px; height: 22px; border-radius: 999px; background: var(--green-subtle); border: 1px solid var(--green-border); color: var(--green); }
     .account-check .icon { width: 15px; height: 15px; }
-    .account-lock .icon { width: 18px; height: 18px; }
+    .account-lock .icon { width: 13px; height: 13px; }
     .icon-only-btn { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; background: transparent; color: var(--text-subtle); cursor: pointer; }
     .account-sign-in-btn { color: #fff; background: var(--green); border-color: var(--green); }
     .payment-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; box-shadow: 0 7px 18px rgba(15,23,42,0.07); overflow: hidden; }
@@ -348,43 +347,43 @@
       --red-border: rgba(216,63,63,0.24);
     }
     [data-theme="dark"] {
-      --co-page: #0b1f16;
-      --co-page-soft: #10291d;
-      --co-surface: rgba(17,41,31,0.92);
-      --co-surface-solid: #11291f;
-      --co-surface-muted: #173626;
-      --co-border: #254b38;
-      --co-border-strong: #4d9b6a;
-      --co-text: #edf7ef;
-      --co-text-muted: #c6d8cc;
-      --co-text-soft: #9db6a6;
+      --co-page: #102239;
+      --co-page-soft: #142c47;
+      --co-surface: rgba(18,37,58,0.92);
+      --co-surface-solid: #152a42;
+      --co-surface-muted: #1b3652;
+      --co-border: #27435e;
+      --co-border-strong: #2f8a75;
+      --co-text: #edf5ff;
+      --co-text-muted: #bfd0df;
+      --co-text-soft: #91a9bb;
       --co-brand: #7ddc9c;
-      --co-brand-dark: #9ce9b1;
+      --co-brand-dark: #22c55e;
       --co-brand-soft: rgba(125,220,156,0.14);
       --co-blue: #7db7d7;
       --co-amber: #f6c568;
       --co-red: #fb7185;
       --co-bottom-image: url("../images/bg_bottom_dark.jpg");
-      --co-page-gradient: linear-gradient(180deg, rgba(24,64,43,0.82) 0, rgba(11,31,22,0.58) 132px, transparent 360px);
-      --co-bottom-gradient: linear-gradient(180deg, rgba(11,31,22,0) 0, rgba(11,31,22,0) 46%, rgba(11,31,22,0.08) 66%, rgba(11,31,22,0.02) 82%, rgba(11,31,22,0.24) 100%);
-      --co-header-glass: rgba(17,41,31,0.84);
-      --co-control: rgba(22,53,38,0.82);
-      --co-control-soft: rgba(17,41,31,0.62);
-      --co-control-hover: rgba(30,67,48,0.86);
-      --co-card: rgba(17,41,31,0.78);
+      --co-page-gradient: linear-gradient(180deg, rgba(23,53,86,0.76) 0, rgba(16,34,57,0.54) 132px, transparent 360px);
+      --co-bottom-gradient: linear-gradient(180deg, rgba(16,34,57,0) 0, rgba(16,34,57,0) 46%, rgba(16,34,57,0.08) 66%, rgba(16,34,57,0.02) 82%, rgba(16,34,57,0.24) 100%);
+      --co-header-glass: rgba(18,37,58,0.84);
+      --co-control: rgba(24,49,75,0.82);
+      --co-control-soft: rgba(18,37,58,0.62);
+      --co-control-hover: rgba(28,59,88,0.86);
+      --co-card: rgba(18,37,58,0.78);
       --co-on-brand: #06130b;
       --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
       --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
 
       --bg: var(--co-page);
       --bg-card: var(--co-surface-solid);
-      --bg-input: #0c2017;
+      --bg-input: #102239;
       --bg-blue: rgba(125,183,215,0.13);
       --border: var(--co-border);
       --text: var(--co-text);
       --text-muted: var(--co-text-soft);
       --text-subtle: var(--co-text-muted);
-      --text-dim: #9db6a6;
+      --text-dim: #91a9bb;
       --green: var(--co-brand);
       --green-subtle: var(--co-brand-soft);
       --green-border: rgba(125,220,156,0.3);
@@ -397,43 +396,43 @@
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
-        --co-page: #0b1f16;
-        --co-page-soft: #10291d;
-        --co-surface: rgba(17,41,31,0.92);
-        --co-surface-solid: #11291f;
-        --co-surface-muted: #173626;
-        --co-border: #254b38;
-        --co-border-strong: #4d9b6a;
-        --co-text: #edf7ef;
-        --co-text-muted: #c6d8cc;
-        --co-text-soft: #9db6a6;
+        --co-page: #102239;
+        --co-page-soft: #142c47;
+        --co-surface: rgba(18,37,58,0.92);
+        --co-surface-solid: #152a42;
+        --co-surface-muted: #1b3652;
+        --co-border: #27435e;
+        --co-border-strong: #2f8a75;
+        --co-text: #edf5ff;
+        --co-text-muted: #bfd0df;
+        --co-text-soft: #91a9bb;
         --co-brand: #7ddc9c;
-        --co-brand-dark: #9ce9b1;
+        --co-brand-dark: #22c55e;
         --co-brand-soft: rgba(125,220,156,0.14);
         --co-blue: #7db7d7;
         --co-amber: #f6c568;
         --co-red: #fb7185;
         --co-bottom-image: url("../images/bg_bottom_dark.jpg");
-        --co-page-gradient: linear-gradient(180deg, rgba(24,64,43,0.82) 0, rgba(11,31,22,0.58) 132px, transparent 360px);
-        --co-bottom-gradient: linear-gradient(180deg, rgba(11,31,22,0) 0, rgba(11,31,22,0) 46%, rgba(11,31,22,0.08) 66%, rgba(11,31,22,0.02) 82%, rgba(11,31,22,0.24) 100%);
-        --co-header-glass: rgba(17,41,31,0.84);
-        --co-control: rgba(22,53,38,0.82);
-        --co-control-soft: rgba(17,41,31,0.62);
-        --co-control-hover: rgba(30,67,48,0.86);
-        --co-card: rgba(17,41,31,0.78);
+        --co-page-gradient: linear-gradient(180deg, rgba(23,53,86,0.76) 0, rgba(16,34,57,0.54) 132px, transparent 360px);
+        --co-bottom-gradient: linear-gradient(180deg, rgba(16,34,57,0) 0, rgba(16,34,57,0) 46%, rgba(16,34,57,0.08) 66%, rgba(16,34,57,0.02) 82%, rgba(16,34,57,0.24) 100%);
+        --co-header-glass: rgba(18,37,58,0.84);
+        --co-control: rgba(24,49,75,0.82);
+        --co-control-soft: rgba(18,37,58,0.62);
+        --co-control-hover: rgba(28,59,88,0.86);
+        --co-card: rgba(18,37,58,0.78);
         --co-on-brand: #06130b;
         --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
         --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
 
         --bg: var(--co-page);
         --bg-card: var(--co-surface-solid);
-        --bg-input: #0c2017;
+        --bg-input: #102239;
         --bg-blue: rgba(125,183,215,0.13);
         --border: var(--co-border);
         --text: var(--co-text);
         --text-muted: var(--co-text-soft);
         --text-subtle: var(--co-text-muted);
-        --text-dim: #9db6a6;
+        --text-dim: #91a9bb;
         --green: var(--co-brand);
         --green-subtle: var(--co-brand-soft);
         --green-border: rgba(125,220,156,0.3);
@@ -544,19 +543,43 @@
       border-color: var(--co-border);
       color: var(--co-text);
     }
-    .account-check,
-    .account-lock {
-      width: 34px;
-      height: 34px;
+    .account-cta-signed-in,
+    .account-cta-warning {
+      min-height: 46px;
+      gap: 10px;
+      padding: 8px 12px;
+    }
+    .account-check {
+      width: 24px;
+      height: 24px;
       border-radius: 999px;
-      background: var(--co-brand-dark);
-      color: var(--co-on-brand);
-      border: 0;
+      background: var(--co-brand-soft);
+      color: var(--co-brand);
+      border: 1px solid var(--co-border-strong);
+    }
+    .account-check .icon {
+      width: 13px;
+      height: 13px;
+    }
+    .account-lock {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--co-brand-soft);
+      color: var(--co-brand);
+      border: 1px solid var(--co-border-strong);
+    }
+    .account-lock .icon {
+      width: 13px;
+      height: 13px;
     }
     .account-cta-copy { font-size: 13px; color: var(--co-text-muted); }
     .account-sign-in-btn { width: auto; min-width: 84px; color: var(--co-brand); border-color: var(--co-border-strong); }
 
-    #tab-trips,
+    #tab-trips {
+      max-width: 980px;
+      margin: 0 auto;
+    }
     #tab-account,
     #tab-payment,
     #tab-logs {
@@ -636,11 +659,73 @@
       font-weight: 650;
     }
     .btn-add {
-      max-width: 1180px;
+      max-width: 980px;
       margin: 16px auto 0;
       background: var(--co-control-soft);
       border-color: var(--co-border-strong);
       color: var(--co-brand);
+      min-height: 42px;
+      padding: 8px 12px;
+      font-size: 13px;
+      border-radius: 6px;
+      font-weight: 800;
+    }
+    .trip-list-item {
+      border-left-width: 4px;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .trip-list-header {
+      gap: 14px;
+      margin-bottom: 6px;
+    }
+    .trip-list-name {
+      color: var(--co-text);
+      font-size: 14px;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+    .trip-list-meta {
+      margin-top: 6px;
+      margin-bottom: 8px;
+      color: var(--co-text-muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .trip-action-zone {
+      gap: 6px;
+    }
+    .trip-action-zone .trip-action-btn {
+      min-width: 108px;
+      padding: 7px 11px;
+      font-size: 12px;
+      gap: 6px;
+    }
+    .trip-action-zone .trip-action-btn .icon {
+      width: 14px;
+      height: 14px;
+    }
+    .match-info {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .status-badge {
+      gap: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .status-badge .icon {
+      width: 12px;
+      height: 12px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
     }
 
     .settings-layout {

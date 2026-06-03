@@ -21,7 +21,7 @@ let dateMode: 'specific' | 'recurring' = 'specific'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus'
+type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus' | 'edit'
 
 async function syncTripBestEffort(trip: Trip): Promise<void> {
   try {
@@ -47,6 +47,7 @@ function icon(name: IconName): string {
     check: '<path d="m20 6-11 11-5-5"/>',
     chevronDown: '<path d="m6 9 6 6 6-6"/>',
     plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   }
   return `<svg ${attrs}>${paths[name]}</svg>`
 }
@@ -313,14 +314,15 @@ async function renderTripList() {
       : ''
 
     const warnings = getTripWarnings(t)
-    return `<div class="trip-list-item ${t.status}" data-edit="${t.id}" style="cursor:pointer">
+    return `<div class="trip-list-item ${t.status}">
       <div class="trip-list-header">
         <div>
-          <span class="trip-list-name">${escapeHtml(t.name)} <span class="trip-edit-hint">tap to edit</span></span>
+          <span class="trip-list-name">${escapeHtml(t.name)}</span>
           <div class="trip-list-meta">${escapeHtml(parkNames)} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[t.mode]}</div>
         </div>
         <div class="trip-action-zone">
           ${actionBtnHTML(t)}
+          <button class="trip-action-btn" type="button" data-id="${t.id}" data-edit-trip="true">${icon('edit')} Edit</button>
           <button class="trip-action-btn trip-delete-btn" type="button" data-id="${t.id}" data-delete="true">${icon('trash')} Delete</button>
         </div>
       </div>
@@ -330,15 +332,10 @@ async function renderTripList() {
     </div>`
   }).join('')
 
-  // Action zone (status badge + Start/Pause) shouldn't bubble to the card-edit handler
-  list.querySelectorAll('.trip-action-zone').forEach(el => {
-    el.addEventListener('click', e => e.stopPropagation())
-  })
-
-  // Whole card → edit
-  list.querySelectorAll('[data-edit]').forEach(el => {
-    el.addEventListener('click', () => {
-      const trip = trips.find(t => t.id === (el as HTMLElement).dataset['edit'])
+  list.querySelectorAll('[data-edit-trip]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const trip = trips.find(t => t.id === (btn as HTMLElement).dataset['id'])
       if (trip) openEditor(trip)
     })
   })
