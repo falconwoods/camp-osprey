@@ -1,14 +1,18 @@
-import { getAuth, getClientId, getDebugLog, getPendingStartTripId, getStorage, saveTrips, savePayment, saveSettings, updateTrip, clearDebugLog } from '../storage'
+import { getAuth, getClientId, getPendingStartTripId, getStorage, saveTrips, updateTrip } from '../storage'
 import { BCParksProvider } from '../providers/bcparks'
 import { expandDateRange, isBookable } from '../dates'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { isLoggedIn, watchLoginChanges } from '../background/login'
-import { ALL_LOG_LEVELS, formatDebugLogAsJsonl, renderDebugLogRows } from '../debugLog'
-import { renderAccountPanelHTML, renderAuthPanelHTML, bindAccountPanel } from '../accountPanel'
+import { renderAuthPanelHTML, bindAccountPanel } from '../accountPanel'
 import { clearPendingStartTripId, consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
 import { softDeleteTripOnServer, syncTripToServer } from '../serverApi'
-import type { AuthState, Trip, DateRange, Park, Theme, LogLevel, Settings } from '../types'
+import { AccountPage } from './settings/accountPage'
+import { LogsPage } from './settings/logsPage'
+import { PaymentPage } from './settings/paymentPage'
+import { SettingsPage } from './settings/settingsPage'
+import { escapeHtml, icon, type IconName } from './settings/shared'
+import type { Trip, DateRange, Park } from '../types'
 
 // Apply saved theme before anything renders
 getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
@@ -21,7 +25,6 @@ let dateMode: 'specific' | 'recurring' = 'specific'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus' | 'edit'
 
 async function syncTripBestEffort(trip: Trip): Promise<void> {
   try {
@@ -29,27 +32,6 @@ async function syncTripBestEffort(trip: Trip): Promise<void> {
   } catch (err) {
     console.warn('Trip sync failed:', err)
   }
-}
-
-function icon(name: IconName): string {
-  const attrs = 'class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
-  const paths: Record<IconName, string> = {
-    tent: '<path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/>',
-    card: '<rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/><path d="M6 16h.01"/><path d="M10 16h4"/>',
-    settings: '<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/>',
-    user: '<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
-    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
-    play: '<path d="m8 5 11 7-11 7Z"/>',
-    pause: '<path d="M8 5v14"/><path d="M16 5v14"/>',
-    refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.25"/><path d="M3 12A9 9 0 0 1 18.5 5.75"/><path d="M18 2v4h-4"/><path d="M6 22v-4h4"/>',
-    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
-    lock: '<rect width="16" height="11" x="4" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-    check: '<path d="m20 6-11 11-5-5"/>',
-    chevronDown: '<path d="m6 9 6 6 6-6"/>',
-    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
-    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
-  }
-  return `<svg ${attrs}>${paths[name]}</svg>`
 }
 
 function upcomingWindows(range: DateRange) {
@@ -94,15 +76,6 @@ function matchSummaryHTML(match: Trip['lastMatch']): string {
   return `${match.parkName} › ${label} · ${match.checkIn} → ${match.checkOut}${timeLabel}`
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 // ── Tab switching ──────────────────────────────────────────────────────────
 
 type OptionsTab = 'trips' | 'settings' | 'account' | 'payment' | 'logs'
@@ -110,6 +83,16 @@ const OPTIONS_TABS: OptionsTab[] = ['trips', 'settings', 'account', 'payment', '
 let debugModeEnabled = false
 let activeTab: OptionsTab = tabFromHash()
 let authDialogOpen = false
+
+const accountPage = new AccountPage({
+  openAuthDialog,
+  renderHeaderAccount,
+  renderTripList,
+  startTripNow,
+})
+const logsPage = new LogsPage()
+const paymentPage = new PaymentPage({ openAuthDialog })
+const settingsPage = new SettingsPage({ onDebugModeChange: updateLogsTabVisibility })
 
 function selectTab(name: OptionsTab): void {
   if (name === 'logs' && !debugModeEnabled) name = 'trips'
@@ -218,23 +201,19 @@ async function renderHeaderAccount(authEmail?: string | null): Promise<void> {
 }
 
 async function renderAccount(): Promise<void> {
-  const root = document.getElementById('account-root')
-  if (!root) return
-  const auth = await getAuth()
-  const pendingTripId = await getPendingStartTripId()
-  root.innerHTML = renderAccountPanelHTML(auth, pendingTripId)
-  document.getElementById('account-open-auth-btn')?.addEventListener('click', () => {
-    void openAuthDialog()
-  })
-  bindAccountPanel(async () => {
-    const tripId = await consumePendingStartTripId()
-    if (tripId) await startTripNow(tripId)
-    await renderAccount()
-    await renderTripList()
-  }, async () => {
-    await renderAccount()
-    await renderHeaderAccount()
-  })
+  await accountPage.render()
+}
+
+async function renderPayment(): Promise<void> {
+  await paymentPage.render()
+}
+
+async function refreshDebugLog(): Promise<void> {
+  await logsPage.refresh()
+}
+
+function scheduleDebugLogRefresh(): void {
+  logsPage.scheduleRefresh()
 }
 
 function authDialogRoot(): HTMLElement {
@@ -738,129 +717,7 @@ document.getElementById('delete-trip-btn')!.addEventListener('click', async () =
   if (editingTripId !== deletedTripId) document.getElementById('back-btn')!.click()
 })
 
-// ── Payment ────────────────────────────────────────────────────────────────
-
-function paymentSectionHTML(auth: AuthState): string {
-  const signedIn = Boolean(auth.user)
-  const disabled = signedIn ? '' : 'disabled'
-  const lockedClass = signedIn ? '' : ' locked'
-  const actionButton = signedIn
-    ? '<button class="btn-primary" id="save-payment-btn">Save Payment Info</button>'
-    : '<button class="btn-primary" id="payment-sign-in-btn" type="button">Sign in to save payment info</button>'
-  const editButton = signedIn
-    ? `<button class="btn-secondary" type="button">${icon('settings')} Edit</button>`
-    : ''
-  const info = signedIn
-    ? ''
-    : `<div class="payment-info">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-        <div><strong>Sign in to add or edit payment information.</strong><br>Your payment details are stored locally on this device only.</div>
-      </div>`
-
-  return `<div class="payment-card${lockedClass}">
-    <div class="payment-card-header">
-      <div>
-        <div class="payment-title-row">
-          <h2>Payment Details</h2>
-          <span class="payment-pill">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-5"/></svg>
-            Stored locally on this device
-          </span>
-        </div>
-      </div>
-      ${editButton}
-    </div>
-    <div class="payment-form">
-      ${info}
-      <div class="payment-grid">
-        <div class="payment-field">
-          <label for="card-number">Card number</label>
-          <input class="input" id="card-number" placeholder="Card number" ${disabled}>
-        </div>
-        <div class="payment-field">
-          <label for="card-holder">Name on card</label>
-          <input class="input" id="card-holder" placeholder="Full name as shown on card" ${disabled}>
-        </div>
-        <div class="payment-field">
-          <label for="card-expiry">Expiry date</label>
-          <input class="input" id="card-expiry" placeholder="MM / YY" ${disabled}>
-        </div>
-        <div class="payment-field">
-          <label for="card-cvv">CVV</label>
-          <input class="input" id="card-cvv" placeholder="CVV" ${disabled}>
-        </div>
-        <div class="payment-field payment-field-full">
-          <label for="billing-address">Billing address</label>
-          <input class="input" id="billing-address" placeholder="Street address" ${disabled}>
-        </div>
-        <div class="payment-field payment-field-full">
-          <label for="billing-postal">Postal / Zip code</label>
-          <input class="input" id="billing-postal" placeholder="Postal / Zip code" ${disabled}>
-        </div>
-        <div class="payment-field">
-          <label for="party-size">Party size</label>
-          <input class="input" id="party-size" type="number" min="1" max="8" placeholder="Number of people" ${disabled}>
-        </div>
-      </div>
-    </div>
-    <div class="payment-local-note">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="16" height="11" x="4" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-      Your payment details are stored locally on this device only.
-    </div>
-    <div class="payment-actions">
-      <button class="btn-secondary" id="cancel-payment-btn" type="button">Cancel</button>
-      ${actionButton}
-    </div>
-  </div>`
-}
-
-async function renderPaymentSection(auth: AuthState): Promise<void> {
-  const root = document.getElementById('payment-root')
-  if (!root) return
-  root.innerHTML = paymentSectionHTML(auth)
-  document.getElementById('cancel-payment-btn')?.addEventListener('click', () => void loadPaymentForm())
-  document.getElementById('save-payment-btn')?.addEventListener('click', () => void savePaymentFromForm())
-  document.getElementById('payment-sign-in-btn')?.addEventListener('click', () => void openAuthDialog())
-  await loadPaymentForm()
-}
-
-async function renderPayment(): Promise<void> {
-  await renderPaymentSection(await getAuth())
-}
-
-async function loadPaymentForm() {
-  const { payment } = await getStorage()
-  if (!payment) return
-  const cardNumber = document.getElementById('card-number') as HTMLInputElement | null
-  if (!cardNumber) return
-  cardNumber.value = payment.cardNumber
-  ;(document.getElementById('card-holder') as HTMLInputElement).value = payment.cardHolder
-  ;(document.getElementById('card-expiry') as HTMLInputElement).value = payment.cardExpiry
-  ;(document.getElementById('card-cvv') as HTMLInputElement).value = payment.cardCvv
-  ;(document.getElementById('billing-address') as HTMLInputElement).value = payment.billingAddress ?? ''
-  ;(document.getElementById('billing-postal') as HTMLInputElement).value = payment.billingPostal ?? ''
-  ;(document.getElementById('party-size') as HTMLInputElement).value = String(payment.partySize)
-}
-
-async function savePaymentFromForm(): Promise<void> {
-  await savePayment({
-    cardNumber: (document.getElementById('card-number') as HTMLInputElement).value,
-    cardHolder: (document.getElementById('card-holder') as HTMLInputElement).value,
-    cardExpiry: (document.getElementById('card-expiry') as HTMLInputElement).value,
-    cardCvv: (document.getElementById('card-cvv') as HTMLInputElement).value,
-    billingAddress: (document.getElementById('billing-address') as HTMLInputElement).value,
-    billingPostal: (document.getElementById('billing-postal') as HTMLInputElement).value,
-    partySize: parseInt((document.getElementById('party-size') as HTMLInputElement).value) || 1,
-  })
-  alert('Payment info saved.')
-}
-
-// ── Settings ───────────────────────────────────────────────────────────────
-
-let selectedTheme: Theme = 'auto'
-let selectedLogLevels = new Set<LogLevel>(ALL_LOG_LEVELS)
-let logAutoScroll = true
-let refreshDebugLogTimer: ReturnType<typeof setTimeout> | null = null
+// ── Settings pages ─────────────────────────────────────────────────────────
 
 function updateLogsTabVisibility(enabled: boolean): void {
   debugModeEnabled = enabled
@@ -873,136 +730,15 @@ function updateLogsTabVisibility(enabled: boolean): void {
   }
 }
 
-function updateThemeBtns(theme: Theme) {
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.classList.toggle('active', (btn as HTMLElement).dataset['themeChoice'] === theme)
-  })
+async function loadSettingsForm(): Promise<void> {
+  await settingsPage.loadForm()
 }
-
-function currentSettings(): Settings {
-  const logSyncMinLevel = document.getElementById('log-sync-min-level') as HTMLSelectElement | null
-  return {
-    pollIntervalSeconds: parseInt((document.getElementById('poll-interval') as HTMLSelectElement).value) as Settings['pollIntervalSeconds'],
-    debugMode: (document.getElementById('debug-mode') as HTMLInputElement).checked,
-    emailOnSiteFound: (document.getElementById('email-on-site-found') as HTMLInputElement | null)?.checked ?? false,
-    theme: selectedTheme,
-    logSyncMinLevel: (logSyncMinLevel?.value ?? 'info') as LogLevel,
-  }
-}
-
-document.querySelectorAll('.theme-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    selectedTheme = (btn as HTMLElement).dataset['themeChoice'] as Theme
-    applyTheme(selectedTheme)
-    updateThemeBtns(selectedTheme)
-    await saveSettings(currentSettings())
-  })
-})
-
-async function loadSettingsForm() {
-  const { settings } = await getStorage()
-  ;(document.getElementById('poll-interval') as HTMLSelectElement).value = String(settings.pollIntervalSeconds)
-  const logSyncMinLevel = document.getElementById('log-sync-min-level') as HTMLSelectElement | null
-  if (logSyncMinLevel) logSyncMinLevel.value = settings.logSyncMinLevel ?? 'info'
-  const debugEl = document.getElementById('debug-mode') as HTMLInputElement
-  debugEl.checked = settings.debugMode ?? false
-  const emailOnSiteFoundEl = document.getElementById('email-on-site-found') as HTMLInputElement | null
-  if (emailOnSiteFoundEl) emailOnSiteFoundEl.checked = settings.emailOnSiteFound ?? false
-  updateLogsTabVisibility(debugEl.checked)
-  selectedTheme = settings.theme ?? 'auto'
-  updateThemeBtns(selectedTheme)
-}
-
-document.getElementById('debug-mode')!.addEventListener('change', async () => {
-  updateLogsTabVisibility((document.getElementById('debug-mode') as HTMLInputElement).checked)
-  await saveSettings(currentSettings())
-})
-
-document.getElementById('email-on-site-found')?.addEventListener('change', async () => {
-  await saveSettings(currentSettings())
-})
-
-document.getElementById('poll-interval')!.addEventListener('change', async () => {
-  await saveSettings(currentSettings())
-})
-
-document.getElementById('log-sync-min-level')?.addEventListener('change', async () => {
-  await saveSettings(currentSettings())
-})
-
-document.getElementById('test-notif-btn')?.addEventListener('click', () => {
-  const id = `camposprey-test-${Date.now()}`
-  chrome.notifications.create(id, {
-    type: 'basic',
-    iconUrl: chrome.runtime.getURL('icons/icon48.png'),
-    title: 'CampOsprey — Notifications working ✓',
-    message: 'If you see this, notifications are set up correctly.',
-    requireInteraction: false,
-  }, createdId => {
-    if (chrome.runtime.lastError) {
-      alert(`Notification failed: ${chrome.runtime.lastError.message}\n\nCheck that Chrome has notification permission in macOS System Settings → Notifications → Google Chrome.`)
-    } else {
-      console.log('[CampOsprey] Test notification sent:', createdId)
-    }
-  })
-})
-
-async function refreshDebugLog() {
-  if (refreshDebugLogTimer) {
-    clearTimeout(refreshDebugLogTimer)
-    refreshDebugLogTimer = null
-  }
-  const debugLog = await getDebugLog()
-  const box = document.getElementById('debug-log-box')
-  if (!box) return
-  box.innerHTML = renderDebugLogRows(debugLog, selectedLogLevels)
-  if (logAutoScroll) box.scrollTop = box.scrollHeight
-}
-
-function scheduleDebugLogRefresh(): void {
-  if (refreshDebugLogTimer) return
-  refreshDebugLogTimer = setTimeout(() => {
-    refreshDebugLogTimer = null
-    void refreshDebugLog()
-  }, 250)
-}
-
-document.querySelectorAll('.log-level-btn').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const level = (btn as HTMLElement).dataset['logLevel'] as LogLevel
-    if (selectedLogLevels.has(level)) selectedLogLevels.delete(level)
-    else selectedLogLevels.add(level)
-    btn.classList.toggle('active', selectedLogLevels.has(level))
-    await refreshDebugLog()
-  })
-})
-
-document.getElementById('log-autoscroll')!.addEventListener('change', () => {
-  logAutoScroll = (document.getElementById('log-autoscroll') as HTMLInputElement).checked
-  if (logAutoScroll) {
-    const box = document.getElementById('debug-log-box')
-    if (box) box.scrollTop = box.scrollHeight
-  }
-})
-
-document.getElementById('clear-log-btn')!.addEventListener('click', async () => {
-  await clearDebugLog()
-  await refreshDebugLog()
-})
-
-document.getElementById('copy-log-jsonl-btn')!.addEventListener('click', async () => {
-  const { debugLog } = await getStorage()
-  const text = formatDebugLogAsJsonl(debugLog, selectedLogLevels)
-  await navigator.clipboard.writeText(text)
-  const btn = document.getElementById('copy-log-jsonl-btn')!
-  const original = btn.textContent
-  btn.textContent = 'Copied'
-  window.setTimeout(() => { btn.textContent = original }, 1200)
-})
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
 async function init(): Promise<void> {
+  settingsPage.bind()
+  logsPage.bind()
   await loadSettingsForm()
   await routeFromHash()
   await renderTripList()
