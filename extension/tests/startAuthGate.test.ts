@@ -24,14 +24,14 @@ beforeEach(() => {
 })
 
 describe('start auth gate', () => {
-  it('stores pending trip and opens Options Account when auth is missing', async () => {
+  it('stores pending trip and opens Options auth dialog when auth is missing', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
 
     await expect(requireServerAuthForStart('trip-1')).resolves.toBe(false)
 
     await expect(getPendingStartTripId()).resolves.toBe('trip-1')
     expect(chrome.tabs.create).toHaveBeenCalledWith({
-      url: 'chrome-extension://test/options/index.html#account',
+      url: 'chrome-extension://test/options/index.html#auth',
     })
   })
 

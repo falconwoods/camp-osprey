@@ -5,8 +5,8 @@ import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { isLoggedIn, watchLoginChanges } from '../background/login'
 import { ALL_LOG_LEVELS, formatDebugLogAsJsonl, renderDebugLogRows } from '../debugLog'
-import { renderAccountPanelHTML, bindAccountPanel } from '../accountPanel'
-import { consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
+import { renderAccountPanelHTML, renderAuthPanelHTML, bindAccountPanel } from '../accountPanel'
+import { clearPendingStartTripId, consumePendingStartTripId, requireServerAuthForStart } from '../startAuthGate'
 import { softDeleteTripOnServer, syncTripToServer } from '../serverApi'
 import type { AuthState, Trip, DateRange, Park, Theme, LogLevel, Settings } from '../types'
 
@@ -108,6 +108,7 @@ type OptionsTab = 'trips' | 'settings' | 'account' | 'payment' | 'logs'
 const OPTIONS_TABS: OptionsTab[] = ['trips', 'settings', 'account', 'payment', 'logs']
 let debugModeEnabled = false
 let activeTab: OptionsTab = tabFromHash()
+let authDialogOpen = false
 
 function selectTab(name: OptionsTab): void {
   if (name === 'logs' && !debugModeEnabled) name = 'trips'
@@ -148,6 +149,11 @@ async function showPaymentTab(): Promise<void> {
 }
 
 async function routeFromHash(): Promise<void> {
+  if (location.hash === '#auth') {
+    selectTab('trips')
+    await openAuthDialog()
+    return
+  }
   const tab = tabFromHash()
   selectTab(tab)
   if (tab === 'account') await renderAccount()
@@ -194,7 +200,11 @@ function accountCtaHTML(authEmail: string | null): string {
 
 async function bindAccountCta(): Promise<void> {
   document.getElementById('open-account-btn')?.addEventListener('click', () => {
-    void showAccountTab()
+    void (async () => {
+      const auth = await getAuth()
+      if (auth.user) await showAccountTab()
+      else await openAuthDialog()
+    })()
   })
 }
 
@@ -212,6 +222,9 @@ async function renderAccount(): Promise<void> {
   const auth = await getAuth()
   const pendingTripId = await getPendingStartTripId()
   root.innerHTML = renderAccountPanelHTML(auth, pendingTripId)
+  document.getElementById('account-open-auth-btn')?.addEventListener('click', () => {
+    void openAuthDialog()
+  })
   bindAccountPanel(async () => {
     const tripId = await consumePendingStartTripId()
     if (tripId) await startTripNow(tripId)
@@ -221,6 +234,58 @@ async function renderAccount(): Promise<void> {
     await renderAccount()
     await renderHeaderAccount()
   })
+}
+
+function authDialogRoot(): HTMLElement {
+  let root = document.getElementById('auth-dialog-root')
+  if (!root) {
+    root = document.createElement('div')
+    root.id = 'auth-dialog-root'
+    document.body.appendChild(root)
+  }
+  return root
+}
+
+function closeAuthDialog(): void {
+  authDialogOpen = false
+  document.body.classList.remove('auth-dialog-open')
+  authDialogRoot().innerHTML = ''
+}
+
+async function openAuthDialog(): Promise<void> {
+  const root = authDialogRoot()
+  const auth = await getAuth()
+  if (auth.user) {
+    closeAuthDialog()
+    await showAccountTab()
+    return
+  }
+  const pendingTripId = await getPendingStartTripId()
+  authDialogOpen = true
+  document.body.classList.add('auth-dialog-open')
+  root.innerHTML = `<div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title">
+    <button class="auth-dialog-close" id="auth-dialog-close" type="button" aria-label="Close sign in dialog">×</button>
+    ${renderAuthPanelHTML(auth, pendingTripId)}
+  </div>`
+  const title = document.querySelector<HTMLElement>('#auth-dialog-root .auth-title')
+  if (title) title.id = 'auth-dialog-title'
+  document.getElementById('auth-dialog-close')?.addEventListener('click', async () => {
+    await clearPendingStartTripId()
+    closeAuthDialog()
+    await renderAccount()
+  })
+  bindAccountPanel(async () => {
+    closeAuthDialog()
+    const tripId = await consumePendingStartTripId()
+    if (tripId) await startTripNow(tripId)
+    await renderAccount()
+    await renderTripList()
+    if (activeTab === 'payment') await renderPayment()
+  }, async () => {
+    await renderAccount()
+    await renderHeaderAccount()
+  })
+  ;(document.getElementById('auth-email') as HTMLInputElement | null)?.focus()
 }
 
 async function renderTripList() {
@@ -287,7 +352,7 @@ async function renderTripList() {
 
       if (action === 'start') {
         if (!(await requireServerAuthForStart(id, false))) {
-          await showAccountTab()
+          await openAuthDialog()
           return
         }
         await startTripNow(id)
@@ -363,6 +428,7 @@ watchLoginChanges(() => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
     if (activeTab === 'trips' && ('trips' in changes || 'auth' in changes)) void renderTripList()
+    if (activeTab === 'account' && 'auth' in changes) void renderAccount()
     if (activeTab === 'logs' && 'debugLog' in changes) scheduleDebugLogRefresh()
   }
 })
@@ -657,7 +723,7 @@ document.getElementById('save-trip-btn')!.addEventListener('click', async () => 
 
   if (!(await requireServerAuthForStart(savedTripId, false))) {
     document.getElementById('back-btn')!.click()
-    await showAccountTab()
+    await openAuthDialog()
     return
   }
 
@@ -683,7 +749,7 @@ function paymentSectionHTML(auth: AuthState): string {
   const lockedClass = signedIn ? '' : ' locked'
   const actionButton = signedIn
     ? '<button class="btn-primary" id="save-payment-btn">Save Payment Info</button>'
-    : '<button class="btn-primary" id="payment-sign-in-btn" disabled>Sign in to save payment info</button>'
+    : '<button class="btn-primary" id="payment-sign-in-btn" type="button">Sign in to save payment info</button>'
   const editButton = signedIn
     ? `<button class="btn-secondary" type="button">${icon('settings')} Edit</button>`
     : ''
@@ -757,6 +823,7 @@ async function renderPaymentSection(auth: AuthState): Promise<void> {
   root.innerHTML = paymentSectionHTML(auth)
   document.getElementById('cancel-payment-btn')?.addEventListener('click', () => void loadPaymentForm())
   document.getElementById('save-payment-btn')?.addEventListener('click', () => void savePaymentFromForm())
+  document.getElementById('payment-sign-in-btn')?.addEventListener('click', () => void openAuthDialog())
   await loadPaymentForm()
 }
 

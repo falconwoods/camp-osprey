@@ -96,7 +96,7 @@ describe('popup auth gate', () => {
     expect(document.querySelector('#auth-code')).toBeNull()
   })
 
-  it('opens options account when signed-out CTA is clicked', async () => {
+  it('opens options auth dialog when signed-out CTA is clicked', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
     await import('../src/popup/index')
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -104,7 +104,7 @@ describe('popup auth gate', () => {
     document.getElementById('open-account-btn')!.click()
 
     expect(chrome.tabs.create).toHaveBeenCalledWith({
-      url: 'chrome-extension://test/options/index.html#account',
+      url: 'chrome-extension://test/options/index.html#auth',
     })
   })
 
@@ -134,7 +134,7 @@ describe('popup auth gate', () => {
       (message as { type?: string }).type === 'SCAN_NOW'
     )).toBe(false)
     expect(chrome.tabs.create).toHaveBeenCalledWith({
-      url: 'chrome-extension://test/options/index.html#account',
+      url: 'chrome-extension://test/options/index.html#auth',
     })
   })
 

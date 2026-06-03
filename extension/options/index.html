@@ -591,6 +591,44 @@
     }
     .btn-primary { background: var(--co-brand); color: var(--co-on-brand); }
     .btn-secondary { background: var(--co-control); border-color: var(--co-border); color: var(--co-text-muted); }
+    .account-auth,
+    .account-summary {
+      width: min(100%, 360px);
+      border: 1px solid var(--co-border);
+      border-radius: 8px;
+    }
+    .account-auth {
+      max-width: 360px;
+      padding: 14px;
+    }
+    .account-auth-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--co-text-muted);
+      font-size: 12px;
+    }
+    .account-auth-link {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--co-brand);
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+    .account-auth-link:disabled {
+      color: var(--co-text-muted);
+      cursor: default;
+    }
+    .account-auth-error {
+      margin-top: 8px;
+      min-height: 18px;
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 650;
+    }
     .btn-add {
       max-width: 1180px;
       margin: 16px auto 0;
@@ -601,9 +639,9 @@
 
     .settings-layout {
       display: grid;
-      grid-template-columns: 314px minmax(0,1fr);
-      gap: 40px;
-      max-width: 1528px;
+      grid-template-columns: 238px minmax(0,1fr);
+      gap: 18px;
+      max-width: 980px;
       margin: 0 auto;
     }
     .settings-sidebar,
@@ -615,15 +653,15 @@
       backdrop-filter: blur(12px);
     }
     .settings-sidebar {
-      min-height: 768px;
-      padding: 28px 22px;
+      min-height: 0;
+      padding: 18px 16px;
       display: flex;
       flex-direction: column;
     }
     .settings-sidebar-title {
-      margin: 0 0 22px;
+      margin: 0 0 14px;
       color: var(--co-text);
-      font-size: 23px;
+      font-size: 18px;
       font-weight: 850;
     }
     .settings-nav {
@@ -633,15 +671,15 @@
     }
     .settings-nav-item,
     .settings-nav-link {
-      min-height: 54px;
+      min-height: 40px;
       width: 100%;
       justify-content: flex-start;
-      padding: 0 14px;
+      padding: 0 10px;
       border: 1px solid transparent;
-      border-radius: 7px;
+      border-radius: 6px;
       color: var(--co-text);
       background: transparent;
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 700;
       text-decoration: none;
       cursor: pointer;
@@ -657,10 +695,14 @@
       margin: 16px 0;
       background: var(--co-border);
     }
+    .settings-nav-item .icon {
+      width: 16px;
+      height: 16px;
+    }
     .settings-promo {
       margin-top: auto;
-      min-height: 288px;
-      padding: 22px 18px;
+      min-height: 220px;
+      padding: 16px 14px;
       border: 1px solid var(--co-border-strong);
       border-radius: 8px;
       background:
@@ -670,87 +712,323 @@
     }
     .settings-promo strong {
       display: block;
-      max-width: 170px;
+      max-width: 150px;
       color: var(--co-text);
-      font-size: 16px;
-      line-height: 1.45;
-      margin-bottom: 12px;
+      font-size: 13px;
+      line-height: 1.35;
+      margin-bottom: 8px;
     }
     .settings-promo p {
-      max-width: 176px;
+      max-width: 150px;
       color: var(--co-text-muted);
-      font-size: 14px;
-      line-height: 1.6;
-      margin-bottom: 24px;
+      font-size: 12px;
+      line-height: 1.45;
+      margin-bottom: 16px;
     }
     .settings-promo a {
       color: var(--co-brand);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 800;
     }
     .settings-main {
-      padding: 24px 22px;
+      padding: 16px;
+    }
+    .settings-main .select,
+    .settings-main .input {
+      padding: 6px 9px;
+      font-size: 12px;
+    }
+    .settings-main .trip-action-btn,
+    .settings-main .btn-primary,
+    .settings-main .btn-secondary,
+    .settings-main .btn-danger {
+      min-width: 0;
+      padding: 7px 11px;
+      font-size: 12px;
+      gap: 6px;
+    }
+    #auth-dialog-root {
+      display: none;
+    }
+    body.auth-dialog-open #trips-view,
+    body.auth-dialog-open #trip-editor {
+      display: none !important;
+    }
+    body.auth-dialog-open #auth-dialog-root {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: block;
+      overflow: auto;
+      padding: 24px;
+      background: var(--co-bg);
+    }
+    .auth-dialog {
+      position: relative;
+      min-height: calc(100vh - 48px);
+      display: grid;
+      place-items: center;
+    }
+    .auth-dialog-close {
+      position: fixed;
+      top: 22px;
+      right: 24px;
+      z-index: 101;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--co-border);
+      border-radius: 999px;
+      background: var(--co-surface);
+      color: var(--co-text-muted);
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: var(--co-shadow-soft);
+    }
+    .auth-dialog-close:hover {
+      color: var(--co-text);
+      border-color: var(--co-border-strong);
+    }
+    .account-auth {
+      width: min(100%, 448px);
+      max-width: 448px;
+      margin: 0 auto;
+      padding: 27px 32px 24px;
+      border-radius: 11px;
+      background: var(--co-surface);
+      border: 1px solid var(--co-border);
+      box-shadow: 0 14px 36px rgba(26, 71, 48, 0.08);
+    }
+    .auth-card-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 27px;
+      color: var(--co-brand-dark);
+      font-size: 18px;
+      font-weight: 850;
+    }
+    .auth-card-brand img {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+    }
+    .auth-state {
+      display: block;
+    }
+    .auth-title {
+      margin: 0 0 8px;
+      color: var(--co-text);
+      font-size: 25px;
+      line-height: 1.08;
+      font-weight: 850;
+    }
+    .auth-copy {
+      margin: 0;
+      color: var(--co-text-muted);
+      max-width: 352px;
+      font-size: 14px;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    .auth-copy strong {
+      color: var(--co-text-muted);
+      font-weight: 850;
+    }
+    .auth-divider {
+      height: 1px;
+      margin: 24px 0 19px;
+      background: var(--co-border);
+    }
+    .auth-field-label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--co-text-muted);
+      font-size: 12px;
+      font-weight: 760;
+    }
+    .settings-main .auth-input,
+    .auth-input {
+      min-height: 45px;
+      padding: 0 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      line-height: 1;
+      background: var(--co-surface-solid);
+    }
+    .settings-main .auth-primary-btn,
+    .auth-primary-btn {
+      position: relative;
+      width: 100%;
+      min-height: 46px;
+      margin-top: 22px;
+      padding: 0 43px;
+      border-radius: 6px;
+      border: 0;
+      background: linear-gradient(180deg, #20c55d 0%, #0da940 100%);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 850;
+      box-shadow: 0 6px 14px rgba(13,169,64,0.22);
+    }
+    .auth-button-icon {
+      position: absolute;
+      right: 19px;
+      width: 20px;
+      height: 20px;
+    }
+    .auth-note {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      margin-top: 19px;
+      color: var(--co-text-muted);
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .auth-note-icon {
+      width: 16px;
+      height: 16px;
+      color: var(--co-brand);
+    }
+    .account-auth-actions {
+      justify-content: center;
+      gap: 18px;
+      margin-top: 11px;
+      color: var(--co-text-muted);
+      font-size: 13px;
+    }
+    .account-auth-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--co-brand);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .account-auth-link:disabled {
+      color: var(--co-text-muted);
+      opacity: 0.72;
+    }
+    .auth-inline-icon {
+      width: 14px;
+      height: 14px;
+    }
+    .auth-actions-divider {
+      width: 1px;
+      height: 18px;
+      background: var(--co-border);
+    }
+    .auth-find-note {
+      margin-top: 11px;
+      color: var(--co-text-muted);
+      font-size: 11px;
+      line-height: 1.35;
+      text-align: center;
+    }
+    .account-auth-error {
+      margin-top: 13px;
+      min-height: 14px;
+      color: var(--red);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .account-management {
+      width: 100%;
+      max-width: none;
+      padding: 16px;
+      border-radius: 8px;
+    }
+    .account-management-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .account-management-label {
+      margin-bottom: 4px;
+      color: var(--co-text-muted);
+      font-size: 12px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .account-management-copy {
+      margin: 0;
+      color: var(--co-text-muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .account-management .account-email {
+      margin: 0;
+      color: var(--co-text);
+      font-size: 16px;
+      font-weight: 800;
     }
     .settings-heading {
       display: flex;
       align-items: flex-start;
-      gap: 14px;
-      margin-bottom: 20px;
+      gap: 10px;
+      margin-bottom: 14px;
     }
     .settings-heading .icon {
-      width: 30px;
-      height: 30px;
+      width: 22px;
+      height: 22px;
       color: var(--co-brand);
-      margin-top: 2px;
+      margin-top: 1px;
     }
     .settings-heading h2 {
-      margin: 0 0 8px;
+      margin: 0 0 5px;
       color: var(--co-text);
-      font-size: 23px;
+      font-size: 18px;
       line-height: 1;
     }
     .settings-heading p {
       margin: 0;
       color: var(--co-text-muted);
-      font-size: 15px;
+      font-size: 12px;
     }
     .settings-card {
-      margin-bottom: 16px;
-      padding: 20px 20px 18px;
+      margin-bottom: 10px;
+      padding: 12px 14px;
       border: 1px solid var(--co-border);
-      border-radius: 8px;
+      border-radius: 6px;
       background: var(--co-card);
       box-shadow: var(--co-shadow-soft);
     }
     .settings-card-title {
       display: flex;
       align-items: center;
-      gap: 11px;
-      margin-bottom: 14px;
+      gap: 8px;
+      margin-bottom: 10px;
       color: var(--co-text);
-      font-size: 17px;
+      font-size: 14px;
       font-weight: 850;
     }
-    .settings-card-title .icon { width: 22px; height: 22px; color: var(--co-brand); }
+    .settings-card-title .icon { width: 17px; height: 17px; color: var(--co-brand); }
     .theme-btns {
       display: grid;
       grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 18px;
+      gap: 10px;
     }
     .theme-btn {
       position: relative;
-      min-height: 76px;
+      min-height: 52px;
       display: grid;
-      grid-template-columns: 44px minmax(0,1fr);
+      grid-template-columns: 28px minmax(0,1fr);
       align-items: center;
-      gap: 14px;
-      padding: 12px 20px;
-      border-radius: 7px;
+      gap: 9px;
+      padding: 8px 12px;
+      border-radius: 6px;
       border: 1px solid var(--co-border);
       background: var(--co-control);
       color: var(--co-text);
       text-align: left;
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 850;
     }
     .theme-btn:hover { border-color: var(--co-border-strong); }
@@ -763,64 +1041,64 @@
     .theme-btn.active::after {
       content: "";
       position: absolute;
-      top: 9px;
-      right: 11px;
-      width: 18px;
-      height: 18px;
+      top: 7px;
+      right: 8px;
+      width: 12px;
+      height: 12px;
       border-radius: 999px;
       background: var(--co-brand);
-      box-shadow: inset 0 0 0 5px var(--co-brand), inset 0 0 0 7px var(--co-surface-solid);
+      box-shadow: inset 0 0 0 3px var(--co-brand), inset 0 0 0 5px var(--co-surface-solid);
     }
     .theme-icon {
-      width: 32px;
-      height: 32px;
+      width: 22px;
+      height: 22px;
       color: var(--co-blue);
     }
     .theme-btn.active .theme-icon { color: var(--co-brand); }
     .theme-subtitle {
       display: block;
-      margin-top: 5px;
+      margin-top: 2px;
       color: var(--co-text-muted);
-      font-size: 14px;
+      font-size: 11px;
       font-weight: 500;
     }
     .setting-row-note {
-      margin-top: 8px;
+      margin-top: 6px;
       color: var(--co-text-muted);
-      font-size: 13px;
-      line-height: 1.5;
+      font-size: 11px;
+      line-height: 1.35;
     }
     .settings-check-label {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       color: var(--co-text);
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 650;
       cursor: pointer;
     }
     input[type="checkbox"] {
       accent-color: var(--co-brand);
-      width: 18px;
-      height: 18px;
+      width: 14px;
+      height: 14px;
     }
     .email-alert-card {
       display: grid;
-      gap: 14px;
+      gap: 8px;
     }
     .email-alert-list {
       display: grid;
-      gap: 10px;
+      gap: 8px;
     }
     .email-alert-option {
       display: grid;
-      grid-template-columns: 22px minmax(0,1fr) auto;
+      grid-template-columns: 18px minmax(0,1fr) auto;
       align-items: center;
-      gap: 12px;
-      min-height: 54px;
-      padding: 12px 14px;
+      gap: 9px;
+      min-height: 42px;
+      padding: 8px 10px;
       border: 1px solid var(--co-border);
-      border-radius: 8px;
+      border-radius: 6px;
       background: var(--co-control-soft);
       color: var(--co-text);
       cursor: pointer;
@@ -850,25 +1128,25 @@
     .email-alert-title {
       display: block;
       color: var(--co-text);
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 780;
       line-height: 1.25;
     }
     .email-alert-subtitle {
       display: block;
-      margin-top: 3px;
+      margin-top: 2px;
       color: var(--co-text-muted);
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 500;
       line-height: 1.35;
     }
     .email-alert-pill {
       justify-self: end;
       border-radius: 999px;
-      padding: 4px 9px;
+      padding: 3px 7px;
       background: rgba(15,143,53,0.11);
       color: var(--co-brand-dark);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 800;
       line-height: 1;
       white-space: nowrap;
@@ -876,21 +1154,21 @@
     .notification-help {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-top: 12px;
-      padding: 10px 13px;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px 10px;
       border: 1px solid rgba(15,143,53,0.16);
-      border-radius: 7px;
+      border-radius: 6px;
       background: rgba(15,143,53,0.06);
       color: var(--co-text-muted);
-      font-size: 13px;
+      font-size: 11px;
     }
     .notification-help strong { color: var(--co-brand); }
     .settings-account-card {
       display: flex;
       align-items: center;
-      gap: 18px;
-      padding: 16px 18px;
+      gap: 12px;
+      padding: 12px 14px;
       border-color: var(--co-border-strong);
       background: var(--co-brand-soft);
     }
@@ -902,28 +1180,28 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 50px;
-      height: 50px;
+      width: 38px;
+      height: 38px;
       border-radius: 999px;
       background: rgba(15,143,53,0.08);
       border: 1px solid rgba(15,143,53,0.18);
     }
-    .settings-account-icons span + span { margin-left: -10px; }
+    .settings-account-icons span + span { margin-left: -8px; }
     .settings-account-copy { flex: 1; min-width: 0; }
     .settings-account-copy h3 {
-      margin: 0 0 5px;
+      margin: 0 0 3px;
       color: var(--co-text);
-      font-size: 16px;
+      font-size: 14px;
     }
     .settings-account-copy p {
       margin: 0;
       color: var(--co-text-muted);
-      font-size: 13px;
-      line-height: 1.45;
+      font-size: 11px;
+      line-height: 1.35;
     }
     .settings-account-card .trip-action-btn {
       width: auto;
-      min-width: 210px;
+      min-width: 150px;
       color: var(--co-brand);
       border-color: var(--co-border-strong);
       background: var(--co-control);
@@ -948,6 +1226,50 @@
       .settings-sidebar { min-height: 0; }
       .settings-promo { display: none; }
       .theme-btns { grid-template-columns: 1fr; }
+      .account-auth {
+        padding: 22px 16px;
+      }
+      .auth-card-brand {
+        margin-bottom: 22px;
+        font-size: 17px;
+      }
+      .auth-card-brand img {
+        width: 30px;
+        height: 30px;
+      }
+      .auth-title {
+        font-size: 23px;
+      }
+      .auth-copy {
+        font-size: 13px;
+      }
+      .auth-divider {
+        margin: 20px 0 16px;
+      }
+      .settings-main .auth-input,
+      .auth-input {
+        min-height: 44px;
+        font-size: 14px;
+      }
+      .settings-main .auth-primary-btn,
+      .auth-primary-btn {
+        min-height: 45px;
+        margin-top: 18px;
+        font-size: 14px;
+      }
+      .auth-note {
+        margin-top: 16px;
+        font-size: 12px;
+      }
+      .account-management-row {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .account-auth-actions {
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        font-size: 13px;
+      }
       .settings-account-card { align-items: stretch; flex-direction: column; }
       .settings-account-card .trip-action-btn { width: 100%; min-width: 0; }
     }

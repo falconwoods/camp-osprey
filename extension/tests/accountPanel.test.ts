@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { bindAccountPanel, renderAccountPanelHTML } from '../src/accountPanel'
+import { bindAccountPanel, renderAccountPanelHTML, renderAuthPanelHTML } from '../src/accountPanel'
 
 vi.mock('../src/auth', () => ({
   requestCode: vi.fn(async () => ({ ok: true, isNewUser: false })),
@@ -14,26 +14,41 @@ describe('account panel', () => {
     document.body.innerHTML = '<div id="account-root"></div>'
   })
 
-  it('renders email-only signed-out form', () => {
+  it('renders signed-out account CTA without auth fields', () => {
     document.getElementById('account-root')!.innerHTML = renderAccountPanelHTML({
       token: null,
       user: null,
       lastEmail: 'user@example.com',
     }, null)
 
-    expect(document.body.textContent).toContain('Sign in to CampOsprey')
-    expect(document.querySelector<HTMLInputElement>('#auth-email')!.value).toBe('user@example.com')
+    expect(document.body.textContent).toContain('Not signed in')
+    expect(document.querySelector('#account-open-auth-btn')).not.toBeNull()
+    expect(document.querySelector('#auth-email')).toBeNull()
     expect(document.querySelector('#auth-name')).toBeNull()
   })
 
   it('uses pending trip copy on verify button', () => {
-    document.getElementById('account-root')!.innerHTML = renderAccountPanelHTML({
+    document.getElementById('account-root')!.innerHTML = renderAuthPanelHTML({
       token: null,
       user: null,
       lastEmail: null,
     }, 'trip-1')
 
     expect(document.body.textContent).toContain('Verify and start trip')
+  })
+
+  it('uses sign-in and signup copy without account badge', () => {
+    document.getElementById('account-root')!.innerHTML = renderAuthPanelHTML({
+      token: null,
+      user: null,
+      lastEmail: null,
+    }, null)
+
+    expect(document.body.textContent).toContain('Sign in or create account')
+    expect(document.body.textContent).toContain('Send email code')
+    expect(document.body.textContent).toContain('Passwordless sign-in')
+    expect(document.querySelector('.auth-pill')).toBeNull()
+    expect(document.querySelector('.auth-card-brand')!.textContent).toContain('CampOsprey')
   })
 
   it('renders signed-in email and sign-out', () => {
@@ -48,7 +63,7 @@ describe('account panel', () => {
   })
 
   it('requests and verifies code without name', async () => {
-    document.getElementById('account-root')!.innerHTML = renderAccountPanelHTML({
+    document.getElementById('account-root')!.innerHTML = renderAuthPanelHTML({
       token: null,
       user: null,
       lastEmail: null,
@@ -62,12 +77,31 @@ describe('account panel', () => {
     document.getElementById('auth-send-code')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(requestCode).toHaveBeenCalledWith({ email: 'user@example.com' })
+    expect((document.getElementById('auth-email-step') as HTMLDivElement).style.display).toBe('none')
 
     ;(document.getElementById('auth-code') as HTMLInputElement).value = '123456'
     document.getElementById('auth-verify-code')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(verifyCode).toHaveBeenCalledWith({ email: 'user@example.com', code: '123456' })
     expect(onSignedIn).toHaveBeenCalled()
+  })
+
+  it('shows resend with cooldown after code request', async () => {
+    document.getElementById('account-root')!.innerHTML = renderAuthPanelHTML({
+      token: null,
+      user: null,
+      lastEmail: null,
+    }, null)
+
+    bindAccountPanel(vi.fn(), vi.fn())
+
+    ;(document.getElementById('auth-email') as HTMLInputElement).value = 'user@example.com'
+    document.getElementById('auth-send-code')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const resendButton = document.getElementById('auth-resend-code') as HTMLButtonElement
+    expect(resendButton.disabled).toBe(true)
+    expect(resendButton.textContent).toBe('Resend code in 30s')
   })
 
   it('signs out and refreshes account state', async () => {

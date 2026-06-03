@@ -158,7 +158,7 @@ describe('options auth gate', () => {
     expect(document.querySelector('#header-account')!.textContent).toContain('<img src=x onerror=alert(1)>@example.com')
   })
 
-  it('selects Account tab from hash and renders auth form', async () => {
+  it('selects Account tab from hash and renders account management', async () => {
     location.hash = '#account'
     vi.mocked(validateAuth).mockResolvedValue(false)
     await import('../src/options/index')
@@ -167,7 +167,8 @@ describe('options auth gate', () => {
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
     expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
-    expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+    expect(document.getElementById('account-root')!.textContent).toContain('Not signed in')
+    expect(document.querySelector('#account-root #auth-email')).toBeNull()
     expect(document.getElementById('tab-payment')!.classList.contains('hidden')).toBe(true)
   })
 
@@ -214,7 +215,19 @@ describe('options auth gate', () => {
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
     expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
-    expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+    expect(document.getElementById('account-root')!.textContent).toContain('Not signed in')
+    expect(document.querySelector('#account-root #auth-email')).toBeNull()
+  })
+
+  it('opens auth dialog from auth hash', async () => {
+    location.hash = '#auth'
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.body.classList.contains('auth-dialog-open')).toBe(true)
+    expect(document.querySelector('#auth-dialog-root .auth-card-brand')!.textContent).toContain('CampOsprey')
+    expect(document.querySelector('#auth-dialog-root #auth-email')).not.toBeNull()
   })
 
   it('hides Logs tab while debug mode is disabled', async () => {
@@ -280,7 +293,8 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
-    expect(document.querySelector('#account-root #auth-email')).not.toBeNull()
+    expect(document.getElementById('account-root')!.textContent).toContain('Not signed in')
+    expect(document.querySelector('#account-root #auth-email')).toBeNull()
     expect(document.getElementById('trip-list')!.textContent).toBe('keep account input stable')
   })
 
@@ -361,18 +375,18 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(sentScanNow()).toBe(false)
-    expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
+    expect(document.body.classList.contains('auth-dialog-open')).toBe(true)
     expect(chrome.tabs.create).not.toHaveBeenCalled()
 
-    ;(document.querySelector('#account-root #auth-email') as HTMLInputElement).value = 'user@example.com'
-    document.querySelector<HTMLButtonElement>('#account-root #auth-send-code')!.click()
+    ;(document.querySelector('#auth-dialog-root #auth-email') as HTMLInputElement).value = 'user@example.com'
+    document.querySelector<HTMLButtonElement>('#auth-dialog-root #auth-send-code')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(requestCode).toHaveBeenCalledWith({ email: 'user@example.com' })
     expect(sentScanNow()).toBe(false)
 
-    ;(document.querySelector('#account-root #auth-code') as HTMLInputElement).value = '123456'
-    document.querySelector<HTMLButtonElement>('#account-root #auth-verify-code')!.click()
+    ;(document.querySelector('#auth-dialog-root #auth-code') as HTMLInputElement).value = '123456'
+    document.querySelector<HTMLButtonElement>('#auth-dialog-root #auth-verify-code')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(verifyCode).toHaveBeenCalledWith({ email: 'user@example.com', code: '123456' })

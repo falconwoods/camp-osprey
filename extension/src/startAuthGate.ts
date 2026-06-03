@@ -17,7 +17,7 @@ function emit(): void {
 }
 
 export function openOptionsAccount(): void {
-  chrome.tabs.create({ url: chrome.runtime.getURL('options/index.html#account') })
+  chrome.tabs.create({ url: chrome.runtime.getURL('options/index.html#auth') })
 }
 
 export async function openAuthGateForTrip(tripId: string | null, openAccount = true): Promise<void> {

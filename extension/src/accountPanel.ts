@@ -26,32 +26,72 @@ export function renderAccountPanelHTML(auth: AuthState, pendingTripId: string | 
     const role = auth.user.role && auth.user.role !== 'user'
       ? `<div class="hint">Role: ${escapeHtml(auth.user.role)}</div>`
       : ''
-    return `<div class="section account-summary">
-      <div class="section-label">Account</div>
-      <div class="account-email">${escapeHtml(auth.user.email)}</div>
-      ${role}
-      <button class="btn-secondary" id="sign-out-btn" style="margin-top:12px">Sign out</button>
+    return `<div class="section account-summary account-management">
+      <div class="settings-card-title">Account</div>
+      <div class="account-management-row">
+        <div>
+          <div class="account-management-label">Signed in as</div>
+          <div class="account-email">${escapeHtml(auth.user.email)}</div>
+          ${role}
+        </div>
+        <button class="btn-secondary" id="sign-out-btn" type="button">Sign out</button>
+      </div>
     </div>`
   }
 
-  const verifyLabel = pendingTripId ? 'Verify and start trip' : 'Verify'
-  return `<div class="section account-auth" id="server-auth-panel">
-    <div class="section-label">Account</div>
-    <h2 style="font-size:16px;margin-bottom:4px">Sign in to CampOsprey</h2>
-    <p class="hint" style="margin-bottom:12px">Use your email to start trips and receive booking updates.</p>
-    <input id="auth-email" class="input" placeholder="Email" value="${escapeHtml(auth.lastEmail ?? '')}">
-    <button class="btn-primary" id="auth-send-code" style="margin-top:8px">Send code</button>
-    <div id="auth-code-row" style="display:none;margin-top:14px">
-      <p class="hint" id="auth-code-copy" style="margin-bottom:8px"></p>
-      <input id="auth-code" class="input" placeholder="6-digit code" inputmode="numeric">
-      <div style="margin-top:6px;color:var(--text-muted);line-height:1.5;font-size:11px">
-        Cannot find the code? Check Spam, Junk, or Trash, and search your email for "CampOsprey".
+  const pendingCopy = pendingTripId
+    ? '<p class="account-management-copy">Sign in to continue starting this trip.</p>'
+    : '<p class="account-management-copy">Sign in to start trips and receive booking updates.</p>'
+  return `<div class="section account-summary account-management account-management-empty">
+    <div class="settings-card-title">Account</div>
+    <div class="account-management-row">
+      <div>
+        <div class="account-management-label">Not signed in</div>
+        ${pendingCopy}
       </div>
-      <button class="btn-primary" id="auth-verify-code" style="margin-top:8px">${verifyLabel}</button>
+      <button class="btn-primary" id="account-open-auth-btn" type="button">Sign in</button>
     </div>
-    <div id="auth-error" style="margin-top:8px;color:var(--red);font-size:11px"></div>
   </div>`
 }
+
+export function renderAuthPanelHTML(auth: AuthState, pendingTripId: string | null): string {
+  const verifyLabel = pendingTripId ? 'Verify and start trip' : 'Verify code'
+  const sendIcon = '<svg class="auth-button-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>'
+  const shieldNoteIcon = '<svg class="auth-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/></svg>'
+  const clockIcon = '<svg class="auth-inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+  return `<div class="section account-auth" id="server-auth-panel">
+    <div class="auth-card-brand" aria-label="CampOsprey">
+      <img src="../icons/icon48.png" alt="">
+      <span>CampOsprey</span>
+    </div>
+    <div id="auth-email-step" class="auth-state">
+      <h2 class="auth-title">Sign in or create account</h2>
+      <p class="auth-copy">Use your email to start trips and receive booking updates.</p>
+      <div class="auth-divider"></div>
+      <label class="auth-field-label" for="auth-email">Email address</label>
+      <input id="auth-email" class="input auth-input" placeholder="Email address" value="${escapeHtml(auth.lastEmail ?? '')}">
+      <button class="btn-primary auth-primary-btn" id="auth-send-code">Send email code ${sendIcon}</button>
+      <div class="auth-note">${shieldNoteIcon}<span>Passwordless sign-in</span></div>
+    </div>
+    <div id="auth-code-row" class="auth-state" style="display:none">
+      <h2 class="auth-title">Check your email</h2>
+      <p class="auth-copy" id="auth-code-copy"></p>
+      <div class="auth-divider"></div>
+      <label class="auth-field-label" for="auth-code">Verification code</label>
+      <input id="auth-code" class="input auth-input" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code">
+      <button class="btn-primary auth-primary-btn" id="auth-verify-code">${verifyLabel}</button>
+      <div class="auth-find-note">Can't find it? Check Spam, Junk, or Trash.</div>
+      <div class="account-auth-actions">
+        <button class="account-auth-link auth-resend-link" id="auth-resend-code" type="button">${clockIcon}<span>Resend code</span></button>
+        <span class="auth-actions-divider" aria-hidden="true"></span>
+        <button class="account-auth-link" id="auth-change-email" type="button">Use a different email</button>
+      </div>
+    </div>
+    <div id="auth-error" class="account-auth-error"></div>
+  </div>`
+}
+
+const resendCooldownSeconds = 30
 
 export function bindAccountPanel(
   onSignedIn: () => Promise<void>,
@@ -67,22 +107,78 @@ export function bindAccountPanel(
     if (el) el.textContent = message
   }
 
-  document.getElementById('auth-send-code')?.addEventListener('click', async () => {
-    const email = (document.getElementById('auth-email') as HTMLInputElement).value
+  let submittedEmail = ''
+  let resendTimer: ReturnType<typeof setInterval> | null = null
+
+  const startResendCooldown = () => {
+    const resendButton = document.getElementById('auth-resend-code') as HTMLButtonElement | null
+    if (!resendButton) return
+    if (resendTimer) clearInterval(resendTimer)
+
+    let remaining = resendCooldownSeconds
+    resendButton.disabled = true
+    const resendLabel = resendButton.querySelector('span') ?? resendButton
+    resendLabel.textContent = `Resend code in ${remaining}s`
+
+    resendTimer = setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        if (resendTimer) clearInterval(resendTimer)
+        resendTimer = null
+        resendButton.disabled = false
+        resendLabel.textContent = 'Resend code'
+        return
+      }
+      resendLabel.textContent = `Resend code in ${remaining}s`
+    }, 1000)
+  }
+
+  const showCodeStep = (email: string) => {
+    submittedEmail = email
+    const emailStep = document.getElementById('auth-email-step')
+    if (emailStep) emailStep.style.display = 'none'
+    document.getElementById('auth-code-row')!.style.display = 'block'
+    const copy = document.getElementById('auth-code-copy')
+    if (copy) copy.innerHTML = `We sent a 6-digit code to <strong>${escapeHtml(email)}</strong>.`
+    ;(document.getElementById('auth-code') as HTMLInputElement | null)?.focus()
+    startResendCooldown()
+  }
+
+  const sendCode = async (email: string) => {
     try {
       await requestCode({ email })
-      document.getElementById('auth-code-row')!.style.display = 'block'
-      const copy = document.getElementById('auth-code-copy')
-      if (copy) copy.textContent = `We sent a 6-digit code to ${email}. No password needed.`
+      showCodeStep(email)
       setError('')
     } catch (err) {
       const code = err instanceof Error ? err.message : 'server_error'
       setError(authMessage(code))
     }
+  }
+
+  document.getElementById('auth-send-code')?.addEventListener('click', async () => {
+    const email = (document.getElementById('auth-email') as HTMLInputElement).value
+    await sendCode(email)
+  })
+
+  document.getElementById('auth-resend-code')?.addEventListener('click', async () => {
+    if (!submittedEmail) return
+    await sendCode(submittedEmail)
+  })
+
+  document.getElementById('auth-change-email')?.addEventListener('click', () => {
+    submittedEmail = ''
+    if (resendTimer) clearInterval(resendTimer)
+    resendTimer = null
+    const emailStep = document.getElementById('auth-email-step')
+    const codeStep = document.getElementById('auth-code-row')
+    if (emailStep) emailStep.style.display = 'block'
+    if (codeStep) codeStep.style.display = 'none'
+    setError('')
+    ;(document.getElementById('auth-email') as HTMLInputElement | null)?.focus()
   })
 
   document.getElementById('auth-verify-code')?.addEventListener('click', async () => {
-    const email = (document.getElementById('auth-email') as HTMLInputElement).value
+    const email = submittedEmail || (document.getElementById('auth-email') as HTMLInputElement).value
     const code = (document.getElementById('auth-code') as HTMLInputElement).value
     try {
       await verifyCode({ email, code })
