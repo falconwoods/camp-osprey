@@ -92,6 +92,7 @@ export interface AuthState {
   token: string | null
   user: ServerUser | null
   lastEmail: string | null
+  pointsBalance?: number | null
 }
 
 export type LogLevel = 'debug' | 'info' | 'warning' | 'error'

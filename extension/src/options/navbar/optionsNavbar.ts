@@ -45,7 +45,7 @@ export class OptionsNavbar {
       t.classList.toggle('active', (t as HTMLElement).dataset['tab'] === name)
     })
     document.getElementById('tab-trips')!.classList.toggle('hidden', name !== 'trips')
-    document.getElementById('tab-settings')!.classList.toggle('hidden', !['settings', 'account', 'payment', 'logs'].includes(name))
+    document.getElementById('tab-settings')!.classList.toggle('hidden', !['settings', 'payment', 'logs'].includes(name))
     document.getElementById('tab-settings-general')!.classList.toggle('hidden', name !== 'settings')
     document.getElementById('tab-account')!.classList.toggle('hidden', name !== 'account')
     document.getElementById('tab-payment')!.classList.toggle('hidden', name !== 'payment')

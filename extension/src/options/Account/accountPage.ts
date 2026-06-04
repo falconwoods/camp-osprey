@@ -1,0 +1,252 @@
+import { bindAccountPanel, renderAccountPanelHTML } from '../../accountPanel'
+import { createPointCheckout, getPointsSummary, type PointsSummary } from '../../serverApi'
+import { getAuth, getPendingStartTripId } from '../../storage'
+import type { AuthState } from '../../types'
+import { consumePendingStartTripId } from '../../startAuthGate'
+import { icon } from '../settings/shared'
+
+type AccountPageOptions = {
+  openAuthDialog: () => Promise<void>
+  renderHeaderAccount: () => Promise<void>
+  renderTripList: () => Promise<void>
+  startTripNow: (tripId: string) => Promise<boolean>
+}
+
+export class AccountPage {
+  constructor(private readonly options: AccountPageOptions) {}
+
+  async render(): Promise<void> {
+    const root = document.getElementById('account-root')
+    if (!root) return
+
+    const auth = await getAuth()
+    const pendingTripId = await getPendingStartTripId()
+    root.innerHTML = `${renderAccountPanelHTML(auth, pendingTripId)}${this.pointsSectionHTML(auth, null, null)}`
+    this.bindAccountActions()
+
+    if (!auth.user) return
+
+    try {
+      const points = await getPointsSummary()
+      root.innerHTML = `${renderAccountPanelHTML(auth, pendingTripId)}${this.pointsSectionHTML(auth, points, null)}`
+    } catch (err) {
+      root.innerHTML = `${renderAccountPanelHTML(auth, pendingTripId)}${this.pointsSectionHTML(auth, null, err instanceof Error ? err.message : 'server_error')}`
+    }
+    this.bindAccountActions()
+  }
+
+  private pointsSectionHTML(auth: AuthState, points: PointsSummary | null, error: string | null): string {
+    const signedIn = Boolean(auth.user)
+    if (!signedIn) {
+      return `<div class="account-points-page">
+        <section class="account-points-card account-points-card-locked">
+          <div class="account-section-icon">${icon('lock')}</div>
+          <div class="account-points-card-copy">
+            <div class="account-card-kicker">campsoon Points</div>
+            <h2>Sign in to buy points</h2>
+            <p>Use points to pay for successful auto-bookings. Points are charged only after a campsite is successfully paid.</p>
+          </div>
+          <button class="btn-primary account-points-sign-in" id="account-points-sign-in-btn" type="button">Sign in first</button>
+        </section>
+      </div>`
+    }
+
+    if (error) {
+      return `<div class="account-points-page">
+        <section class="account-points-card account-points-card-locked">
+          <div class="account-section-icon account-section-icon-warning">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          </div>
+          <div class="account-points-card-copy">
+            <div class="account-card-kicker">campsoon Points</div>
+            <h2>Could not load points</h2>
+            <p>${this.escape(error)}</p>
+          </div>
+        </section>
+      </div>`
+    }
+
+    if (!points) {
+      return `<div class="account-points-page">
+        <section class="account-points-card account-points-summary">
+          <div>
+            <div class="account-card-kicker">campsoon Points</div>
+            <h2>Loading points...</h2>
+            <p>Fetching your balance and available point packages.</p>
+          </div>
+          <div class="account-balance-panel">
+            <span>Current Balance</span>
+            <strong>--</strong>
+          </div>
+        </section>
+      </div>`
+    }
+
+    const packageCards = points.packages.length > 0
+      ? points.packages.map(pkg => {
+        const bookingCount = Math.floor(pkg.points / points.successfulBookingPointCost)
+        const isBestValue = pkg.recommended
+        return `<article class="point-package-card${isBestValue ? ' point-package-featured' : ''}">
+          <div class="point-package-header">
+            <h3>${this.escape(this.packageName(pkg.name))}</h3>
+            ${isBestValue ? '<span class="point-package-badge">Best value</span>' : ''}
+          </div>
+          <div class="point-package-points">${pkg.points.toLocaleString()} <span>points</span></div>
+          <div class="point-package-price">${this.priceLabelHTML(pkg.priceLabel)}</div>
+          <p>${this.escape(this.bookingEstimate(bookingCount))}</p>
+          <button class="${isBestValue ? 'btn-primary' : 'btn-secondary'} point-package-btn" type="button" data-package-id="${this.escape(pkg.id)}">Buy now</button>
+        </article>`
+      }).join('')
+      : '<div class="account-empty-state">No point packages are available.</div>'
+
+    const transactions = points.recentTransactions.length > 0
+      ? points.recentTransactions.slice(0, 6).map(tx => `<div class="point-activity-row">
+          <div>
+            <strong>${this.escape(this.transactionLabel(tx.type))}</strong>
+            <span>${this.escape(this.formatTransactionDate(tx.createdAt))}</span>
+          </div>
+          <div class="point-activity-amount">
+            <strong>${tx.pointsDelta > 0 ? '+' : ''}${tx.pointsDelta.toLocaleString()} points</strong>
+            <span>Balance ${tx.balanceAfter.toLocaleString()}</span>
+          </div>
+        </div>`).join('')
+      : '<div class="account-empty-state">No point activity yet.</div>'
+
+    return `<div class="account-points-page">
+      <section class="account-points-card account-points-summary">
+        <div class="account-points-summary-copy">
+          <div class="account-section-icon">${icon('check')}</div>
+          <div>
+            <div class="account-card-kicker">campsoon Points</div>
+            <h2>${points.balance.toLocaleString()} points</h2>
+            <p>Use points to pay for successful auto-bookings. A successful paid booking costs ${points.successfulBookingPointCost.toLocaleString()} points.</p>
+          </div>
+        </div>
+        <div class="account-balance-panel">
+          <span>Current Balance</span>
+          <strong>${points.balance.toLocaleString()} points</strong>
+        </div>
+      </section>
+
+      <section class="account-points-card account-buy-points">
+        <div class="account-card-heading">
+          <div class="account-section-icon">${icon('card')}</div>
+          <div>
+            <h2>Buy points</h2>
+            <p>Choose a package and complete payment securely with Stripe. Points will be added to your account after payment succeeds.</p>
+          </div>
+        </div>
+        <div class="point-package-grid">
+          ${packageCards}
+        </div>
+        <div class="account-stripe-note">${icon('lock')} <strong>Secure checkout with Stripe.</strong> A Stripe payment page will open to complete your purchase.</div>
+      </section>
+
+      <section class="account-points-card account-point-activity">
+        <div class="account-card-heading">
+          <div class="account-section-icon">${icon('clock')}</div>
+          <div>
+            <h2>Point activity</h2>
+          </div>
+        </div>
+        ${transactions}
+      </section>
+    </div>`
+  }
+
+  private bindAccountActions(): void {
+    document.getElementById('account-open-auth-btn')?.addEventListener('click', () => {
+      void this.options.openAuthDialog()
+    })
+    document.getElementById('account-points-sign-in-btn')?.addEventListener('click', () => {
+      void this.options.openAuthDialog()
+    })
+    document.querySelectorAll('.point-package-btn').forEach(button => {
+      button.addEventListener('click', () => void this.startCheckout(button as HTMLButtonElement))
+    })
+
+    bindAccountPanel(async () => {
+      const tripId = await consumePendingStartTripId()
+      if (tripId) await this.options.startTripNow(tripId)
+      await this.render()
+      await this.options.renderHeaderAccount()
+      await this.options.renderTripList()
+    }, async () => {
+      await this.render()
+      await this.options.renderHeaderAccount()
+    })
+  }
+
+  private async startCheckout(button: HTMLButtonElement): Promise<void> {
+    const packageId = button.dataset.packageId ?? ''
+    if (!packageId) return
+    const previousLabel = button.textContent ?? 'Buy now'
+    button.disabled = true
+    button.textContent = 'Opening Stripe...'
+    try {
+      const checkout = await createPointCheckout(packageId)
+      if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+        chrome.tabs.create({ url: checkout.checkoutUrl })
+        return
+      }
+      window.open(checkout.checkoutUrl, '_blank')
+    } finally {
+      button.disabled = false
+      button.textContent = previousLabel
+    }
+  }
+
+  private escape(value: string): string {
+    return value.replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[char] ?? char))
+  }
+
+  private packageName(name: string): string {
+    return name.toLowerCase().includes('package') ? name : `${name} Package`
+  }
+
+  private priceLabelHTML(priceLabel: string): string {
+    const match = priceLabel.trim().match(/^([A-Z]{3})\s+(.+)$/)
+    if (!match) return this.escape(priceLabel)
+
+    const [, currency, value] = match
+    return this.escape(`${currency} ${this.formatPriceValue(currency, value)}`)
+  }
+
+  private formatPriceValue(currency: string, value: string): string {
+    const numericValue = Number(value.replace(/,/g, ''))
+    if (!Number.isFinite(numericValue)) return value
+
+    const symbolByCurrency: Record<string, string> = {
+      CAD: '$',
+      USD: '$',
+    }
+    const symbol = symbolByCurrency[currency] ?? ''
+    return `${symbol}${numericValue.toLocaleString(undefined, {
+      maximumFractionDigits: Number.isInteger(numericValue) ? 0 : 2,
+    })}`
+  }
+
+  private bookingEstimate(bookingCount: number): string {
+    if (bookingCount <= 0) return 'Good for getting started'
+    if (bookingCount === 1) return 'Enough for 1 successful booking'
+    return `Enough for ${bookingCount.toLocaleString()} successful bookings`
+  }
+
+  private transactionLabel(type: string): string {
+    return type
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase())
+  }
+
+  private formatTransactionDate(value: string): string {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return 'Recent'
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+  }
+}

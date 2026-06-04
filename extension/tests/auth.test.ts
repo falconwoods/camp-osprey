@@ -36,6 +36,7 @@ describe('extension auth client', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      pointsBalance: 700,
     }), { status: 200 })))
 
     await verifyCode({ email: 'user@example.com', code: '123456' })
@@ -56,6 +57,7 @@ describe('extension auth client', () => {
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
       lastEmail: 'user@example.com',
+      pointsBalance: 700,
     })
   })
 
@@ -66,6 +68,7 @@ describe('extension auth client', () => {
       email: 'user@example.com',
       name: 'Eric',
       role: 'user',
+      pointsBalance: 700,
     }), { status: 200 })))
 
     await expect(validateAuth()).resolves.toBe(true)
@@ -73,6 +76,7 @@ describe('extension auth client', () => {
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
       lastEmail: 'user@example.com',
+      pointsBalance: 700,
     })
   })
 
@@ -83,6 +87,7 @@ describe('extension auth client', () => {
       email: 'user@example.com',
       name: 'Eric',
       role: 'user',
+      pointsBalance: 700,
     }), {
       status: 200,
       headers: { 'set-auth-token': 'new-token' },
@@ -93,6 +98,7 @@ describe('extension auth client', () => {
       token: 'new-token',
       user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
       lastEmail: 'user@example.com',
+      pointsBalance: 700,
     })
   })
 
@@ -105,7 +111,7 @@ describe('extension auth client', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })))
 
     await expect(validateAuth()).resolves.toBe(false)
-    await expect(getAuth()).resolves.toEqual({ token: null, user: null, lastEmail: 'user@example.com' })
+    await expect(getAuth()).resolves.toEqual({ token: null, user: null, lastEmail: 'user@example.com', pointsBalance: null })
   })
 
   it('signs out while keeping lastEmail', async () => {
@@ -117,7 +123,7 @@ describe('extension auth client', () => {
 
     await signOut()
 
-    await expect(getAuth()).resolves.toEqual({ token: null, user: null, lastEmail: 'user@example.com' })
+    await expect(getAuth()).resolves.toEqual({ token: null, user: null, lastEmail: 'user@example.com', pointsBalance: null })
   })
 
   it('reports a trip result with bearer auth', async () => {

@@ -146,7 +146,7 @@ export async function sendExtensionLogs(
 
 export interface PointsSummary {
   balance: number
-  packages: Array<{ id: string; name: string; points: number }>
+  packages: Array<{ id: string; name: string; points: number; priceLabel: string; recommended: boolean }>
   successfulBookingPointCost: number
   recentTransactions: Array<{
     id: number
@@ -160,7 +160,12 @@ export interface PointsSummary {
 }
 
 export async function getPointsSummary(): Promise<PointsSummary> {
-  return serverFetch('/api/points', { method: 'GET', auth: true })
+  const summary = await serverFetch<PointsSummary>('/api/points', { method: 'GET', auth: true })
+  const auth = await getAuth()
+  if (auth.user) {
+    await saveAuth({ ...auth, pointsBalance: summary.balance })
+  }
+  return summary
 }
 
 export async function createPointCheckout(packageId: string): Promise<{ checkoutUrl: string; stripeSessionId: string }> {

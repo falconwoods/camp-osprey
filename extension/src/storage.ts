@@ -11,7 +11,7 @@ const DEFAULTS: StorageData = {
   payment: null,
   settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info' },
   debugLog: [],
-  auth: { token: null, user: null, lastEmail: null },
+  auth: { token: null, user: null, lastEmail: null, pointsBalance: null },
 }
 
 const LOG_LEVEL_RANK = { debug: 10, info: 20, warning: 30, error: 40 } as const
@@ -27,6 +27,7 @@ export async function getStorage(): Promise<StorageData> {
   )
   const data = { ...DEFAULTS, ...result } as StorageData
   data.settings = { ...DEFAULTS.settings, ...(data.settings ?? {}) }
+  data.auth = { ...DEFAULTS.auth, ...(data.auth ?? {}) }
   data.trips = data.trips.map(trip => ({
     ...trip,
     updatedAt: trip.updatedAt ?? trip.createdAt ?? Date.now(),
@@ -103,7 +104,7 @@ export async function saveAuth(auth: AuthState): Promise<void> {
 
 export async function clearAuthSession(): Promise<void> {
   const { auth } = await getStorage()
-  await saveAuth({ token: null, user: null, lastEmail: auth.lastEmail })
+  await saveAuth({ token: null, user: null, lastEmail: auth.lastEmail, pointsBalance: null })
 }
 
 const PENDING_START_KEY = 'campOspreyPendingStartTripId'

@@ -1,4 +1,4 @@
-import type { ServerUser } from './types'
+import type { AuthState, ServerUser } from './types'
 import { clearAuthSession, getAuth, getClientId, saveAuth } from './storage'
 import { getClientInfo, serverFetch } from './serverApi'
 
@@ -19,13 +19,32 @@ export async function requestCode(input: RequestCodeInput): Promise<{ ok: true; 
   })
 }
 
-export async function verifyCode(input: VerifyCodeInput): Promise<{ token: string; user: ServerUser }> {
+type AuthResponse = {
+  token: string
+  user: ServerUser
+  pointsBalance?: number
+}
+
+type UserResponse = ServerUser & {
+  pointsBalance?: number
+}
+
+function pointsBalanceFromResponse(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+export async function verifyCode(input: VerifyCodeInput): Promise<AuthResponse> {
   const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
-  const result = await serverFetch<{ token: string; user: ServerUser }>('/api/extension-auth/verify-code', {
+  const result = await serverFetch<AuthResponse>('/api/extension-auth/verify-code', {
     method: 'POST',
     body: JSON.stringify({ ...input, clientId, clientInfo }),
   })
-  await saveAuth({ token: result.token, user: result.user, lastEmail: result.user.email })
+  await saveAuth({
+    token: result.token,
+    user: result.user,
+    lastEmail: result.user.email,
+    pointsBalance: pointsBalanceFromResponse(result.pointsBalance),
+  })
   return result
 }
 
@@ -34,9 +53,16 @@ export async function validateAuth(): Promise<boolean> {
   if (!auth.token) return false
 
   try {
-    const user = await serverFetch<ServerUser>('/api/user', { method: 'GET', auth: true })
+    const user = await serverFetch<UserResponse>('/api/user', { method: 'GET', auth: true })
+    const { pointsBalance, ...serverUser } = user
     const latestAuth = await getAuth()
-    await saveAuth({ token: latestAuth.token ?? auth.token, user, lastEmail: user.email })
+    const nextAuth: AuthState = {
+      token: latestAuth.token ?? auth.token,
+      user: serverUser,
+      lastEmail: serverUser.email,
+      pointsBalance: pointsBalanceFromResponse(pointsBalance),
+    }
+    await saveAuth(nextAuth)
     return true
   } catch {
     await clearAuthSession()

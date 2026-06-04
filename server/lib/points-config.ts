@@ -2,6 +2,7 @@ export interface PointPackage {
   id: string;
   name: string;
   points: number;
+  priceLabel: string;
   stripePriceId: string;
 }
 
@@ -22,6 +23,7 @@ function isPointPackage(value: unknown): value is PointPackage {
   return typeof pkg.id === 'string' && pkg.id.trim().length > 0
     && typeof pkg.name === 'string' && pkg.name.trim().length > 0
     && typeof points === 'number' && Number.isInteger(points) && points > 0
+    && typeof pkg.priceLabel === 'string' && pkg.priceLabel.trim().length > 0
     && typeof pkg.stripePriceId === 'string' && pkg.stripePriceId.trim().startsWith('price_');
 }
 
@@ -51,6 +53,7 @@ export function getPointPackages(): PointPackage[] {
     id: pkg.id.trim(),
     name: pkg.name.trim(),
     points: pkg.points,
+    priceLabel: pkg.priceLabel.trim(),
     stripePriceId: pkg.stripePriceId.trim(),
   }));
   return packageCache;
@@ -58,6 +61,11 @@ export function getPointPackages(): PointPackage[] {
 
 export function getPointPackage(packageId: string): PointPackage | null {
   return getPointPackages().find(pkg => pkg.id === packageId) ?? null;
+}
+
+export function getRecommendedPointPackageId(): string | null {
+  const value = process.env.POINT_PACKAGES_RECOMMENDED?.trim();
+  return value ? value : null;
 }
 
 export function getSuccessfulBookingPointCost(): number {

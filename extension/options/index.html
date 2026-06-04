@@ -167,17 +167,15 @@
     .header-account { margin-left: auto; flex: 0 1 auto; }
     .account-cta { display: flex; align-items: center; gap: 12px; border-radius: 8px; }
     .account-cta-signed-in { width: fit-content; min-width: 300px; justify-content: flex-start; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 12px; font-size: 14px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
-    .account-cta-warning { width: fit-content; min-width: 300px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 12px; }
-    .account-cta-copy { flex: 1; font-size: 13px; line-height: 1.35; }
-    .account-cta-copy strong { font-size: 15px; }
+    .account-cta-warning { width: fit-content; min-width: 0; background: transparent; border: 0; color: var(--green); padding: 0 10px; cursor: pointer; font-weight: 700; box-shadow: none; }
     .account-check, .account-lock { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .account-check { width: 22px; height: 22px; border-radius: 999px; background: var(--green); color: #fff; }
-    .account-lock { width: 22px; height: 22px; border-radius: 999px; background: var(--green-subtle); border: 1px solid var(--green-border); color: var(--green); }
+    .account-lock { width: 18px; height: 18px; border-radius: 999px; background: transparent; border: 0; color: currentColor; }
     .account-check .icon { width: 15px; height: 15px; }
-    .account-lock .icon { width: 13px; height: 13px; }
+    .account-lock .icon { width: 15px; height: 15px; }
     .icon-only-btn { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; background: transparent; color: var(--text-subtle); cursor: pointer; }
-    .account-sign-in-btn { min-width: 64px; padding: 7px 10px; font-size: 13px; color: var(--green); background: var(--bg-card); border-color: var(--green-border); }
-    .account-sign-in-btn:hover { color: var(--green); background: var(--green-subtle); border-color: var(--green); }
+    .account-sign-in-btn { min-width: 0; min-height: 36px; padding: 0 10px; font-size: 13px; color: var(--green); background: transparent; border: 0; }
+    .account-sign-in-btn:hover { color: var(--green); background: var(--green-subtle); }
     .payment-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; box-shadow: 0 7px 18px rgba(15,23,42,0.07); overflow: hidden; }
     .payment-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px; }
     .payment-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -212,8 +210,8 @@
       .trip-book-btn { width: 100%; }
       .header-account { margin-left: 0; width: 100%; }
       .account-cta { align-items: center; }
-      .account-cta-signed-in, .account-cta-warning { width: 100%; min-width: 0; }
-      .account-cta-warning { flex-wrap: wrap; }
+      .account-cta-signed-in { width: 100%; min-width: 0; }
+      .account-cta-warning { width: fit-content; min-width: 0; }
       .payment-card-header, .payment-actions { flex-direction: column; align-items: stretch; }
       .payment-grid { grid-template-columns: 1fr; }
     }
@@ -589,10 +587,8 @@
       border-color: color-mix(in srgb, var(--co-border-strong) 38%, transparent);
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
     }
-    .tab[data-tab="account"],
     .tab[data-tab="payment"],
     .tab[data-tab="logs"] { display: none; }
-    .tab.settings-nav-item[data-tab="account"],
     .tab.settings-nav-item[data-tab="payment"],
     .tab.settings-nav-item[data-tab="logs"] { display: flex; }
     .tab[data-tab="logs"].settings-nav-item { display: flex; }
@@ -604,16 +600,14 @@
       border-radius: 999px;
       box-shadow: var(--co-shadow-soft);
     }
-    .account-cta-signed-in,
-    .account-cta-warning {
+    .account-cta-signed-in {
       min-width: 200px;
       padding: 9px 14px;
       background: var(--co-control);
       border-color: var(--co-border);
       color: var(--co-text);
     }
-    .account-cta-signed-in,
-    .account-cta-warning {
+    .account-cta-signed-in {
       min-height: 46px;
       gap: 10px;
       padding: 8px 12px;
@@ -642,14 +636,16 @@
       width: 13px;
       height: 13px;
     }
-    .account-cta-copy { font-size: 13px; color: var(--co-text-muted); }
-    .account-sign-in-btn { width: auto; min-width: 64px; color: var(--co-brand); border-color: var(--co-border-strong); }
+    .account-sign-in-btn { width: auto; min-width: 0; min-height: 36px; gap: 6px; color: var(--co-brand); border: 0; background: transparent; box-shadow: none; }
 
     #tab-trips {
       max-width: 980px;
       margin: 0 auto;
     }
-    #tab-account,
+    #tab-account {
+      max-width: 980px;
+      margin: 0 auto;
+    }
     #tab-payment,
     #tab-logs {
       max-width: 1180px;
@@ -685,9 +681,14 @@
     .btn-secondary { background: var(--co-control); border-color: var(--co-border); color: var(--co-text-muted); }
     .trip-action-btn:hover { border-color: var(--co-brand); color: var(--co-brand); }
     .account-sign-in-btn {
-      background: var(--co-control-soft);
-      border-color: var(--co-border-strong);
+      background: transparent;
+      border-color: transparent;
       color: var(--co-brand);
+    }
+    .account-sign-in-btn:hover {
+      background: var(--co-control-soft);
+      border-color: transparent;
+      color: var(--co-brand-dark);
     }
     .account-auth,
     .account-summary {
@@ -1453,6 +1454,239 @@
       border-color: var(--co-border-strong);
       background: var(--co-control);
     }
+    .account-points-page {
+      display: grid;
+      gap: 14px;
+    }
+    .account-points-card {
+      border: 1px solid var(--co-border);
+      border-radius: 8px;
+      background: var(--co-surface);
+      box-shadow: var(--co-shadow-soft);
+      backdrop-filter: blur(10px);
+    }
+    .account-points-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+      gap: 22px;
+      align-items: center;
+      padding: 22px;
+      overflow: hidden;
+    }
+    .account-points-summary-copy,
+    .account-card-heading,
+    .account-points-card-locked {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .account-points-card-locked {
+      align-items: center;
+      padding: 22px;
+    }
+    .account-points-card-copy {
+      flex: 1;
+      min-width: 0;
+    }
+    .account-card-kicker {
+      color: var(--co-text-muted);
+      font-size: 11px;
+      font-weight: 850;
+      line-height: 1;
+      margin-bottom: 9px;
+      text-transform: uppercase;
+    }
+    .account-points-card h2 {
+      color: var(--co-text);
+      font-size: 22px;
+      line-height: 1.1;
+      margin: 0;
+    }
+    .account-points-card p {
+      color: var(--co-text-muted);
+      font-size: 13px;
+      line-height: 1.45;
+      margin: 10px 0 0;
+    }
+    .account-section-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+      color: var(--co-brand);
+      background: var(--co-brand-soft);
+      border: 1px solid var(--co-border-strong);
+    }
+    .account-section-icon .icon {
+      width: 20px;
+      height: 20px;
+    }
+    .account-section-icon-warning {
+      color: var(--red);
+      background: rgba(239,68,68,0.08);
+      border-color: var(--red-border);
+    }
+    .account-balance-panel {
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 18px 20px;
+      border-left: 1px solid var(--co-border);
+      color: var(--co-text-muted);
+    }
+    .account-balance-panel span {
+      font-size: 12px;
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+    .account-balance-panel strong {
+      color: var(--co-brand-dark);
+      font-size: 28px;
+      line-height: 1;
+    }
+    .account-buy-points,
+    .account-point-activity {
+      padding: 18px;
+    }
+    .account-card-heading {
+      margin-bottom: 16px;
+    }
+    .account-card-heading h2 {
+      font-size: 20px;
+    }
+    .point-package-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+    }
+    .point-package-card {
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      padding: 17px;
+      border: 1px solid var(--co-border);
+      border-radius: 8px;
+      background: var(--co-surface-solid);
+      box-shadow: 0 9px 18px rgba(15,23,42,0.06);
+    }
+    .point-package-featured {
+      border-color: var(--co-brand);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--co-brand) 7%, var(--co-surface-solid)), var(--co-surface-solid));
+    }
+    .point-package-header {
+      min-height: 25px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .point-package-header h3 {
+      color: var(--co-text);
+      font-size: 15px;
+      line-height: 1.2;
+      margin: 0;
+    }
+    .point-package-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--co-brand);
+      color: var(--co-on-brand);
+      font-size: 11px;
+      font-weight: 850;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .point-package-points {
+      color: var(--co-brand-dark);
+      font-size: 28px;
+      font-weight: 850;
+      line-height: 1;
+    }
+    .point-package-points span {
+      font-size: 16px;
+    }
+    .point-package-price {
+      color: var(--co-text);
+      font-size: 16px;
+      font-weight: 850;
+      margin-top: 10px;
+    }
+    .point-package-card p {
+      flex: 1;
+      min-height: 38px;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    .point-package-btn {
+      width: 100%;
+      min-height: 38px;
+      margin-top: 14px;
+    }
+    .point-package-btn:disabled {
+      cursor: default;
+      opacity: 0.72;
+    }
+    .account-stripe-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--co-border);
+      color: var(--co-text-muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .account-stripe-note .icon {
+      width: 15px;
+      height: 15px;
+      color: var(--co-brand);
+    }
+    .account-stripe-note strong {
+      color: var(--co-brand-dark);
+    }
+    .point-activity-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 0;
+      border-top: 1px solid var(--co-border);
+    }
+    .point-activity-row strong {
+      display: block;
+      color: var(--co-text);
+      font-size: 13px;
+    }
+    .point-activity-row span {
+      display: block;
+      color: var(--co-text-muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .point-activity-amount {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .account-empty-state {
+      padding: 16px;
+      border: 1px dashed var(--co-border);
+      border-radius: 8px;
+      color: var(--co-text-muted);
+      background: var(--co-control-soft);
+      font-size: 13px;
+    }
+    .account-points-sign-in {
+      flex: 0 0 auto;
+      min-width: 130px;
+    }
     .log-panel { padding: 20px; border-radius: var(--co-radius-lg); }
 
     @media (max-width: 980px) {
@@ -1487,7 +1721,7 @@
       }
       .header-account { justify-self: stretch; }
       .account-cta-signed-in,
-      .account-cta-warning { width: 100%; min-width: 0; }
+      .account-cta-warning { width: fit-content; min-width: 0; }
       .settings-layout { grid-template-columns: 1fr; gap: 18px; }
       .settings-sidebar { min-height: 0; }
       .settings-promo { display: none; }
@@ -1538,6 +1772,22 @@
         align-items: stretch;
         flex-direction: column;
       }
+      .account-points-summary {
+        grid-template-columns: 1fr;
+      }
+      .account-balance-panel {
+        min-height: 0;
+        border-left: 0;
+        border-top: 1px solid var(--co-border);
+        padding: 16px 0 0;
+      }
+      .account-points-card-locked {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .account-points-sign-in {
+        width: 100%;
+      }
       .account-auth-actions {
         flex-wrap: wrap;
         gap: 10px 16px;
@@ -1560,9 +1810,8 @@
       </div>
       <div class="tabs" aria-label="Primary navigation">
         <div class="tab active" data-tab="trips"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>My Trips</div>
-        <div class="tab" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>Settings</div>
         <div class="tab" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account</div>
-        <div class="tab" data-tab="payment"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>Payment</div>
+        <div class="tab" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>Settings</div>
         <div class="tab hidden" data-tab="logs"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Logs</div>
       </div>
       <div class="header-account" id="header-account"></div>
@@ -1581,8 +1830,7 @@
           <h2 class="settings-sidebar-title">Settings</h2>
           <nav class="settings-nav">
             <div class="tab settings-nav-item active" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>General</div>
-            <div class="tab settings-nav-item" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account</div>
-            <div class="tab settings-nav-item" data-tab="payment"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>Payment</div>
+            <div class="tab settings-nav-item" data-tab="payment"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>Park Payment</div>
             <div class="tab settings-nav-item hidden" data-tab="logs"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Logs</div>
           </nav>
         </aside>
@@ -1645,9 +1893,6 @@
             <div class="setting-row-note">Only logs at this level or higher are queued for server sync.</div>
           </section>
           </div>
-          <div id="tab-account" class="hidden">
-            <div id="account-root"></div>
-          </div>
           <div id="tab-payment" class="hidden">
             <div id="payment-root"></div>
           </div>
@@ -1678,6 +1923,9 @@
           </div>
         </main>
       </div>
+    </div>
+    <div id="tab-account" class="hidden">
+      <div id="account-root"></div>
     </div>
   </div>
 

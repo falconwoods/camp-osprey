@@ -62,7 +62,7 @@ describe('auth storage', () => {
 
   it('defaults auth to signed out', async () => {
     const auth = await getAuth()
-    expect(auth).toEqual({ token: null, user: null, lastEmail: null })
+    expect(auth).toEqual({ token: null, user: null, lastEmail: null, pointsBalance: null })
   })
 
   it('saves token, user, and lastEmail', async () => {
@@ -70,12 +70,14 @@ describe('auth storage', () => {
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
       lastEmail: 'user@example.com',
+      pointsBalance: 700,
     })
 
     await expect(getAuth()).resolves.toEqual({
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', name: 'Eric', role: 'user' },
       lastEmail: 'user@example.com',
+      pointsBalance: 700,
     })
   })
 
@@ -92,6 +94,7 @@ describe('auth storage', () => {
       token: null,
       user: null,
       lastEmail: 'user@example.com',
+      pointsBalance: null,
     })
   })
 })

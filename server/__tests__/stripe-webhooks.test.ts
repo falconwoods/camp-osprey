@@ -64,6 +64,7 @@ describe('processStripeWebhookEvent', () => {
         id: 'starter',
         name: 'Starter',
         points: 500,
+        priceLabel: 'CAD 5',
         stripePriceId: 'price_123',
       })),
     };

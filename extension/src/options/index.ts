@@ -3,7 +3,7 @@ import { applyTheme } from '../theme'
 import { watchLoginChanges } from '../background/login'
 import { renderAuthPanelHTML, bindAccountPanel } from '../accountPanel'
 import { clearPendingStartTripId, consumePendingStartTripId } from '../startAuthGate'
-import { AccountPage } from './settings/accountPage'
+import { AccountPage } from './Account/accountPage'
 import { LogsPage } from './settings/logsPage'
 import { PaymentPage } from './settings/paymentPage'
 import { SettingsPage } from './settings/settingsPage'
@@ -42,8 +42,8 @@ const settingsPage = new SettingsPage({ onDebugModeChange: enabled => navbar.upd
 
 // ── Page coordination ──────────────────────────────────────────────────────
 
-async function renderHeaderAccount(authEmail?: string | null): Promise<void> {
-  await headerAccount.render(authEmail)
+async function renderHeaderAccount(): Promise<void> {
+  await headerAccount.render()
 }
 
 async function renderAccount(): Promise<void> {

@@ -9,7 +9,7 @@ import { tripListItemHTML } from './tripDisplay'
 
 type TripsPageOptions = {
   openAuthDialog: () => Promise<void>
-  renderHeaderAccount: (authEmail?: string | null) => Promise<void>
+  renderHeaderAccount: () => Promise<void>
 }
 
 export class TripsPage {
@@ -32,7 +32,7 @@ export class TripsPage {
   async renderList(): Promise<void> {
     const { trips, auth } = await getStorage()
     const loggedIn = await isLoggedIn()
-    await this.options.renderHeaderAccount(auth.user?.email ?? null)
+    await this.options.renderHeaderAccount()
 
     const globalAlertsEl = document.getElementById('global-alerts')
     if (globalAlertsEl) {

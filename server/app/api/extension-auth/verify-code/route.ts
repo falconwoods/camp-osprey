@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { user, userAuthEvents } from '@/db/schema';
 import { auth } from '@/lib/auth';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
+import { getPointAccountSummary } from '@/lib/points-ledger';
 import {
   jsonForExtensionAuthError,
   normalizeExtensionClientInfo,
@@ -66,7 +67,12 @@ export async function POST(request: Request) {
       console.error('[extension-auth] auth event insert failed:', err);
     }
 
-    return withExtensionCors(request, Response.json(result));
+    const points = await getPointAccountSummary(result.user.id);
+
+    return withExtensionCors(request, Response.json({
+      ...result,
+      pointsBalance: points.balance,
+    }));
   } catch (err) {
     return withExtensionCors(request, jsonForExtensionAuthError(err));
   }

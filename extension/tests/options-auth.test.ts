@@ -14,6 +14,24 @@ vi.mock('../src/auth', () => ({
   signOut: vi.fn(async () => undefined),
 }))
 
+vi.mock('../src/serverApi', () => ({
+  getPointsSummary: vi.fn(async () => ({
+    balance: 700,
+    packages: [{ id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', recommended: true }],
+    successfulBookingPointCost: 100,
+    recentTransactions: [],
+  })),
+  createPointCheckout: vi.fn(async () => ({
+    checkoutUrl: 'https://checkout.stripe.com/cs_123',
+    stripeSessionId: 'cs_123',
+  })),
+  syncTripToServer: vi.fn(async (trip: Trip) => trip),
+  softDeleteTripOnServer: vi.fn(async () => ({ ok: true })),
+  sendTripResult: vi.fn(async () => ({ ok: true, emailSent: true })),
+  sendExtensionLogs: vi.fn(async () => ({ ok: true, accepted: 1 })),
+  getServerBaseUrl: vi.fn(() => 'https://campsoon.com'),
+}))
+
 import { requestCode, validateAuth, verifyCode } from '../src/auth'
 
 function trip(): Trip {
@@ -139,23 +157,26 @@ describe('options auth gate', () => {
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(document.body.textContent).toContain('Sign in to start trips')
+    expect(document.querySelector('#header-account')!.textContent).toContain('Sign in')
+    expect(document.querySelector('#header-account')!.textContent).not.toContain('Sign in to start trips')
     expect(document.querySelector('#global-alerts #auth-email')).toBeNull()
     expect(document.querySelector('#global-alerts #auth-code')).toBeNull()
   })
 
-  it('escapes signed-in email in the Trips account banner', async () => {
+  it('shows signed-in point balance in the Trips account banner', async () => {
     await saveAuth({
       token: 'tok',
       user: { id: 'u1', email: '<img src=x onerror=alert(1)>@example.com', role: 'user' },
       lastEmail: null,
+      pointsBalance: 700,
     })
     vi.mocked(validateAuth).mockResolvedValue(true)
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('#header-account img')).toBeNull()
-    expect(document.querySelector('#header-account')!.textContent).toContain('<img src=x onerror=alert(1)>@example.com')
+    expect(document.querySelector('#header-account')!.textContent).toContain('700 points')
+    expect(document.querySelector('#header-account')!.textContent).not.toContain('<img src=x onerror=alert(1)>@example.com')
   })
 
   it('selects Account tab from hash and renders account management', async () => {
@@ -165,7 +186,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
-    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(true)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('account-root')!.textContent).toContain('Not signed in')
     expect(document.querySelector('#account-root #auth-email')).toBeNull()
@@ -192,6 +213,7 @@ describe('options auth gate', () => {
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
       lastEmail: null,
+      pointsBalance: 700,
     })
 
     await import('../src/options/index')
@@ -213,7 +235,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('[data-tab="account"]')!.classList.contains('active')).toBe(true)
-    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(false)
+    expect(document.getElementById('tab-settings')!.classList.contains('hidden')).toBe(true)
     expect(document.getElementById('tab-account')!.classList.contains('hidden')).toBe(false)
     expect(document.getElementById('account-root')!.textContent).toContain('Not signed in')
     expect(document.querySelector('#account-root #auth-email')).toBeNull()
@@ -370,7 +392,7 @@ describe('options auth gate', () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
     vi.mocked(verifyCode).mockImplementationOnce(async () => {
       const result = { token: 'tok', user: { id: 'u1', email: 'user@example.com', role: 'user' } }
-      await saveAuth({ ...result, lastEmail: result.user.email })
+      await saveAuth({ ...result, lastEmail: result.user.email, pointsBalance: 700 })
       return result
     })
     await import('../src/options/index')
@@ -395,7 +417,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(verifyCode).toHaveBeenCalledWith({ email: 'user@example.com', code: '123456' })
-    expect(document.querySelector('#header-account')!.textContent).toContain('user@example.com')
+    expect(document.querySelector('#header-account')!.textContent).toContain('700 points')
     expect(document.querySelector('#header-account')!.textContent).not.toContain('Sign in to start trips')
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
       type: 'SCAN_NOW',

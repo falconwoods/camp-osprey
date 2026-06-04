@@ -1,5 +1,5 @@
 import { getAuth } from '../../storage'
-import { escapeHtml, icon } from '../settings/shared'
+import { icon } from '../settings/shared'
 
 type HeaderAccountOptions = {
   openAuthDialog: () => Promise<void>
@@ -9,27 +9,29 @@ type HeaderAccountOptions = {
 export class HeaderAccount {
   constructor(private readonly options: HeaderAccountOptions) {}
 
-  async render(authEmail?: string | null): Promise<void> {
+  async render(): Promise<void> {
     const headerAccountEl = document.getElementById('header-account')
     if (!headerAccountEl) return
-    const email = authEmail !== undefined ? authEmail : (await getAuth()).user?.email ?? null
-    headerAccountEl.innerHTML = this.html(email)
+    const auth = await getAuth()
+    const points = auth.user && typeof auth.pointsBalance === 'number'
+      ? `${auth.pointsBalance.toLocaleString()} points`
+      : null
+    headerAccountEl.innerHTML = this.html(Boolean(auth.user), points)
     this.bind()
   }
 
-  private html(authEmail: string | null): string {
-    if (authEmail) {
+  private html(signedIn: boolean, pointsLabel: string | null): string {
+    if (signedIn) {
       return `<div class="account-cta account-cta-signed-in">
         <span class="account-check">${icon('user')}</span>
-        <span>${escapeHtml(authEmail)}</span>
+        <span>${pointsLabel ?? 'Points unavailable'}</span>
         <button class="icon-only-btn" type="button" id="open-account-btn" aria-label="Open account">${icon('chevronDown')}</button>
       </div>`
     }
-    return `<div class="account-cta account-cta-warning">
+    return `<button class="account-cta account-cta-warning account-sign-in-btn" type="button" id="open-account-btn">
       <span class="account-lock">${icon('lock')}</span>
-      <span class="account-cta-copy">Sign in to start trips and receive booking updates.</span>
-      <button class="trip-action-btn account-sign-in-btn" type="button" id="open-account-btn">Sign in</button>
-    </div>`
+      <span>Sign in</span>
+    </button>`
   }
 
   private bind(): void {

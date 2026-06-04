@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   getPointPackages: vi.fn(),
+  getRecommendedPointPackageId: vi.fn(),
   getSuccessfulBookingPointCost: vi.fn(),
   getPointAccountSummary: vi.fn(),
   createCheckoutSession: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock('@/lib/session', () => ({ getSession: mocks.getSession }));
 vi.mock('@/lib/points-config', () => ({
   getPointPackages: mocks.getPointPackages,
   getPointPackage: (id: string) => mocks.getPointPackages().find((pkg: { id: string }) => pkg.id === id) ?? null,
+  getRecommendedPointPackageId: mocks.getRecommendedPointPackageId,
   getSuccessfulBookingPointCost: mocks.getSuccessfulBookingPointCost,
 }));
 vi.mock('@/lib/points-ledger', () => ({ getPointAccountSummary: mocks.getPointAccountSummary }));
@@ -25,8 +27,9 @@ describe('points routes', () => {
       user: { id: 'user-1', email: 'user@example.com', name: 'Eric' },
     });
     mocks.getPointPackages.mockReturnValue([
-      { id: 'starter', name: 'Starter', points: 500, stripePriceId: 'price_123' },
+      { id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', stripePriceId: 'price_123' },
     ]);
+    mocks.getRecommendedPointPackageId.mockReturnValue('starter');
     mocks.getSuccessfulBookingPointCost.mockReturnValue(100);
     mocks.getPointAccountSummary.mockResolvedValue({ balance: 50, recentTransactions: [] });
     mocks.createCheckoutSession.mockResolvedValue({
@@ -42,7 +45,7 @@ describe('points routes', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       balance: 50,
-      packages: [{ id: 'starter', name: 'Starter', points: 500 }],
+      packages: [{ id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', recommended: true }],
       successfulBookingPointCost: 100,
       recentTransactions: [],
     });
@@ -71,7 +74,7 @@ describe('points routes', () => {
     expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
       userId: 'user-1',
       userEmail: 'user@example.com',
-      pointPackage: { id: 'starter', name: 'Starter', points: 500, stripePriceId: 'price_123' },
+      pointPackage: { id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', stripePriceId: 'price_123' },
     });
   });
 
