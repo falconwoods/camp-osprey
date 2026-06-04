@@ -9,7 +9,7 @@ BC Parks campsites sell out instantly. This tool polls for cancellations on a co
 ## Features
 
 - Chrome extension trip manager for creating, starting, pausing, and monitoring campsite scans.
-- Passwordless CampOsprey sign-in is required before a trip can start, so usage can be tracked, booking emails can be connected to the right account, and blocked accounts can be prevented from scanning.
+- Passwordless campsoon sign-in is required before a trip can start, so usage can be tracked, booking emails can be connected to the right account, and blocked accounts can be prevented from scanning.
 - Email-code registration and login:
   - New users enter a valid email and name, then verify with a 6-digit email code.
   - Returning users enter their email and code without needing a password.

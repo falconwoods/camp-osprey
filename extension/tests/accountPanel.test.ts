@@ -48,7 +48,7 @@ describe('account panel', () => {
     expect(document.body.textContent).toContain('Send email code')
     expect(document.body.textContent).toContain('Passwordless sign-in')
     expect(document.querySelector('.auth-pill')).toBeNull()
-    expect(document.querySelector('.auth-card-brand')!.textContent).toContain('CampOsprey')
+    expect(document.querySelector('.auth-card-brand')!.textContent).toContain('campsoon')
   })
 
   it('renders signed-in email and sign-out', () => {

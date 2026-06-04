@@ -101,7 +101,7 @@ describe('buildResultEmail', () => {
 
 describe('sendEmail', () => {
   it('uses EMAIL_FROM when configured', async () => {
-    process.env.EMAIL_FROM = 'CampOsprey <login@example.com>';
+    process.env.EMAIL_FROM = 'campsoon <login@example.com>';
     mocks.send.mockResolvedValue({
       data: { id: 'email-123' },
       error: null,
@@ -114,12 +114,12 @@ describe('sendEmail', () => {
     });
 
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
-      from: 'CampOsprey <login@example.com>',
+      from: 'campsoon <login@example.com>',
     }));
   });
 
   it('falls back to the default sender when EMAIL_FROM is not configured', () => {
-    expect(getEmailFrom()).toBe('CampOsprey <noreply@camposprey.com>');
+    expect(getEmailFrom()).toBe('campsoon <noreply@campsoon.com>');
   });
 
   it('throws when Resend returns an error response', async () => {

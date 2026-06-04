@@ -16,9 +16,9 @@ export function authMessage(code: string): string {
     invalid_code: 'That code did not work. Check the code and try again.',
     expired_code: 'That code expired. Send a new code.',
     rate_limited: 'Too many attempts. Wait a bit, then try again.',
-    account_blocked: 'This account cannot use CampOsprey. Contact support if this seems wrong.',
+    account_blocked: 'This account cannot use campsoon. Contact support if this seems wrong.',
   }
-  return map[code] ?? 'Cannot reach CampOsprey right now. Try again in a moment.'
+  return map[code] ?? 'Cannot reach campsoon right now. Try again in a moment.'
 }
 
 export function renderAccountPanelHTML(auth: AuthState, pendingTripId: string | null): string {
@@ -58,9 +58,9 @@ export function renderAuthPanelHTML(auth: AuthState, pendingTripId: string | nul
   const shieldNoteIcon = '<svg class="auth-note-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/></svg>'
   const clockIcon = '<svg class="auth-inline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
   return `<div class="section account-auth" id="server-auth-panel">
-    <div class="auth-card-brand" aria-label="CampOsprey">
+    <div class="auth-card-brand" aria-label="campsoon">
       <img src="../icons/icon48.png" alt="">
-      <span>CampOsprey</span>
+      <span>campsoon</span>
     </div>
     <div id="auth-email-step" class="auth-state">
       <h2 class="auth-title">Sign in or create account</h2>

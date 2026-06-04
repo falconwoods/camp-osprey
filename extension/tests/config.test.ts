@@ -12,7 +12,7 @@ describe('extension config', () => {
 
     const { BACKEND_BASE_URL } = await import('../src/config')
 
-    expect(BACKEND_BASE_URL).toBe('http://localhost:4000')
+    expect(BACKEND_BASE_URL).toBe('https://campsoon.com')
   })
 
   it('uses VITE_BACKEND_BASE_URL without trailing slashes', async () => {

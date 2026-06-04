@@ -32,6 +32,7 @@ export class TripEditor {
     })
 
     document.getElementById('new-trip-btn')!.addEventListener('click', () => void this.open())
+    document.getElementById('new-trip-header-btn')?.addEventListener('click', () => void this.open())
     this.bindParkSearch()
     this.bindDateControls()
     bindTripNameErrorReset()

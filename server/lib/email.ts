@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const DEFAULT_EMAIL_FROM = 'CampOsprey <noreply@camposprey.com>';
+const DEFAULT_EMAIL_FROM = 'campsoon <noreply@campsoon.com>';
 
 let _resend: Resend | null = null;
 function getResend(): Resend {
@@ -89,12 +89,12 @@ export function buildOtpEmail(
   const greeting = greetingFor();
 
   return {
-    subject: 'Your CampOsprey verification code',
+    subject: 'Your campsoon verification code',
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:32px auto;color:#1a1a1a">
         <h2 style="color:#16a34a;margin-bottom:8px">Your verification code</h2>
         ${greeting}
-        <p>Use this 6-digit code to sign in to CampOsprey. It expires in 5 minutes.</p>
+        <p>Use this 6-digit code to sign in to campsoon. It expires in 5 minutes.</p>
         <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;
                     padding:16px 24px;text-align:center;font-size:32px;font-weight:700;
                     letter-spacing:8px;margin:16px 0;color:#1a1a1a">
@@ -126,7 +126,7 @@ export function buildResultEmail(
     found: `
       <p>A campsite matching your trip <strong>${escapeHtml(tripName)}</strong> is available:</p>
       ${siteDetailsList(site, 'Found', site?.foundAt)}
-      <p>Open CampOsprey to book it before it's gone.</p>
+      <p>Open campsoon to book it before it's gone.</p>
     `,
     hold_placed: `
       <p>Your campsite for <strong>${escapeHtml(tripName)}</strong> has been held in your cart:</p>
@@ -139,7 +139,7 @@ export function buildResultEmail(
       <p>Check your BC Parks account for the booking confirmation.</p>
     `,
     failed: `
-      <p>CampOsprey attempted to book a campsite for <strong>${escapeHtml(tripName)}</strong> but was unsuccessful.</p>
+      <p>campsoon attempted to book a campsite for <strong>${escapeHtml(tripName)}</strong> but was unsuccessful.</p>
       ${site ? siteDetailsList(site) : ''}
       <p>The scanner will continue looking for another available site.</p>
     `,
@@ -153,7 +153,7 @@ export function buildResultEmail(
         ${greeting}
         ${bodies[outcome]}
         <p style="color:#6b7280;font-size:13px;margin-top:32px">
-          Sent by CampOsprey — camping.bcparks.ca scanner
+          Sent by campsoon — camping.bcparks.ca scanner
         </p>
       </div>
     `,

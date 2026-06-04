@@ -89,7 +89,7 @@ describe('extension log ingestion helpers', () => {
     );
     const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string);
     expect(body.streams[0].stream).toEqual({
-      service: 'camposprey',
+      service: 'campsoon',
       source: 'extension',
       level: 'error',
     });

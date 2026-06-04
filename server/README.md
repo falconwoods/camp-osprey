@@ -1,6 +1,6 @@
-# CampOsprey Server
+# campsoon Server
 
-Next.js server for CampOsprey identity, trip persistence, booking result intake,
+Next.js server for campsoon identity, trip persistence, booking result intake,
 email notifications, and admin visibility.
 
 ## Features
@@ -63,15 +63,15 @@ Create a local Postgres database, then add the connection string to
 `.env`:
 
 ```bash
-createdb camposprey
-printf 'DATABASE_URL=postgres://localhost:5432/camposprey\n' >> .env
+createdb campsoon
+printf 'DATABASE_URL=postgres://localhost:5432/campsoon\n' >> .env
 ```
 
 If your local Postgres user requires a username or password, use that in the
 connection string instead:
 
 ```bash
-DATABASE_URL=postgres://user:password@localhost:5432/camposprey
+DATABASE_URL=postgres://user:password@localhost:5432/campsoon
 ```
 
 For the Docker deployment, do not use `localhost` in `DATABASE_URL`. Inside the
@@ -80,7 +80,7 @@ For multi-VPS deployments, expose infra services on the infra VPS private
 network interface and use the infra VPS private IP:
 
 ```bash
-DATABASE_URL=postgres://user:password@10.0.0.10:15432/camposprey
+DATABASE_URL=postgres://user:password@10.0.0.10:15432/campsoon
 ```
 
 Loki should use the same private-IP pattern:

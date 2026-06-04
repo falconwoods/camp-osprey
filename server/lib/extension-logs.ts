@@ -167,7 +167,7 @@ function groupEntriesForLoki(entries: ExtensionLogEntry[], context: ExtensionLog
 
   return [...grouped].map(([level, levelEntries]) => ({
     stream: {
-      service: 'camposprey',
+      service: 'campsoon',
       source: 'extension',
       level,
     },

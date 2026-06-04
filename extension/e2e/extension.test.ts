@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const EXTENSION_PATH = path.resolve(__dirname, '../dist')
 
-test('popup renders CampOsprey header and new trip button', async () => {
+test('popup renders campsoon header and new trip button', async () => {
   const context = await chromium.launchPersistentContext('', {
     headless: false,
     args: [
@@ -41,7 +41,7 @@ test('popup renders CampOsprey header and new trip button', async () => {
 
   const popup = await context.newPage()
   await popup.goto(`chrome-extension://${extensionId}/popup/index.html`)
-  await expect(popup.locator('text=CampOsprey')).toBeVisible({ timeout: 10_000 })
+  await expect(popup.locator('text=campsoon')).toBeVisible({ timeout: 10_000 })
   await expect(popup.locator('text=New Trip')).toBeVisible()
   await expect(popup.locator('text=No trips yet')).toBeVisible()
 

@@ -226,7 +226,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.body.classList.contains('auth-dialog-open')).toBe(true)
-    expect(document.querySelector('#auth-dialog-root .auth-card-brand')!.textContent).toContain('CampOsprey')
+    expect(document.querySelector('#auth-dialog-root .auth-card-brand')!.textContent).toContain('campsoon')
     expect(document.querySelector('#auth-dialog-root #auth-email')).not.toBeNull()
   })
 

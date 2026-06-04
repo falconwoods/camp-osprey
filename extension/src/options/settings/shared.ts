@@ -1,4 +1,4 @@
-export type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus' | 'edit'
+export type IconName = 'tent' | 'card' | 'settings' | 'user' | 'clock' | 'play' | 'pause' | 'refresh' | 'trash' | 'lock' | 'check' | 'chevronDown' | 'plus' | 'edit' | 'mapPin' | 'calendar' | 'arrowRight'
 
 export function icon(name: IconName): string {
   const attrs = 'class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
@@ -17,6 +17,9 @@ export function icon(name: IconName): string {
     chevronDown: '<path d="m6 9 6 6 6-6"/>',
     plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+    mapPin: '<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+    calendar: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+    arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   }
   return `<svg ${attrs}>${paths[name]}</svg>`
 }

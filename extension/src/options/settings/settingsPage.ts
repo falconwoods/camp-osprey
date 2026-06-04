@@ -39,18 +39,18 @@ export class SettingsPage {
     })
 
     document.getElementById('test-notif-btn')?.addEventListener('click', () => {
-      const id = `camposprey-test-${Date.now()}`
+      const id = `campsoon-test-${Date.now()}`
       chrome.notifications.create(id, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon48.png'),
-        title: 'CampOsprey - Notifications working',
+        title: 'campsoon - Notifications working',
         message: 'If you see this, notifications are set up correctly.',
         requireInteraction: false,
       }, createdId => {
         if (chrome.runtime.lastError) {
           alert(`Notification failed: ${chrome.runtime.lastError.message}\n\nCheck that Chrome has notification permission in macOS System Settings -> Notifications -> Google Chrome.`)
         } else {
-          console.log('[CampOsprey] Test notification sent:', createdId)
+          console.log('[campsoon] Test notification sent:', createdId)
         }
       })
     })

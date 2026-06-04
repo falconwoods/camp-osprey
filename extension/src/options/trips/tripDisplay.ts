@@ -4,6 +4,8 @@ import { escapeHtml, icon, type IconName } from '../settings/shared'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DATE_FORMATTER = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+const TIME_FORMATTER = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 
 export function upcomingWindows(range: DateRange) {
   return expandDateRange(range).filter(w => isBookable(w.checkIn))
@@ -47,6 +49,52 @@ export function matchSummaryHTML(match: Trip['lastMatch']): string {
   return `${match.parkName} › ${label} · ${match.checkIn} → ${match.checkOut}${timeLabel}`
 }
 
+function formatDateLabel(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return value
+  return DATE_FORMATTER.format(new Date(year, month - 1, day))
+}
+
+function formatTimeLabel(value: string | number): string {
+  return TIME_FORMATTER.format(new Date(value))
+}
+
+function matchCardHTML(match: Trip['lastMatch']): string {
+  if (!match) return ''
+  const count = match.availableCount ?? 1
+  const siteLabel = count > 1
+    ? `${count} available sites`
+    : `${match.sectionName} › Site ${match.siteName}`
+  const eventAt = match.paidAt ?? match.reservedAt ?? match.foundAt
+  const eventLabel = eventAt ? `<span>Found at ${escapeHtml(formatTimeLabel(eventAt))}</span>` : ''
+  const bookHTML = match.bookingUrl
+    ? `<a class="trip-book-btn" href="${escapeHtml(match.bookingUrl)}" target="_blank" rel="noopener noreferrer">Book ${icon('arrowRight')}</a>`
+    : ''
+
+  return `<div class="trip-match-card">
+    <div class="trip-match-icon">${icon('mapPin')}</div>
+    <div class="trip-match-content">
+      <div class="trip-match-title">${escapeHtml(match.parkName)} › ${escapeHtml(siteLabel)}</div>
+      <div class="trip-match-meta">
+        ${icon('calendar')}
+        <span>${escapeHtml(formatDateLabel(match.checkIn))}</span>
+        <span>→</span>
+        <span>${escapeHtml(formatDateLabel(match.checkOut))}</span>
+        ${eventLabel ? '<span>•</span>' : ''}
+        ${eventLabel}
+      </div>
+    </div>
+    ${bookHTML}
+  </div>`
+}
+
+function scanningCardHTML(): string {
+  return `<div class="trip-scan-card">
+    <span class="trip-spinner" aria-hidden="true"></span>
+    <span>Looking for available campsites...</span>
+  </div>`
+}
+
 export function describeRange(range: DateRange): string {
   if (range.type === 'specific') {
     const ok = isBookable(range.checkIn)
@@ -73,11 +121,9 @@ export function recurringPreviewText(range: Extract<DateRange, { type: 'recurrin
 export function tripListItemHTML(trip: Trip, warningsHTML = ''): string {
   const parkNames = trip.parks.map(p => p.name).join(', ') || '—'
   const dateCount = trip.dateRanges.length
-  const modeLabel: Record<Trip['mode'], string> = { notify: 'Notify', hold: 'Hold', autopay: 'Auto-pay' }
-  const matchHTML = trip.lastMatch
-    ? `<div class="match-info">Found: ${matchSummaryHTML(trip.lastMatch)}
-       ${trip.lastMatch.bookingUrl ? `<a href="${trip.lastMatch.bookingUrl}" target="_blank" style="color:#22c55e;margin-left:8px">Book →</a>` : ''}</div>`
-    : ''
+  const modeLabel: Record<Trip['mode'], string> = { notify: 'Notify', hold: 'Auto-reserve', autopay: 'Auto-pay' }
+  const resultHTML = trip.lastMatch ? matchCardHTML(trip.lastMatch) : ''
+  const activityHTML = !trip.lastMatch && (trip.status === 'scanning' || trip.status === 'reserving') ? scanningCardHTML() : ''
 
   return `<div class="trip-list-item ${trip.status}">
     <div class="trip-list-header">
@@ -85,14 +131,15 @@ export function tripListItemHTML(trip: Trip, warningsHTML = ''): string {
         <span class="trip-list-name">${escapeHtml(trip.name)}</span>
         <div class="trip-list-meta">${escapeHtml(parkNames)} · ${dateCount} date range${dateCount !== 1 ? 's' : ''} · ${modeLabel[trip.mode]}</div>
       </div>
-      <div class="trip-action-zone">
-        ${actionBtnHTML(trip)}
-        <button class="trip-action-btn" type="button" data-id="${trip.id}" data-edit-trip="true">${icon('edit')} Edit</button>
-        <button class="trip-action-btn trip-delete-btn" type="button" data-id="${trip.id}" data-delete="true">${icon('trash')} Delete</button>
-      </div>
+      ${statusTextHTML(trip.status)}
     </div>
-    <div>${statusTextHTML(trip.status)}</div>
     ${warningsHTML}
-    ${matchHTML}
+    ${resultHTML}
+    ${activityHTML}
+    <div class="trip-action-zone">
+      ${actionBtnHTML(trip)}
+      <button class="trip-action-btn" type="button" data-id="${trip.id}" data-edit-trip="true">${icon('edit')} Edit</button>
+      <button class="trip-action-btn trip-delete-btn" type="button" data-id="${trip.id}" data-delete="true">${icon('trash')} Delete</button>
+    </div>
   </div>`
 }

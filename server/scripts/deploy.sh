@@ -3,10 +3,10 @@ set -e
 
 SERVER=app@40.233.114.132
 SSH_PORT=22
-IMAGE=camposprey-server
-CONTAINER=camposprey-server
+IMAGE=campsoon-server
+CONTAINER=campsoon-server
 ENV_FILE=${ENV_FILE:-.env.production}
-SERVER_ENV_DIR=/home/app/camposprey-server
+SERVER_ENV_DIR=/home/app/campsoon-server
 HOST_PORT=20001
 
 if [ ! -f "$ENV_FILE" ]; then

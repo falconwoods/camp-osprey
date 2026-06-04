@@ -20,7 +20,7 @@ export class PaymentPage {
       return `<div class="payment-card locked">
         <div class="payment-card-header">
           <div class="payment-title-row">
-            <h2>CampOsprey Points</h2>
+            <h2>campsoon Points</h2>
             <span class="payment-pill">${icon('lock')} Sign in required</span>
           </div>
         </div>
@@ -38,7 +38,7 @@ export class PaymentPage {
       return `<div class="payment-card">
         <div class="payment-card-header">
           <div class="payment-title-row">
-            <h2>CampOsprey Points</h2>
+            <h2>campsoon Points</h2>
             <span class="payment-pill">Unavailable</span>
           </div>
         </div>
@@ -53,7 +53,7 @@ export class PaymentPage {
       return `<div class="payment-card">
         <div class="payment-card-header">
           <div class="payment-title-row">
-            <h2>CampOsprey Points</h2>
+            <h2>campsoon Points</h2>
             <span class="payment-pill">Loading</span>
           </div>
         </div>
@@ -76,7 +76,7 @@ export class PaymentPage {
       <div class="payment-card-header">
         <div>
           <div class="payment-title-row">
-            <h2>CampOsprey Points</h2>
+            <h2>campsoon Points</h2>
             <span class="payment-pill">${points.balance.toLocaleString()} points</span>
           </div>
         </div>

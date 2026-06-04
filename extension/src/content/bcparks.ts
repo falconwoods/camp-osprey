@@ -10,7 +10,7 @@ let activeTargetSite: TargetSite | null = null
 function dbg(msg: string, data?: unknown): void {
   const line = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg
   _dbg.push(`[${new Date().toLocaleTimeString()}] ${line}`)
-  console.log(`[CampOsprey] ${line}`)
+  console.log(`[campsoon] ${line}`)
   chrome.runtime.sendMessage({
     type: 'CONTENT_DEBUG_LOG',
     level: msg.includes('FAILED') || msg.includes('error') || msg.includes('MATCH_FAILED') ? 'warning' : 'info',
@@ -118,10 +118,10 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
 // ── Banner (fixed bottom so it never covers BC Parks nav/cart) ─────────────
 
 function injectBanner(html: string): HTMLElement {
-  const existing = document.getElementById('camposprey-banner')
+  const existing = document.getElementById('campsoon-banner')
   if (existing) existing.remove()
   const banner = document.createElement('div')
-  banner.id = 'camposprey-banner'
+  banner.id = 'campsoon-banner'
   banner.innerHTML = html
   Object.assign(banner.style, {
     position: 'fixed', bottom: '0', left: '0', right: '0', zIndex: '999999',
@@ -142,15 +142,15 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   injectBanner(`
     <span style="font-size:18px">🏕</span>
     <span>
-      <strong style="color:#22c55e">CampOsprey</strong> found
+      <strong style="color:#22c55e">campsoon</strong> found
       <strong>${foundLabel}</strong> —
       ${target.mode === 'autopay' ? 'auto-clicking Reserve…' : 'click <strong>Reserve</strong> to add it to your cart.'}
     </span>
-    <span id="camposprey-status" style="margin-left:auto;color:#94a3b8;font-size:11px;white-space:nowrap">Loading…</span>
+    <span id="campsoon-status" style="margin-left:auto;color:#94a3b8;font-size:11px;white-space:nowrap">Loading…</span>
   `)
 
   const setStatus = (msg: string) => {
-    const el = document.getElementById('camposprey-status')
+    const el = document.getElementById('campsoon-status')
     if (el) el.textContent = msg
   }
   const reportUnavailable = (reason: string) => {
@@ -664,10 +664,10 @@ async function loadAllPanels(): Promise<void> {
 // State 2: Surcharges — Continue button (page stays at same URL after confirming)
 async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay'): Promise<void> {
   injectBanner(`<span style="font-size:18px">🏕</span>
-    <span><strong style="color:#22c55e">CampOsprey</strong> — locking site in cart…</span>
-    <span id="camposprey-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
+    <span><strong style="color:#22c55e">campsoon</strong> — locking site in cart…</span>
+    <span id="campsoon-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
   const setStatus = (msg: string) => {
-    const el = document.getElementById('camposprey-status')
+    const el = document.getElementById('campsoon-status')
     if (el) el.textContent = msg
   }
   try {
@@ -852,7 +852,7 @@ async function runCheckout(tripId: string): Promise<void> {
       const { payment } = await new Promise<Record<string, unknown>>(resolve =>
         chrome.storage.local.get('payment', resolve)
       ) as { payment: import('../types').PaymentConfig | null }
-      if (!payment) throw new Error('No payment info — add it in CampOsprey Settings.')
+      if (!payment) throw new Error('No payment info — add it in campsoon Settings.')
 
       const fill = async (selector: string, value: string) => {
         try {

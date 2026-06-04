@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_BASE_URL = 'http://localhost:4000'
+const DEFAULT_BACKEND_BASE_URL = 'https://campsoon.com'
 
 function normalizeBaseUrl(value: string | undefined): string {
   return (value?.trim() || DEFAULT_BACKEND_BASE_URL).replace(/\/+$/, '')

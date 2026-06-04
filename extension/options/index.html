@@ -2,7 +2,7 @@
 <html lang="en" data-theme="auto">
 <head>
   <meta charset="UTF-8">
-  <title>CampOsprey Settings</title>
+  <title>campsoon Settings</title>
   <style>
     /* ── Theme variables ─────────────────────────────────────── */
     :root, [data-theme="dark"] {
@@ -117,17 +117,45 @@
     .tab.active { color: var(--green); border-bottom-color: var(--green); }
 
     /* ── Trip list ───────────────────────────────────────────── */
-    .trip-list-item { background: var(--bg-card); border: 1px solid var(--border); border-left: 6px solid var(--border); border-radius: 8px; padding: 17px 18px 14px; margin-bottom: 13px; box-shadow: 0 7px 16px rgba(15,23,42,0.08); }
+    .trip-list-item { background: var(--bg-card); border: 1px solid var(--border); border-left: 6px solid var(--border); border-radius: 8px; padding: 18px 20px 14px; margin-bottom: 18px; box-shadow: 0 7px 16px rgba(15,23,42,0.08); }
     .trip-list-item.scanning  { border-left-color: var(--green); }
     .trip-list-item.reserving { border-left-color: var(--blue); }
     .trip-list-item.reserved  { border-left-color: var(--green); }
     .trip-list-item.paid      { border-left-color: var(--green); opacity: 0.9; }
     .trip-list-item.paused    { border-left-color: var(--amber); }
     .trip-list-item.failed    { border-left-color: #ef4444; }
-    .trip-list-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 7px; }
+    .trip-list-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
     .trip-list-name { font-weight: 800; font-size: 19px; line-height: 1.2; }
-    .trip-list-meta { color: var(--text-subtle); font-size: 14px; margin-top: 8px; margin-bottom: 10px; }
-    .trip-action-zone { display: flex; flex-direction: column; align-items: stretch; gap: 8px; flex-shrink: 0; }
+    .trip-list-meta { color: var(--text-subtle); font-size: 14px; margin-top: 8px; }
+    .trip-action-zone { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+    .trip-match-card, .trip-scan-card { display: flex; align-items: center; gap: 16px; min-height: 86px; border-radius: 8px; padding: 18px; }
+    .trip-match-card { background: var(--green-subtle); border: 1px solid var(--green-border); }
+    .trip-scan-card { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); color: var(--text); font-weight: 700; }
+    .trip-match-icon { width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: var(--green-subtle); color: var(--green); }
+    .trip-match-icon .icon { width: 22px; height: 22px; }
+    .trip-match-content { flex: 1 1 auto; min-width: 0; }
+    .trip-match-title { color: var(--text); font-size: 16px; font-weight: 850; line-height: 1.25; }
+    .trip-match-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; color: var(--text-subtle); font-size: 13px; line-height: 1.35; }
+    .trip-match-meta .icon { width: 15px; height: 15px; }
+    .trip-book-btn { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; padding: 9px 18px; border: 1px solid var(--green-border); border-radius: 7px; background: linear-gradient(180deg, rgba(22,101,52,0.12), rgba(22,101,52,0.06)); color: var(--green); text-decoration: none; font-weight: 850; font-size: 14px; box-shadow: 0 8px 18px rgba(22,101,52,0.08); transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease; }
+    .trip-book-btn .icon { width: 18px; height: 18px; transition: transform 180ms ease; animation: bookArrowNudge 1.6s ease-in-out infinite; }
+    .trip-book-btn:hover, .trip-book-btn:focus-visible { transform: translateY(-1px); background: rgba(22,101,52,0.16); border-color: var(--green); color: var(--green); box-shadow: 0 10px 22px rgba(22,101,52,0.12); }
+    .trip-book-btn:hover .icon, .trip-book-btn:focus-visible .icon { animation-play-state: paused; transform: translateX(3px); }
+    @keyframes bookArrowNudge {
+      0%, 62%, 100% { transform: translateX(0); }
+      72% { transform: translateX(3px); }
+      82% { transform: translateX(0); }
+      92% { transform: translateX(3px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .trip-book-btn,
+      .trip-book-btn .icon {
+        animation: none;
+        transition: none;
+      }
+    }
+    .trip-spinner { width: 34px; height: 34px; border-radius: 999px; flex: 0 0 auto; background: radial-gradient(circle, var(--blue) 2px, transparent 3px) center/10px 10px; animation: tripSpin 1s linear infinite; }
+    @keyframes tripSpin { to { transform: rotate(360deg); } }
     .match-info { background: var(--green-subtle); border: 1px solid var(--green-border); border-radius: 5px; padding: 9px 12px; font-size: 13px; color: var(--green); margin-top: 12px; }
     .status-badge { display: inline-flex; align-items: center; gap: 7px; border: 1px solid currentColor; border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 600; line-height: 1; }
     .status-badge .icon { width: 14px; height: 14px; }
@@ -180,6 +208,8 @@
       .trip-list-header { flex-direction: column; }
       .trip-action-zone { width: 100%; }
       .trip-action-btn { width: 100%; }
+      .trip-match-card, .trip-scan-card { align-items: flex-start; flex-wrap: wrap; }
+      .trip-book-btn { width: 100%; }
       .header-account { margin-left: 0; width: 100%; }
       .account-cta { align-items: center; }
       .account-cta-signed-in, .account-cta-warning { width: 100%; min-width: 0; }
@@ -292,7 +322,7 @@
     }
 
     /*
-      CampOsprey theme tokens. Update these values to reskin the options UI.
+      campsoon theme tokens. Update these values to reskin the options UI.
       Existing aliases below keep the TypeScript-rendered components aligned.
     */
     :root,
@@ -492,7 +522,7 @@
       backdrop-filter: blur(12px);
     }
     .page-brand { gap: 12px; }
-    .page-header img { width: 56px; height: 56px; border-radius: 999px; box-shadow: none; }
+    .page-header img { width: 56px; height: 56px; border-radius: 0; box-shadow: none; }
     h1 { margin: 0; color: var(--co-brand-dark); font-size: 28px; line-height: 1; font-weight: 850; }
     .subtitle {
       margin-top: 7px;
@@ -670,41 +700,127 @@
       border-radius: 6px;
       font-weight: 800;
     }
+    .trips-toolbar {
+      max-width: 980px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .trips-toolbar-title {
+      margin: 0;
+      color: var(--co-text);
+      font-size: 20px;
+      line-height: 1.2;
+      font-weight: 850;
+    }
+    .trips-toolbar .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 7px 12px;
+      background: transparent;
+      border: 1px solid var(--co-border-strong);
+      color: var(--co-brand);
+      box-shadow: none;
+      white-space: nowrap;
+    }
+    .trips-toolbar .btn-primary:hover {
+      background: var(--co-brand-soft);
+      border-color: var(--co-brand);
+    }
     .trip-list-item {
       border-left-width: 4px;
       border-radius: 6px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
+      padding: 18px 20px 14px;
+      margin-bottom: 16px;
     }
     .trip-list-header {
       gap: 14px;
-      margin-bottom: 6px;
+      margin-bottom: 16px;
     }
     .trip-list-name {
       color: var(--co-text);
-      font-size: 14px;
+      font-size: 17px;
       font-weight: 850;
       line-height: 1.25;
     }
     .trip-list-meta {
       margin-top: 6px;
-      margin-bottom: 8px;
       color: var(--co-text-muted);
-      font-size: 12px;
+      font-size: 13px;
       line-height: 1.35;
     }
     .trip-action-zone {
-      gap: 6px;
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 14px;
     }
     .trip-action-zone .trip-action-btn {
-      min-width: 108px;
-      padding: 7px 11px;
-      font-size: 12px;
-      gap: 6px;
+      min-width: 112px;
+      padding: 9px 14px;
+      font-size: 13px;
+      gap: 7px;
     }
     .trip-action-zone .trip-action-btn .icon {
       width: 14px;
       height: 14px;
+    }
+    .trip-match-card,
+    .trip-scan-card {
+      min-height: 76px;
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .trip-match-card {
+      background: color-mix(in srgb, var(--co-brand) 4%, var(--co-surface));
+      border-color: var(--co-border);
+    }
+    .trip-scan-card {
+      background: color-mix(in srgb, var(--blue) 7%, var(--co-surface));
+      border-color: color-mix(in srgb, var(--blue) 24%, var(--co-border));
+      color: var(--co-text);
+    }
+    .trip-match-icon {
+      width: 42px;
+      height: 42px;
+      background: var(--co-brand-soft);
+      color: var(--co-brand);
+    }
+    .trip-match-title {
+      color: var(--co-text);
+      font-size: 14px;
+    }
+    .trip-match-meta {
+      color: var(--co-text-muted);
+      font-size: 12px;
+    }
+    .trip-book-btn {
+      min-height: 38px;
+      background: linear-gradient(180deg, color-mix(in srgb, var(--co-brand) 13%, var(--co-surface)), color-mix(in srgb, var(--co-brand) 6%, var(--co-surface)));
+      border-color: var(--co-border-strong);
+      color: var(--co-brand);
+      border-radius: 7px;
+      padding: 8px 16px;
+      font-size: 13px;
+      box-shadow: 0 8px 18px color-mix(in srgb, var(--co-brand) 10%, transparent);
+    }
+    .trip-book-btn:hover {
+      background: color-mix(in srgb, var(--co-brand) 16%, var(--co-surface));
+      border-color: var(--co-brand);
+      color: var(--co-brand);
+      box-shadow: 0 10px 22px color-mix(in srgb, var(--co-brand) 12%, transparent);
+    }
+    .trip-spinner {
+      width: 32px;
+      height: 32px;
     }
     .match-info {
       margin-top: 8px;
@@ -715,9 +831,10 @@
     }
     .status-badge {
       gap: 6px;
-      padding: 4px 8px;
-      font-size: 11px;
+      padding: 6px 11px;
+      font-size: 12px;
       font-weight: 750;
+      border: 0;
     }
     .status-badge .icon {
       width: 12px;
@@ -1317,6 +1434,13 @@
       .settings-sidebar { min-height: 0; }
       .settings-promo { display: none; }
       .theme-btns { grid-template-columns: 1fr; }
+      .trips-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .trips-toolbar .btn-primary {
+        width: 100%;
+      }
       .account-auth {
         padding: 22px 16px;
       }
@@ -1370,14 +1494,14 @@
   <div id="trips-view">
     <div class="page-header">
       <div class="page-brand">
-        <img src="../icons/icon128.png" alt="CampOsprey">
+        <img src="../icons/icon128.png" alt="campsoon">
         <div class="page-title-copy">
-          <h1>CampOsprey</h1>
+          <h1>campsoon</h1>
           <p class="subtitle">Manage your camping trips</p>
         </div>
       </div>
       <div class="tabs" aria-label="Primary navigation">
-        <div class="tab active" data-tab="trips"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>Trips</div>
+        <div class="tab active" data-tab="trips"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20 12 4l8.5 16"/><path d="M12 4v16"/><path d="M8 20h8"/></svg>My Trips</div>
         <div class="tab" data-tab="settings"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.59.75 1 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1Z"/></svg>Settings</div>
         <div class="tab" data-tab="account"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>Account</div>
         <div class="tab" data-tab="payment"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>Payment</div>
@@ -1386,6 +1510,10 @@
       <div class="header-account" id="header-account"></div>
     </div>
     <div id="tab-trips">
+      <div class="trips-toolbar">
+        <h2 class="trips-toolbar-title">My Trips</h2>
+        <button class="btn-primary" id="new-trip-header-btn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>New Trip</button>
+      </div>
       <div id="global-alerts" style="margin-bottom:8px"></div>
       <div id="trip-list"></div>
       <button class="btn-add" id="new-trip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>New Trip</button>
@@ -1428,7 +1556,7 @@
                 <input type="checkbox" id="email-on-site-found">
                 <span class="email-alert-copy">
                   <span class="email-alert-title">Site found</span>
-                  <span class="email-alert-subtitle">Send an email as soon as CampOsprey finds an available site.</span>
+                  <span class="email-alert-subtitle">Send an email as soon as campsoon finds an available site.</span>
                 </span>
               </label>
               <label class="email-alert-option" aria-disabled="true">

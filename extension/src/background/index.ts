@@ -208,7 +208,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         })
         if (await shouldNotifyAuthIssue('bcparks', trip.id)) {
           await notify(
-            'CampOsprey — Login Required',
+            'campsoon — Login Required',
             `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
           )
         }
@@ -557,7 +557,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
 }
 
 async function notify(title: string, message: string, url?: string, persist = false): Promise<void> {
-  const id = `camposprey-${Date.now()}`
+  const id = `campsoon-${Date.now()}`
   await new Promise<void>(resolve => {
     chrome.notifications.create(id, {
       type: 'basic',
@@ -567,7 +567,7 @@ async function notify(title: string, message: string, url?: string, persist = fa
       requireInteraction: persist,  // true = stays until dismissed (match found, hold)
     }, createdId => {
       if (chrome.runtime.lastError) {
-        console.error('[CampOsprey] Notification failed:', chrome.runtime.lastError.message)
+        console.error('[campsoon] Notification failed:', chrome.runtime.lastError.message)
         void logEntry({
           level: 'error',
           event: 'notification_error',
@@ -575,7 +575,7 @@ async function notify(title: string, message: string, url?: string, persist = fa
           error: chrome.runtime.lastError.message,
         })
       } else {
-        console.log('[CampOsprey] Notification sent:', createdId)
+        console.log('[campsoon] Notification sent:', createdId)
       }
       resolve()
     })
