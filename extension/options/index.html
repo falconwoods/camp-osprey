@@ -3,71 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title>campsoon Settings</title>
+  <link rel="stylesheet" href="../styles/theme.css">
   <style>
-    /* ── Theme variables ─────────────────────────────────────── */
-    :root, [data-theme="dark"] {
-      --bg:           #102239;
-      --bg-card:      #152a42;
-      --bg-input:     #102239;
-      --bg-blue:      rgba(125,183,215,0.13);
-      --border:       #27435e;
-      --text:         #edf5ff;
-      --text-muted:   #91a9bb;
-      --text-subtle:  #bfd0df;
-      --text-dim:     #6f879a;
-      --green:        #7ddc9c;
-      --green-subtle: rgba(125,220,156,0.14);
-      --green-border: rgba(125,220,156,0.3);
-      --blue:         #7db7d7;
-      --amber:        #f6c568;
-      --amber-subtle: rgba(245,158,11,0.07);
-      --amber-border: rgba(245,158,11,0.2);
-      --red:          #ef4444;
-      --red-border:   rgba(239,68,68,0.2);
-    }
-    [data-theme="light"] {
-      --bg:           #f5faf4;
-      --bg-card:      #ffffff;
-      --bg-input:     #eef6ef;
-      --bg-blue:      #edf7f8;
-      --border:       #d9e7dc;
-      --text:         #102015;
-      --text-muted:   #68796d;
-      --text-subtle:  #405648;
-      --text-dim:     #243a2c;
-      --green:        #166534;
-      --green-subtle: rgba(22,101,52,0.1);
-      --green-border: rgba(22,101,52,0.25);
-      --blue:         #2f6f73;
-      --amber:        #b7791f;
-      --amber-subtle: rgba(180,83,9,0.08);
-      --amber-border: rgba(180,83,9,0.2);
-      --red:          #dc2626;
-      --red-border:   rgba(220,38,38,0.2);
-    }
-    @media (prefers-color-scheme: light) {
-      :root:not([data-theme="dark"]):not([data-theme="light"]) {
-        --bg:           #f5faf4;
-        --bg-card:      #ffffff;
-        --bg-input:     #eef6ef;
-        --bg-blue:      #edf7f8;
-        --border:       #d9e7dc;
-        --text:         #102015;
-        --text-muted:   #68796d;
-        --text-subtle:  #405648;
-        --text-dim:     #243a2c;
-        --green:        #166534;
-        --green-subtle: rgba(22,101,52,0.1);
-        --green-border: rgba(22,101,52,0.25);
-        --blue:         #2f6f73;
-        --amber:        #b7791f;
-        --amber-subtle: rgba(180,83,9,0.08);
-        --amber-border: rgba(180,83,9,0.2);
-        --red:          #dc2626;
-        --red-border:   rgba(220,38,38,0.2);
-      }
-    }
-
     /* ── Base ────────────────────────────────────────────────── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 13px; max-width: 1180px; margin: 0 auto; padding: 24px 28px; }
@@ -373,160 +310,6 @@
     @media (max-width: 900px) {
       .editor-layout { grid-template-columns: 1fr; }
       .editor-side { position: static; }
-    }
-
-    /*
-      campsoon theme tokens. Update these values to reskin the options UI.
-      Existing aliases below keep the TypeScript-rendered components aligned.
-    */
-    :root,
-    [data-theme="light"] {
-      --co-page: #f5faf4;
-      --co-page-soft: #edf6ed;
-      --co-surface: rgba(255,255,255,0.9);
-      --co-surface-solid: #ffffff;
-      --co-surface-muted: #f0f7f1;
-      --co-border: #d9e7dc;
-      --co-border-strong: #8fbd98;
-      --co-text: #102015;
-      --co-text-muted: #405648;
-      --co-text-soft: #68796d;
-      --co-brand: #166534;
-      --co-brand-dark: #0f4f2a;
-      --co-brand-soft: rgba(22,101,52,0.1);
-      --co-blue: #2f6f73;
-      --co-amber: #b7791f;
-      --co-red: #d83f3f;
-      --co-bottom-image: url("../images/bg-bottom.jpg");
-      --co-page-gradient: linear-gradient(180deg, rgba(220,239,223,0.82) 0, rgba(245,250,244,0.48) 118px, transparent 360px);
-      --co-bottom-gradient: linear-gradient(180deg, rgba(245,250,244,0) 0, rgba(245,250,244,0) 34%, rgba(245,250,244,0.22) 58%, rgba(245,250,244,0.08) 78%, rgba(245,250,244,0.42) 100%);
-      --co-header-glass: rgba(255,255,255,0.68);
-      --co-control: rgba(255,255,255,0.78);
-      --co-control-soft: rgba(255,255,255,0.58);
-      --co-control-hover: rgba(255,255,255,0.76);
-      --co-card: rgba(255,255,255,0.72);
-      --co-on-brand: #ffffff;
-      --co-shadow: 0 16px 40px rgba(31, 50, 37, 0.12);
-      --co-shadow-soft: 0 8px 24px rgba(31, 50, 37, 0.08);
-      --co-radius: 8px;
-      --co-radius-lg: 18px;
-
-      --bg: var(--co-page);
-      --bg-card: var(--co-surface-solid);
-      --bg-input: #eef6ef;
-      --bg-blue: #edf7f8;
-      --border: var(--co-border);
-      --text: var(--co-text);
-      --text-muted: var(--co-text-soft);
-      --text-subtle: var(--co-text-muted);
-      --text-dim: #3d485b;
-      --green: var(--co-brand);
-      --green-subtle: rgba(22,101,52,0.1);
-      --green-border: rgba(22,101,52,0.25);
-      --blue: var(--co-blue);
-      --amber: var(--co-amber);
-      --amber-subtle: rgba(183,121,31,0.1);
-      --amber-border: rgba(183,121,31,0.28);
-      --red: var(--co-red);
-      --red-border: rgba(216,63,63,0.24);
-    }
-    [data-theme="dark"] {
-      --co-page: #102239;
-      --co-page-soft: #142c47;
-      --co-surface: rgba(18,37,58,0.92);
-      --co-surface-solid: #152a42;
-      --co-surface-muted: #1b3652;
-      --co-border: #27435e;
-      --co-border-strong: #2f8a75;
-      --co-text: #edf5ff;
-      --co-text-muted: #bfd0df;
-      --co-text-soft: #91a9bb;
-      --co-brand: #7ddc9c;
-      --co-brand-dark: #22c55e;
-      --co-brand-soft: rgba(125,220,156,0.14);
-      --co-blue: #7db7d7;
-      --co-amber: #f6c568;
-      --co-red: #fb7185;
-      --co-bottom-image: url("../images/bg-bottom-dark.jpg");
-      --co-page-gradient: linear-gradient(180deg, rgba(23,53,86,0.76) 0, rgba(16,34,57,0.54) 132px, transparent 360px);
-      --co-bottom-gradient: linear-gradient(180deg, rgba(16,34,57,0) 0, rgba(16,34,57,0) 46%, rgba(16,34,57,0.08) 66%, rgba(16,34,57,0.02) 82%, rgba(16,34,57,0.24) 100%);
-      --co-header-glass: rgba(18,37,58,0.84);
-      --co-control: rgba(24,49,75,0.82);
-      --co-control-soft: rgba(18,37,58,0.62);
-      --co-control-hover: rgba(28,59,88,0.86);
-      --co-card: rgba(18,37,58,0.78);
-      --co-on-brand: #06130b;
-      --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
-      --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
-
-      --bg: var(--co-page);
-      --bg-card: var(--co-surface-solid);
-      --bg-input: #102239;
-      --bg-blue: rgba(125,183,215,0.13);
-      --border: var(--co-border);
-      --text: var(--co-text);
-      --text-muted: var(--co-text-soft);
-      --text-subtle: var(--co-text-muted);
-      --text-dim: #91a9bb;
-      --green: var(--co-brand);
-      --green-subtle: var(--co-brand-soft);
-      --green-border: rgba(125,220,156,0.3);
-      --blue: var(--co-blue);
-      --amber: var(--co-amber);
-      --amber-subtle: rgba(246,197,104,0.12);
-      --amber-border: rgba(246,197,104,0.26);
-      --red: var(--co-red);
-      --red-border: rgba(251,113,133,0.28);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --co-page: #102239;
-        --co-page-soft: #142c47;
-        --co-surface: rgba(18,37,58,0.92);
-        --co-surface-solid: #152a42;
-        --co-surface-muted: #1b3652;
-        --co-border: #27435e;
-        --co-border-strong: #2f8a75;
-        --co-text: #edf5ff;
-        --co-text-muted: #bfd0df;
-        --co-text-soft: #91a9bb;
-        --co-brand: #7ddc9c;
-        --co-brand-dark: #22c55e;
-        --co-brand-soft: rgba(125,220,156,0.14);
-        --co-blue: #7db7d7;
-        --co-amber: #f6c568;
-        --co-red: #fb7185;
-        --co-bottom-image: url("../images/bg-bottom-dark.jpg");
-        --co-page-gradient: linear-gradient(180deg, rgba(23,53,86,0.76) 0, rgba(16,34,57,0.54) 132px, transparent 360px);
-        --co-bottom-gradient: linear-gradient(180deg, rgba(16,34,57,0) 0, rgba(16,34,57,0) 46%, rgba(16,34,57,0.08) 66%, rgba(16,34,57,0.02) 82%, rgba(16,34,57,0.24) 100%);
-        --co-header-glass: rgba(18,37,58,0.84);
-        --co-control: rgba(24,49,75,0.82);
-        --co-control-soft: rgba(18,37,58,0.62);
-        --co-control-hover: rgba(28,59,88,0.86);
-        --co-card: rgba(18,37,58,0.78);
-        --co-on-brand: #06130b;
-        --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
-        --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
-
-        --bg: var(--co-page);
-        --bg-card: var(--co-surface-solid);
-        --bg-input: #102239;
-        --bg-blue: rgba(125,183,215,0.13);
-        --border: var(--co-border);
-        --text: var(--co-text);
-        --text-muted: var(--co-text-soft);
-        --text-subtle: var(--co-text-muted);
-        --text-dim: #91a9bb;
-        --green: var(--co-brand);
-        --green-subtle: var(--co-brand-soft);
-        --green-border: rgba(125,220,156,0.3);
-        --blue: var(--co-blue);
-        --amber: var(--co-amber);
-        --amber-subtle: rgba(246,197,104,0.12);
-        --amber-border: rgba(246,197,104,0.26);
-        --red: var(--co-red);
-        --red-border: rgba(251,113,133,0.28);
-      }
     }
 
     body {
@@ -1714,27 +1497,51 @@
     .account-stripe-note strong {
       color: var(--co-brand-dark);
     }
+    .point-activity-statement {
+      overflow: hidden;
+      border: 1px solid var(--co-border);
+      border-radius: 8px;
+      background: var(--co-surface-solid);
+    }
     .point-activity-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 13px 0;
+      display: grid;
+      grid-template-columns: minmax(150px, 190px) minmax(80px, 100px) minmax(110px, 130px) minmax(190px, 220px) minmax(0, 1fr);
+      align-items: center;
+      gap: 14px;
+      padding: 13px 14px;
       border-top: 1px solid var(--co-border);
-    }
-    .point-activity-row strong {
-      display: block;
-      color: var(--co-text);
-      font-size: 13px;
-    }
-    .point-activity-row span {
-      display: block;
       color: var(--co-text-muted);
       font-size: 12px;
-      margin-top: 4px;
+      line-height: 1.35;
     }
-    .point-activity-amount {
+    .point-activity-row:first-child {
+      border-top: 0;
+    }
+    .point-activity-header {
+      background: var(--co-control-soft);
+      color: var(--co-text);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+    .point-activity-row > div {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .point-activity-row > div:nth-child(2),
+    .point-activity-row > div:nth-child(3) {
       text-align: right;
-      white-space: nowrap;
+    }
+    .point-activity-header > div:nth-child(2),
+    .point-activity-header > div:nth-child(3) {
+      text-align: right;
+    }
+    .point-activity-earned {
+      color: var(--green);
+    }
+    .point-activity-spent {
+      color: var(--co-text);
     }
     .account-empty-state {
       padding: 16px;
@@ -1845,6 +1652,30 @@
       .account-points-card-locked {
         align-items: stretch;
         flex-direction: column;
+      }
+      .point-activity-header {
+        display: none;
+      }
+      .point-activity-row {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: 12px 16px;
+      }
+      .point-activity-row > div::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--co-text-muted);
+        font-size: 10px;
+        font-weight: 850;
+        line-height: 1;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+      }
+      .point-activity-row > div:nth-child(2),
+      .point-activity-row > div:nth-child(3),
+      .point-activity-row > div:nth-child(4),
+      .point-activity-row > div:nth-child(5) {
+        text-align: left;
       }
       .account-points-sign-in {
         width: 100%;

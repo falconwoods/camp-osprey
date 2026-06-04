@@ -99,17 +99,27 @@ export class AccountPage {
       }).join('')
       : '<div class="account-empty-state">No point packages are available.</div>'
 
-    const transactions = points.recentTransactions.length > 0
-      ? points.recentTransactions.slice(0, 6).map(tx => `<div class="point-activity-row">
-          <div>
-            <strong>${this.escape(this.transactionLabel(tx.type))}</strong>
-            <span>${this.escape(this.formatTransactionDate(tx.createdAt))}</span>
+    const sortedTransactions = [...points.recentTransactions].sort((a, b) => this.transactionTime(b.createdAt) - this.transactionTime(a.createdAt))
+    const transactions = sortedTransactions.length > 0
+      ? `<div class="point-activity-statement" role="table" aria-label="Point activity statement">
+          <div class="point-activity-row point-activity-header" role="row">
+            <div role="columnheader">Activity Type</div>
+            <div role="columnheader">Points</div>
+            <div role="columnheader">Points After</div>
+            <div role="columnheader">Date</div>
+            <div role="columnheader">Details</div>
           </div>
-          <div class="point-activity-amount">
-            <strong>${tx.pointsDelta > 0 ? '+' : ''}${tx.pointsDelta.toLocaleString()} points</strong>
-            <span>Balance ${tx.balanceAfter.toLocaleString()}</span>
-          </div>
-        </div>`).join('')
+          ${sortedTransactions.map(tx => {
+        const direction = tx.pointsDelta >= 0 ? 'earned' : 'spent'
+        return `<div class="point-activity-row">
+            <div role="cell" data-label="Activity Type">${this.escape(this.transactionLabel(tx.type))}</div>
+            <div role="cell" data-label="Points" class="point-activity-${direction}">${tx.pointsDelta > 0 ? '+' : ''}${tx.pointsDelta.toLocaleString()}</div>
+            <div role="cell" data-label="Points After">${tx.balanceAfter.toLocaleString()}</div>
+            <div role="cell" data-label="Date">${this.escape(this.formatTransactionDateTime(tx.createdAt))}</div>
+            <div role="cell" data-label="Details">${this.escape(this.transactionDetails(tx))}</div>
+          </div>`
+      }).join('')}
+        </div>`
       : '<div class="account-empty-state">No point activity yet.</div>'
 
     return `<div class="account-points-page">
@@ -147,6 +157,7 @@ export class AccountPage {
           <div class="account-section-icon">${icon('clock')}</div>
           <div>
             <h2>Point activity</h2>
+            <p>A statement of every points purchase, deduction, and balance change.</p>
           </div>
         </div>
         ${transactions}
@@ -248,9 +259,28 @@ export class AccountPage {
       .replace(/\b\w/g, char => char.toUpperCase())
   }
 
-  private formatTransactionDate(value: string): string {
+  private transactionTime(value: string): number {
+    const time = new Date(value).getTime()
+    return Number.isNaN(time) ? 0 : time
+  }
+
+  private transactionDetails(tx: PointsSummary['recentTransactions'][number]): string {
+    if (tx.details?.trim()) return tx.details.trim()
+    if (tx.type === 'booking_charge') return 'Successful booking deduction'
+    if (tx.type === 'stripe_purchase') return 'Point package purchase'
+    if (tx.type === 'stripe_refund') return 'Point package refund'
+    return 'Account activity'
+  }
+
+  private formatTransactionDateTime(value: string): string {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return 'Recent'
-    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+    return new Intl.DateTimeFormat(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date)
   }
 }

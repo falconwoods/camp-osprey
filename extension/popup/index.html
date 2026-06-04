@@ -2,86 +2,8 @@
 <html lang="en" data-theme="auto">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="../styles/theme.css">
   <style>
-    /* ── Theme variables ─────────────────────────────────────── */
-    :root, [data-theme="dark"] {
-      --bg:           #102239;
-      --bg-card:      #152a42;
-      --bg-input:     #102239;
-      --bg-blue:      rgba(125,183,215,0.13);
-      --bg-soft:      rgba(74,222,128,0.08);
-      --border:       #27435e;
-      --text:         #edf5ff;
-      --text-muted:   #91a9bb;
-      --text-subtle:  #bfd0df;
-      --text-dim:     #6f879a;
-      --green:        #7ddc9c;
-      --green-subtle: rgba(125,220,156,0.14);
-      --green-border: rgba(125,220,156,0.3);
-      --blue:         #7db7d7;
-      --amber:        #f6c568;
-      --amber-subtle: rgba(246,197,104,0.12);
-      --amber-border: rgba(246,197,104,0.26);
-      --red:          #fb7185;
-      --red-subtle:   rgba(251,113,133,0.12);
-      --red-border:   rgba(251,113,133,0.26);
-      --surface-glass: rgba(18,37,58,0.94);
-      --on-green:     #06130b;
-      --shadow:       0 10px 24px rgba(0,0,0,0.26);
-    }
-    [data-theme="light"] {
-      --bg:           #f5faf4;
-      --bg-card:      #ffffff;
-      --bg-input:     #eef6ef;
-      --bg-blue:      #edf7f8;
-      --bg-soft:      #f5faf4;
-      --border:       #d9e7dc;
-      --text:         #102015;
-      --text-muted:   #68796d;
-      --text-subtle:  #405648;
-      --text-dim:     #243a2c;
-      --green:        #166534;
-      --green-subtle: rgba(22,101,52,0.1);
-      --green-border: rgba(22,101,52,0.25);
-      --blue:         #2f6f73;
-      --amber:        #b7791f;
-      --amber-subtle: rgba(180,83,9,0.08);
-      --amber-border: rgba(180,83,9,0.2);
-      --red:          #dc2626;
-      --red-subtle:   rgba(220,38,38,0.08);
-      --red-border:   rgba(220,38,38,0.2);
-      --surface-glass: #ffffff;
-      --on-green:     #ffffff;
-      --shadow:       0 1px 2px rgba(15,23,42,0.07);
-    }
-    @media (prefers-color-scheme: light) {
-      :root:not([data-theme="dark"]):not([data-theme="light"]) {
-        --bg:           #f5faf4;
-        --bg-card:      #ffffff;
-        --bg-input:     #eef6ef;
-        --bg-blue:      #edf7f8;
-        --bg-soft:      #f5faf4;
-        --border:       #d9e7dc;
-        --text:         #102015;
-        --text-muted:   #68796d;
-        --text-subtle:  #405648;
-        --text-dim:     #243a2c;
-        --green:        #166534;
-        --green-subtle: rgba(22,101,52,0.1);
-        --green-border: rgba(22,101,52,0.25);
-        --blue:         #2f6f73;
-        --amber:        #b7791f;
-        --amber-subtle: rgba(180,83,9,0.08);
-        --amber-border: rgba(180,83,9,0.2);
-        --red:          #dc2626;
-        --red-subtle:   rgba(220,38,38,0.08);
-        --red-border:   rgba(220,38,38,0.2);
-        --surface-glass: #ffffff;
-        --on-green:     #ffffff;
-        --shadow:       0 1px 2px rgba(15,23,42,0.07);
-      }
-    }
-
     /* ── Layout ──────────────────────────────────────────────── */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { width: 372px; min-height: 200px; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 13px; padding: 10px; }

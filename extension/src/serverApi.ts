@@ -155,6 +155,7 @@ export interface PointsSummary {
     balanceAfter: number
     sourceType: string
     sourceId: string
+    details?: string
     createdAt: string
   }>
 }

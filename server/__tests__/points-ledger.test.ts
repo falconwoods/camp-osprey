@@ -5,8 +5,15 @@ vi.mock('@/db', () => ({
 }));
 
 vi.mock('@/db/schema', () => ({
+  bookingPaymentEvents: {},
   pointTransactions: {},
   userPointAccounts: {},
+}));
+
+vi.mock('@/lib/points-config', () => ({
+  getPointPackage: (id: string) => id === 'starter'
+    ? { id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', stripePriceId: 'price_123' }
+    : null,
 }));
 
 describe('applyPointTransaction', () => {
@@ -59,5 +66,27 @@ describe('applyPointTransaction', () => {
     expect(result).toEqual({ applied: false, transactionId: 4, balanceAfter: 55 });
     expect(deps.insertTransaction).not.toHaveBeenCalled();
     expect(deps.updateBalance).not.toHaveBeenCalled();
+  });
+
+  it('formats user-facing transaction details', async () => {
+    const { pointTransactionDetails } = await import('../lib/points-ledger');
+
+    expect(pointTransactionDetails({
+      type: 'stripe_purchase',
+      pointsDelta: 500,
+      metadata: { packageId: 'starter' },
+    })).toBe('Starter package purchase');
+
+    expect(pointTransactionDetails({
+      type: 'booking_charge',
+      pointsDelta: -100,
+      metadata: {
+        parkName: 'Gold Creek',
+        campgroundName: 'Main',
+        siteName: '27',
+        checkIn: '2026-06-12',
+        checkOut: '2026-06-14',
+      },
+    })).toBe('Gold Creek, Main · Site 27 · Jun 12-14');
   });
 });

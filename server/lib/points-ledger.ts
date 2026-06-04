@@ -1,6 +1,7 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { pointTransactions, userPointAccounts } from '@/db/schema';
+import { bookingPaymentEvents, pointTransactions, userPointAccounts } from '@/db/schema';
+import { getPointPackage } from '@/lib/points-config';
 
 export type PointTransactionType =
   | 'stripe_purchase'
@@ -100,6 +101,7 @@ export async function getPointAccountSummary(userId: string): Promise<{
     balanceAfter: number;
     sourceType: string;
     sourceId: string;
+    details: string;
     createdAt: Date;
   }>;
 }> {
@@ -119,11 +121,131 @@ export async function getPointAccountSummary(userId: string): Promise<{
     balanceAfter: pointTransactions.balanceAfter,
     sourceType: pointTransactions.sourceType,
     sourceId: pointTransactions.sourceId,
+    metadata: pointTransactions.metadata,
     createdAt: pointTransactions.createdAt,
   }).from(pointTransactions)
     .where(eq(pointTransactions.userId, userId))
-    .orderBy(desc(pointTransactions.createdAt))
-    .limit(20);
+    .orderBy(desc(pointTransactions.createdAt));
 
-  return { balance: account?.balance ?? 0, recentTransactions };
+  const bookingEventIds = recentTransactions
+    .filter(tx => tx.type === 'booking_charge' && tx.sourceType === 'booking_payment_event')
+    .map(tx => Number(tx.sourceId))
+    .filter(Number.isInteger);
+  const bookingEvents = bookingEventIds.length > 0
+    ? await db.select({
+      id: bookingPaymentEvents.id,
+      provider: bookingPaymentEvents.provider,
+      parkName: bookingPaymentEvents.parkName,
+      campgroundName: bookingPaymentEvents.campgroundName,
+      sectionName: bookingPaymentEvents.sectionName,
+      siteName: bookingPaymentEvents.siteName,
+      checkIn: bookingPaymentEvents.checkIn,
+      checkOut: bookingPaymentEvents.checkOut,
+      confirmationNumber: bookingPaymentEvents.confirmationNumber,
+    }).from(bookingPaymentEvents)
+      .where(inArray(bookingPaymentEvents.id, bookingEventIds))
+    : [];
+  const bookingEventById = new Map(bookingEvents.map(event => [event.id, event]));
+
+  return {
+    balance: account?.balance ?? 0,
+    recentTransactions: recentTransactions.map(tx => ({
+      id: tx.id,
+      type: tx.type,
+      pointsDelta: tx.pointsDelta,
+      balanceAfter: tx.balanceAfter,
+      sourceType: tx.sourceType,
+      sourceId: tx.sourceId,
+      details: pointTransactionDetails(tx, bookingEventById.get(Number(tx.sourceId))),
+      createdAt: tx.createdAt,
+    })),
+  };
+}
+
+type PointTransactionSummaryRow = {
+  type: string;
+  pointsDelta: number;
+  metadata: unknown;
+};
+
+type BookingDetailsSource = {
+  provider?: string | null;
+  parkName?: string | null;
+  campgroundName?: string | null;
+  sectionName?: string | null;
+  siteName?: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  confirmationNumber?: string | null;
+};
+
+export function pointTransactionDetails(tx: PointTransactionSummaryRow, bookingEvent?: BookingDetailsSource): string {
+  const metadata = objectMetadata(tx.metadata);
+  if (tx.type === 'booking_charge') {
+    return bookingDetails({ ...bookingEvent, ...metadata });
+  }
+
+  const packageId = stringValue(metadata.packageId);
+  const pointPackage = packageId ? getPointPackage(packageId) : null;
+  const packageName = pointPackage?.name ?? (packageId ? titleCase(packageId) : null);
+  if (tx.type === 'stripe_purchase') {
+    return packageName ? `${packageName} package purchase` : 'Point package purchase';
+  }
+  if (tx.type === 'stripe_refund') {
+    return packageName ? `${packageName} package refund` : 'Point package refund';
+  }
+  if (tx.type === 'stripe_dispute') return 'Payment dispute adjustment';
+  if (tx.type === 'admin_adjustment') return tx.pointsDelta >= 0 ? 'Manual points credit' : 'Manual points deduction';
+  return 'Account activity';
+}
+
+function bookingDetails(source: BookingDetailsSource): string {
+  const place = [source.parkName, source.campgroundName, source.sectionName]
+    .map(value => stringValue(value))
+    .filter(Boolean)
+    .join(', ');
+  const site = stringValue(source.siteName);
+  const dates = bookingDateRange(stringValue(source.checkIn), stringValue(source.checkOut));
+  const confirmation = stringValue(source.confirmationNumber);
+  const parts = [
+    place,
+    site ? `Site ${site}` : null,
+    dates,
+    confirmation ? `Confirmation ${confirmation}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'Successful booking deduction';
+}
+
+function bookingDateRange(checkIn: string | null, checkOut: string | null): string | null {
+  if (!checkIn || !checkOut) return null;
+  const start = dateFromYmd(checkIn);
+  const end = dateFromYmd(checkOut);
+  if (!start || !end) return `${checkIn} to ${checkOut}`;
+
+  const monthDay = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth();
+  if (sameMonth) return `${monthDay.format(start)}-${end.getUTCDate()}`;
+  return `${monthDay.format(start)}-${monthDay.format(end)}`;
+}
+
+function dateFromYmd(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+}
+
+function objectMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function titleCase(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
 }
