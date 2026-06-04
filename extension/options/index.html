@@ -98,14 +98,11 @@
     .btn-primary   { background: var(--green); border: none; color: #fff; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
     .btn-secondary { background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
     .btn-danger    { background: var(--bg-card); border: 1px solid var(--red-border); color: var(--red); padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    .btn-add { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; border: 1px dashed var(--border); color: var(--green); padding: 13px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 700; margin-top: 14px; }
+    .btn-add { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; border: 1px dashed var(--border); color: var(--green); padding: 13px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 400; margin-top: 14px; }
     .btn-add:hover { border-color: var(--green); background: var(--green-subtle); }
-    .trip-action-btn { min-width: 132px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-subtle); }
+    .trip-action-btn { min-width: 132px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 400; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-subtle); }
     .trip-action-btn:hover { border-color: var(--blue); color: var(--blue); }
     .trip-action-btn:disabled { cursor: default; opacity: 0.65; border-color: var(--border); color: var(--text-dim); }
-    .trip-delete-btn { border-color: var(--red-border); color: var(--red); }
-    .trip-delete-btn:hover { border-color: var(--red); color: var(--red); }
-
     /* ── Chips ───────────────────────────────────────────────── */
     .chip { background: var(--bg-card); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .chip-remove { color: var(--text-muted); cursor: pointer; background: none; border: none; font-size: 14px; padding: 0 4px; }
@@ -131,10 +128,11 @@
     .trip-match-card, .trip-scan-card { display: flex; align-items: center; gap: 16px; min-height: 86px; border-radius: 8px; padding: 18px; }
     .trip-match-card { background: var(--green-subtle); border: 1px solid var(--green-border); }
     .trip-scan-card { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); color: var(--text); font-weight: 700; }
-    .trip-match-icon { width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: var(--green-subtle); color: var(--green); }
+    .trip-match-icon { width: 44px; height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; background: color-mix(in srgb, var(--green) 14%, #fff); border: 1px solid color-mix(in srgb, var(--green) 24%, #fff); color: var(--green); }
     .trip-match-icon .icon { width: 22px; height: 22px; }
     .trip-match-content { flex: 1 1 auto; min-width: 0; }
-    .trip-match-title { color: var(--text); font-size: 16px; font-weight: 850; line-height: 1.25; }
+    .trip-match-state { color: var(--green); font-size: 15px; font-weight: 850; line-height: 1.2; }
+    .trip-match-title { color: var(--text); font-size: 16px; font-weight: 850; line-height: 1.25; margin-top: 6px; }
     .trip-match-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; color: var(--text-subtle); font-size: 13px; line-height: 1.35; }
     .trip-match-meta .icon { width: 15px; height: 15px; }
     .trip-book-btn { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; padding: 9px 18px; border: 1px solid var(--green-border); border-radius: 7px; background: linear-gradient(180deg, rgba(22,101,52,0.12), rgba(22,101,52,0.06)); color: var(--green); text-decoration: none; font-weight: 850; font-size: 14px; box-shadow: 0 8px 18px rgba(22,101,52,0.08); transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease; }
@@ -177,7 +175,8 @@
     .account-check .icon { width: 15px; height: 15px; }
     .account-lock .icon { width: 13px; height: 13px; }
     .icon-only-btn { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; background: transparent; color: var(--text-subtle); cursor: pointer; }
-    .account-sign-in-btn { color: #fff; background: var(--green); border-color: var(--green); }
+    .account-sign-in-btn { min-width: 64px; padding: 7px 10px; font-size: 13px; color: var(--green); background: var(--bg-card); border-color: var(--green-border); }
+    .account-sign-in-btn:hover { color: var(--green); background: var(--green-subtle); border-color: var(--green); }
     .payment-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; margin-top: 16px; box-shadow: 0 7px 18px rgba(15,23,42,0.07); overflow: hidden; }
     .payment-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px; }
     .payment-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -604,7 +603,7 @@
       height: 13px;
     }
     .account-cta-copy { font-size: 13px; color: var(--co-text-muted); }
-    .account-sign-in-btn { width: auto; min-width: 84px; color: var(--co-brand); border-color: var(--co-border-strong); }
+    .account-sign-in-btn { width: auto; min-width: 64px; color: var(--co-brand); border-color: var(--co-border-strong); }
 
     #tab-trips {
       max-width: 980px;
@@ -637,18 +636,18 @@
     .select:focus { outline: none; border-color: var(--co-brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--co-brand) 14%, transparent); }
     .btn-primary,
     .btn-secondary,
-    .btn-danger,
-    .trip-action-btn {
+    .btn-danger {
       border-radius: 7px;
       font-weight: 750;
     }
+    .trip-action-btn { border-radius: 7px; font-weight: 400; }
     .btn-primary { background: var(--co-brand); color: var(--co-on-brand); }
     .btn-secondary { background: var(--co-control); border-color: var(--co-border); color: var(--co-text-muted); }
     .trip-action-btn:hover { border-color: var(--co-brand); color: var(--co-brand); }
     .account-sign-in-btn {
-      background: var(--co-brand);
-      border-color: var(--co-brand);
-      color: var(--co-on-brand);
+      background: var(--co-control-soft);
+      border-color: var(--co-border-strong);
+      color: var(--co-brand);
     }
     .account-auth,
     .account-summary {
@@ -698,22 +697,15 @@
       padding: 8px 12px;
       font-size: 13px;
       border-radius: 6px;
-      font-weight: 800;
+      font-weight: 400;
     }
     .trips-toolbar {
       max-width: 980px;
       margin: 0 auto 20px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 16px;
-    }
-    .trips-toolbar-title {
-      margin: 0;
-      color: var(--co-text);
-      font-size: 20px;
-      line-height: 1.2;
-      font-weight: 850;
     }
     .trips-toolbar .btn-primary {
       display: inline-flex;
@@ -722,6 +714,7 @@
       gap: 8px;
       min-height: 36px;
       padding: 7px 12px;
+      font-weight: 400;
       background: transparent;
       border: 1px solid var(--co-border-strong);
       color: var(--co-brand);
@@ -792,7 +785,12 @@
       width: 42px;
       height: 42px;
       background: var(--co-brand-soft);
+      border-color: color-mix(in srgb, var(--co-brand) 24%, var(--co-surface));
       color: var(--co-brand);
+    }
+    .trip-match-state {
+      color: var(--co-brand);
+      font-size: 13px;
     }
     .trip-match-title {
       color: var(--co-text);
@@ -1511,7 +1509,6 @@
     </div>
     <div id="tab-trips">
       <div class="trips-toolbar">
-        <h2 class="trips-toolbar-title">My Trips</h2>
         <button class="btn-primary" id="new-trip-header-btn" type="button"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>New Trip</button>
       </div>
       <div id="global-alerts" style="margin-bottom:8px"></div>

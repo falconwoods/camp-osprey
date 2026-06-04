@@ -59,21 +59,29 @@ function formatTimeLabel(value: string | number): string {
   return TIME_FORMATTER.format(new Date(value))
 }
 
-function matchCardHTML(match: Trip['lastMatch']): string {
+function bookingActionLabel(mode: Trip['mode']): string {
+  if (mode === 'hold') return 'Go to payment'
+  if (mode === 'autopay') return 'View booking details'
+  return 'Book this site'
+}
+
+function matchCardHTML(match: Trip['lastMatch'], mode: Trip['mode']): string {
   if (!match) return ''
   const count = match.availableCount ?? 1
+  const foundTitle = count > 1 ? 'Sites found' : 'Site found'
   const siteLabel = count > 1
     ? `${count} available sites`
     : `${match.sectionName} › Site ${match.siteName}`
   const eventAt = match.paidAt ?? match.reservedAt ?? match.foundAt
   const eventLabel = eventAt ? `<span>Found at ${escapeHtml(formatTimeLabel(eventAt))}</span>` : ''
   const bookHTML = match.bookingUrl
-    ? `<a class="trip-book-btn" href="${escapeHtml(match.bookingUrl)}" target="_blank" rel="noopener noreferrer">Book ${icon('arrowRight')}</a>`
+    ? `<a class="trip-book-btn" href="${escapeHtml(match.bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingActionLabel(mode)} ${icon('arrowRight')}</a>`
     : ''
 
   return `<div class="trip-match-card">
-    <div class="trip-match-icon">${icon('mapPin')}</div>
+    <div class="trip-match-icon">${icon('check')}</div>
     <div class="trip-match-content">
+      <div class="trip-match-state">${foundTitle}</div>
       <div class="trip-match-title">${escapeHtml(match.parkName)} › ${escapeHtml(siteLabel)}</div>
       <div class="trip-match-meta">
         ${icon('calendar')}
@@ -122,7 +130,7 @@ export function tripListItemHTML(trip: Trip, warningsHTML = ''): string {
   const parkNames = trip.parks.map(p => p.name).join(', ') || '—'
   const dateCount = trip.dateRanges.length
   const modeLabel: Record<Trip['mode'], string> = { notify: 'Notify', hold: 'Auto-reserve', autopay: 'Auto-pay' }
-  const resultHTML = trip.lastMatch ? matchCardHTML(trip.lastMatch) : ''
+  const resultHTML = trip.lastMatch ? matchCardHTML(trip.lastMatch, trip.mode) : ''
   const activityHTML = !trip.lastMatch && (trip.status === 'scanning' || trip.status === 'reserving') ? scanningCardHTML() : ''
 
   return `<div class="trip-list-item ${trip.status}">
