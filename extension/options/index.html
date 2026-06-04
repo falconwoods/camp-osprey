@@ -267,9 +267,61 @@
     }
 
     /* ── Alerts ──────────────────────────────────────────────── */
-    .alert-error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 5px; padding: 6px 9px; font-size: 11px; color: var(--red); margin-top: 6px; line-height: 1.5; }
-    .alert-warn  { background: var(--amber-subtle); border: 1px solid var(--amber-border); border-radius: 5px; padding: 6px 9px; font-size: 11px; color: var(--amber); margin-top: 6px; line-height: 1.5; }
-    .alert-error a, .alert-warn a { color: inherit; }
+    .alert-error,
+    .alert-warn {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      border: 1px solid;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      margin-top: 8px;
+      line-height: 1.45;
+    }
+    .alert-error { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.2); color: var(--red); }
+    .alert-warn  { background: var(--amber-subtle); border-color: var(--amber-border); color: var(--amber); }
+    .alert-has-action {
+      align-items: center;
+      padding: 13px 14px;
+      border-radius: 8px;
+      box-shadow: inset 4px 0 0 currentColor, 0 7px 18px rgba(15,23,42,0.08);
+    }
+    .alert-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      border-radius: 999px;
+      color: var(--bg-card);
+      font-size: 15px;
+      font-weight: 850;
+      line-height: 1;
+    }
+    .alert-error .alert-icon { background: var(--red); }
+    .alert-warn .alert-icon { background: var(--amber); }
+    .alert-copy { display: grid; gap: 3px; flex: 1 1 auto; min-width: 0; }
+    .alert-copy strong { color: var(--text); font-size: 14px; font-weight: 800; line-height: 1.2; }
+    .alert-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 14px;
+      border-radius: 7px;
+      background: var(--green);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    @media (max-width: 720px) {
+      .alert-has-action { align-items: flex-start; flex-wrap: wrap; }
+      .alert-action { width: 100%; }
+    }
 
     /* ── Field validation ────────────────────────────────────── */
     .field-error { color: var(--red); font-size: 11px; margin-top: 5px; display: none; }

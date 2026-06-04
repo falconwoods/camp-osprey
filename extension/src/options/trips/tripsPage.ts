@@ -131,10 +131,13 @@ export class TripsPage {
   private promptLogin(): void {
     const alertsEl = document.getElementById('global-alerts')
     if (alertsEl) {
-      alertsEl.innerHTML = `<div class="alert-warn" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <span>⚠ Not logged in to BC Parks — required for Hold and Auto-pay modes.</span>
-        <a href="https://camping.bcparks.ca/login" target="_blank"
-           style="white-space:nowrap;text-decoration:underline;opacity:0.9;flex-shrink:0">Log in →</a>
+      alertsEl.innerHTML = `<div class="alert-warn alert-has-action">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <span class="alert-copy">
+          <strong>BC Parks sign-in needed</strong>
+          <span>Not logged in to BC Parks. Hold and Auto-pay modes require a BC Parks account.</span>
+        </span>
+        <a class="alert-action" href="https://camping.bcparks.ca/login" target="_blank">Log in →</a>
       </div>`
     }
     chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })

@@ -45,8 +45,17 @@ export function getGlobalWarnings(_trips: Trip[], loggedIn: boolean): Warning[] 
 export function renderWarnings(warnings: Warning[]): string {
   return warnings.map(w => {
     const actionHTML = w.action
-      ? `<a href="${w.action.url}" target="_blank" style="margin-left:8px;text-decoration:underline;opacity:0.9">${w.action.label}</a>`
+      ? `<a class="alert-action" href="${w.action.url}" target="_blank">${w.action.label}</a>`
       : ''
-    return `<div class="alert-${w.level}">⚠ ${w.message}${actionHTML}</div>`
+    const actionClass = w.action ? ' alert-has-action' : ''
+    const title = w.level === 'error' ? 'Action needed' : w.action ? 'BC Parks sign-in needed' : 'Heads up'
+    return `<div class="alert-${w.level}${actionClass}">
+      <span class="alert-icon" aria-hidden="true">!</span>
+      <span class="alert-copy">
+        <strong>${title}</strong>
+        <span>${w.message}</span>
+      </span>
+      ${actionHTML}
+    </div>`
   }).join('')
 }
