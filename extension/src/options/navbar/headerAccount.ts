@@ -14,7 +14,7 @@ export class HeaderAccount {
     if (!headerAccountEl) return
     const auth = await getAuth()
     const points = auth.user && typeof auth.pointsBalance === 'number'
-      ? `${auth.pointsBalance.toLocaleString()} points`
+      ? this.formatPoints(auth.pointsBalance)
       : null
     headerAccountEl.innerHTML = this.html(Boolean(auth.user), points)
     this.bind()
@@ -22,11 +22,10 @@ export class HeaderAccount {
 
   private html(signedIn: boolean, pointsLabel: string | null): string {
     if (signedIn) {
-      return `<div class="account-cta account-cta-signed-in">
-        <span class="account-check">${icon('user')}</span>
-        <span>${pointsLabel ?? 'Points unavailable'}</span>
-        <button class="icon-only-btn" type="button" id="open-account-btn" aria-label="Open account">${icon('chevronDown')}</button>
-      </div>`
+      return `<button class="account-cta account-cta-signed-in" type="button" id="open-account-btn" aria-label="Open account">
+        <span class="points-icon">${icon('points')}</span>
+        <span class="points-value">${pointsLabel ?? 'Points unavailable'}</span>
+      </button>`
     }
     return `<button class="account-cta account-cta-warning account-sign-in-btn" type="button" id="open-account-btn">
       <span class="account-lock">${icon('lock')}</span>
@@ -42,5 +41,11 @@ export class HeaderAccount {
         else await this.options.openAuthDialog()
       })()
     })
+  }
+
+  private formatPoints(points: number): string {
+    if (points >= 1_000_000) return `${(points / 1_000_000).toFixed(1)}M points`
+    if (points >= 1_000) return `${(points / 1_000).toFixed(1)}K points`
+    return `${points.toLocaleString()} points`
   }
 }

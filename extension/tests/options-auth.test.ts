@@ -175,6 +175,8 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(document.querySelector('#header-account img')).toBeNull()
+    expect(document.querySelector('#header-account .points-icon svg')).not.toBeNull()
+    expect(document.querySelector('#header-account .icon-only-btn')).toBeNull()
     expect(document.querySelector('#header-account')!.textContent).toContain('700 points')
     expect(document.querySelector('#header-account')!.textContent).not.toContain('<img src=x onerror=alert(1)>@example.com')
   })

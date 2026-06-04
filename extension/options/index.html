@@ -165,8 +165,12 @@
     .status-failed { color: var(--red); background: rgba(239,68,68,0.08); }
     .status-idle { color: var(--text-muted); background: var(--bg-input); }
     .header-account { margin-left: auto; flex: 0 1 auto; }
-    .account-cta { display: flex; align-items: center; gap: 12px; border-radius: 8px; }
-    .account-cta-signed-in { width: fit-content; min-width: 300px; justify-content: flex-start; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-subtle); padding: 10px 12px; font-size: 14px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+    .account-cta { display: flex; align-items: center; gap: 8px; border-radius: 8px; }
+    .account-cta-signed-in { width: fit-content; min-width: 0; justify-content: center; background: rgba(255,255,255,0.78); border: 1px solid var(--green-border); color: var(--green); padding: 8px 14px 8px 10px; font-size: 14px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 18px rgba(22,101,52,0.06); transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
+    .account-cta-signed-in:hover, .account-cta-signed-in:focus-visible { transform: translateY(-1px); border-color: var(--green); background: var(--green-subtle); box-shadow: 0 9px 22px rgba(22,101,52,0.1); }
+    .points-icon { width: 24px; height: 24px; border-radius: 999px; background: var(--green-subtle); color: var(--green); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .points-icon .icon { width: 14px; height: 14px; stroke-width: 2; }
+    .points-value { color: var(--text); }
     .account-cta-warning { width: fit-content; min-width: 0; background: transparent; border: 0; color: var(--green); padding: 0 10px; cursor: pointer; font-weight: 700; box-shadow: none; }
     .account-check, .account-lock { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .account-check { width: 22px; height: 22px; border-radius: 999px; background: var(--green); color: #fff; }
@@ -210,7 +214,7 @@
       .trip-book-btn { width: 100%; }
       .header-account { margin-left: 0; width: 100%; }
       .account-cta { align-items: center; }
-      .account-cta-signed-in { width: 100%; min-width: 0; }
+      .account-cta-signed-in { width: fit-content; min-width: 0; }
       .account-cta-warning { width: fit-content; min-width: 0; }
       .payment-card-header, .payment-actions { flex-direction: column; align-items: stretch; }
       .payment-grid { grid-template-columns: 1fr; }
@@ -653,16 +657,21 @@
       box-shadow: var(--co-shadow-soft);
     }
     .account-cta-signed-in {
-      min-width: 200px;
-      padding: 9px 14px;
+      min-width: 0;
+      padding: 8px 12px;
       background: var(--co-control);
       border-color: var(--co-border);
       color: var(--co-text);
     }
     .account-cta-signed-in {
-      min-height: 46px;
-      gap: 10px;
+      min-height: 38px;
+      gap: 8px;
       padding: 8px 12px;
+    }
+    .points-icon {
+      background: var(--co-brand-soft);
+      color: var(--co-brand);
+      border-color: var(--co-border-strong);
     }
     .account-check {
       width: 24px;
