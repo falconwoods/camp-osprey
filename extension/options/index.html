@@ -40,6 +40,24 @@
     .trip-action-btn { min-width: 132px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 400; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-subtle); }
     .trip-action-btn:hover { border-color: var(--blue); color: var(--blue); }
     .trip-action-btn:disabled { cursor: default; opacity: 0.65; border-color: var(--border); color: var(--text-dim); }
+    .btn-primary:disabled,
+    .btn-secondary:disabled,
+    .btn-danger:disabled {
+      cursor: default;
+      opacity: 0.72;
+    }
+    button[data-loading="true"] {
+      pointer-events: none;
+    }
+    .button-loading-spinner {
+      width: 1em;
+      height: 1em;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 999px;
+      animation: buttonLoadingSpin 700ms linear infinite;
+    }
+    @keyframes buttonLoadingSpin { to { transform: rotate(360deg); } }
     /* ── Chips ───────────────────────────────────────────────── */
     .chip { background: var(--bg-card); border-radius: 6px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
     .chip-remove { color: var(--text-muted); cursor: pointer; background: none; border: none; font-size: 14px; padding: 0 4px; }
@@ -276,25 +294,145 @@
     .hint { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
 
     /* ── Trip editor redesign ───────────────────────────────── */
-    #trip-editor { max-width: 1080px; margin: 0 auto; }
-    #trip-editor .back-link { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: 14px; font-weight: 700; margin-bottom: 14px; }
-    .editor-hero, .editor-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 7px 18px rgba(15,23,42,0.07); }
-    .editor-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 18px; margin-bottom: 14px; }
-    .editor-eyebrow { color: var(--text-subtle); font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-    .editor-title-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-    .editor-title-row h1 { font-size: 25px; margin: 0; line-height: 1.15; }
-    .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
-    .editor-main, .editor-side { display: flex; flex-direction: column; gap: 14px; }
-    .editor-side { position: sticky; top: 18px; }
-    .editor-card { padding: 17px; }
-    .editor-section-title { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; color: var(--text); font-size: 16px; font-weight: 800; }
+    #trip-editor {
+      width: min(1180px, calc(100vw - 48px));
+      margin: 24px auto 48px;
+    }
+    .editor-page-header {
+      margin-bottom: 18px;
+      padding: 0 4px;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    #trip-editor .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 18px;
+      border: 0;
+      background: transparent;
+      color: var(--green);
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .editor-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .editor-title-row h1 {
+      margin: 0;
+      color: var(--green);
+      font-size: 32px;
+      font-weight: 850;
+      line-height: 1.1;
+    }
+    .editor-subtitle {
+      margin-top: 8px;
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.4;
+    }
+    .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+    .editor-main { display: flex; flex-direction: column; gap: 14px; }
+    #trip-editor .section { margin-bottom: 0; }
+    .editor-card,
+    .editor-side-panel {
+      width: 100%;
+      min-width: 0;
+      background: var(--co-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--co-shadow-soft);
+    }
+    .editor-card { padding: 24px; }
+    .editor-side-panel {
+      position: sticky;
+      top: 24px;
+      padding: 24px;
+    }
+    .editor-side-heading {
+      margin-bottom: 22px;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 850;
+      line-height: 1.2;
+    }
+    .editor-side-section {
+      margin-bottom: 22px;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .editor-side-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+    .editor-section-title { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; color: var(--text); font-size: 16px; font-weight: 800; }
     .editor-section-title .icon { width: 20px; height: 20px; color: var(--green); }
+    .editor-side-section .editor-section-title { gap: 10px; margin-bottom: 14px; font-size: 15px; }
+    .editor-side-section .editor-section-title .icon { width: 18px; height: 18px; }
     .editor-section-title small { color: var(--text-muted); font-size: 12px; font-weight: 500; margin-left: 4px; }
     .editor-card .section-label { color: var(--text-dim); font-size: 12px; letter-spacing: 0; text-transform: none; margin-bottom: 7px; }
+    .editor-card .section-label small { margin-left: 8px; color: var(--text-muted); font-size: 12px; font-weight: 500; }
+    .editor-field-group + .editor-field-group {
+      margin-top: 22px;
+      padding-top: 22px;
+      border-top: 1px solid var(--border);
+    }
     #trip-editor .input, #trip-editor .select { background: var(--bg-card); border-color: var(--border); border-radius: 6px; padding: 10px 12px; font-size: 14px; }
-    #parks-list, #dates-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+    #parks-list, #dates-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
     #trip-editor .chip { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; min-height: 35px; padding: 8px 12px; margin-bottom: 0; font-size: 14px; }
     #trip-editor .chip-remove { color: var(--text-muted); font-size: 18px; }
+    #trip-editor .park-chip {
+      justify-content: flex-start;
+      gap: 8px;
+      cursor: grab;
+      transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+    }
+    #trip-editor .park-chip:active { cursor: grabbing; }
+    #trip-editor .park-chip.dragging { opacity: 0.55; }
+    #trip-editor .park-chip.drag-over {
+      border-color: var(--green);
+      background: var(--green-subtle);
+      box-shadow: inset 3px 0 0 var(--green);
+    }
+    .park-drag-handle {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1;
+      cursor: grab;
+      user-select: none;
+    }
+    .park-priority { color: var(--text); font-weight: 700; }
+    .park-name { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+    #trip-editor .park-chip .chip-remove { flex: 0 0 auto; }
+    .park-add-row { display: flex; gap: 10px; align-items: stretch; }
+    .park-add-row .input { flex: 1 1 auto; min-width: 0; }
+    .park-add-row .btn-primary {
+      flex: 0 0 auto;
+      padding: 0 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .range-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--co-surface-muted);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .range-summary span { min-width: 0; overflow-wrap: anywhere; }
+    .range-summary .chip-remove {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+    }
+    .range-summary .chip-remove:hover { background: var(--red-subtle); color: var(--red); }
     #trip-editor .date-form { border: 1px solid var(--border); padding: 0; overflow: hidden; }
     #trip-editor .date-mode-toggle { border-bottom: 1px solid var(--border); gap: 0; margin: 0; padding: 0 18px; }
     #trip-editor .date-mode-btn { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); padding: 12px 14px; font-size: 13px; }
@@ -308,8 +446,15 @@
     .editor-action-stack { display: flex; flex-direction: column; gap: 10px; }
     #save-trip-btn, #delete-trip-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 700; padding: 12px 16px; }
     @media (max-width: 900px) {
-      .editor-layout { grid-template-columns: 1fr; }
-      .editor-side { position: static; }
+      .editor-layout { grid-template-columns: minmax(0, 1fr); }
+      .editor-side-panel { position: static; }
+      #trip-editor { width: min(100vw - 32px, 640px); margin-top: 20px; }
+    }
+    @media (max-width: 560px) {
+      .editor-card, .editor-side-panel { padding: 18px; }
+      .editor-title-row h1 { font-size: 24px; }
+      .park-add-row { flex-direction: column; }
+      .park-add-row .btn-primary { min-height: 40px; }
     }
 
     body {
@@ -326,6 +471,26 @@
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
       overflow-x: hidden;
+    }
+    body.trip-editor-open {
+      --co-bottom-gradient:
+        linear-gradient(
+          180deg,
+          rgba(246,251,239,0.12) 0,
+          rgba(246,251,239,0.36) 38%,
+          rgba(246,251,239,0.68) 70%,
+          rgba(246,251,239,0.82) 100%
+        );
+    }
+    html[data-theme="dark"] body.trip-editor-open {
+      --co-bottom-gradient:
+        linear-gradient(
+          180deg,
+          rgba(16,34,57,0.06) 0,
+          rgba(16,34,57,0.24) 38%,
+          rgba(16,34,57,0.54) 70%,
+          rgba(16,34,57,0.76) 100%
+        );
     }
     body::before {
       content: none;
@@ -1825,40 +1990,43 @@
   </div>
 
   <div id="trip-editor" class="hidden">
-    <span class="back-link" id="back-btn">← All Trips</span>
-    <div class="editor-hero">
-      <div>
-        <div class="editor-eyebrow">Edit Trip</div>
+    <div class="editor-page-header">
+      <button class="back-link" id="back-btn" type="button">← All Trips</button>
+      <div class="trip-heading">
         <div class="editor-title-row">
           <h1 id="editor-trip-title">Trip</h1>
           <div id="editor-status-bar" class="hidden">
             <span id="editor-status-badge"></span>
           </div>
         </div>
+        <div class="editor-subtitle">Edit trip details and campsite search preferences.</div>
       </div>
     </div>
 
     <div class="editor-layout">
       <div class="editor-main">
-        <div class="editor-card section" id="section-name">
+        <div class="editor-card section">
           <div class="editor-section-title">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 12-8.5 8.5a2 2 0 0 1-2.8 0L3 14.8V4h10.8l5.7 5.7a2 2 0 0 1 0 2.8Z"/><path d="M7.5 7.5h.01"/></svg>
-            Trip Details
+            Trip Setup
           </div>
-          <div class="section-label">Trip Name</div>
-          <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
-          <div class="field-error" id="error-name"></div>
-        </div>
 
-        <div class="editor-card section" id="section-parks">
-          <div class="editor-section-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 4 8h-3l4 7h-4v5h-2v-5H7l4-7H8l4-8Z"/></svg>
-            Parks <small>(drag to reorder priority)</small>
+          <div class="editor-field-group" id="section-name">
+            <div class="section-label">Trip Name</div>
+            <input class="input" id="trip-name" placeholder="e.g. Summer Long Weekend">
+            <div class="field-error" id="error-name"></div>
           </div>
-          <div id="parks-list"></div>
-          <input class="input" id="park-search" placeholder="Search or add parks...">
-          <div class="search-results" id="park-results"></div>
-          <div class="field-error" id="error-parks"></div>
+
+          <div class="editor-field-group" id="section-parks">
+            <div class="section-label">Parks <small>(drag to reorder priority)</small></div>
+            <div id="parks-list"></div>
+            <div class="park-add-row">
+              <input class="input" id="park-search" placeholder="Search or add parks...">
+              <button class="btn-primary" id="park-add-btn" type="button">Add</button>
+            </div>
+            <div class="search-results" id="park-results"></div>
+            <div class="field-error" id="error-parks"></div>
+          </div>
         </div>
 
         <div class="editor-card section" id="section-dates">
@@ -1906,8 +2074,9 @@
         </div>
       </div>
 
-      <div class="editor-side">
-        <div class="editor-card">
+      <aside class="editor-side-panel">
+        <div class="editor-side-heading">Booking Settings</div>
+        <section class="editor-side-section">
           <div class="editor-section-title">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>
             Match Behavior
@@ -1918,9 +2087,9 @@
             <option value="hold">Auto-reserve</option>
             <option value="autopay">Auto-pay</option>
           </select>
-        </div>
+        </section>
 
-        <div class="editor-card">
+        <section class="editor-side-section">
           <div class="editor-section-title">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3H2l8 9.5V19l4 2v-8.5L22 3Z"/></svg>
             Filters
@@ -1929,9 +2098,9 @@
             <label class="checkbox-label"><input type="checkbox" id="filter-walkin"> No walk-in</label>
             <label class="checkbox-label"><input type="checkbox" id="filter-double"> No double</label>
           </div>
-        </div>
+        </section>
 
-        <div class="editor-card">
+        <section class="editor-side-section">
           <div class="editor-section-title">
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13 2-9 13h7l-1 7 9-13h-7l1-7Z"/></svg>
             Actions
@@ -1940,8 +2109,8 @@
             <button class="btn-primary" id="save-trip-btn">▶ Save &amp; Start Scanning</button>
             <button class="btn-danger" id="delete-trip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>Delete Trip</button>
           </div>
-        </div>
-      </div>
+        </section>
+      </aside>
     </div>
   </div>
   <script type="module" src="../src/options/index.ts"></script>

@@ -98,9 +98,10 @@ function renderFixture(): void {
     </div>
     <div id="trip-editor" class="hidden">
       <button id="back-btn"></button>
+      <h1 id="editor-trip-title"></h1>
       <div id="editor-status-bar" class="hidden"></div><div id="editor-status-badge"></div>
       <div id="section-name"><input class="input" id="trip-name"><div class="field-error" id="error-name"></div></div>
-      <div id="section-parks"><div id="parks-list"></div><input class="input" id="park-search"><div id="park-results"></div><div class="field-error" id="error-parks"></div></div>
+      <div id="section-parks"><div id="parks-list"></div><input class="input" id="park-search"><button id="park-add-btn"></button><div id="park-results"></div><div class="field-error" id="error-parks"></div></div>
       <div id="section-dates"><div id="dates-list"></div><div class="field-error" id="error-dates"></div></div>
       <button class="date-mode-btn active" data-mode="specific"></button>
       <button class="date-mode-btn" data-mode="recurring"></button>
@@ -437,6 +438,101 @@ describe('options auth gate', () => {
 
     expect(window.confirm).toHaveBeenCalledWith('Delete "Weekend"?')
     expect((await getStorage()).trips).toHaveLength(0)
+  })
+
+  it('saves parks in drag-and-drop priority order', async () => {
+    await saveTrips([{
+      ...trip(),
+      parks: [
+        { id: 'p1', name: 'Alice Lake' },
+        { id: 'p2', name: 'Porteau Cove' },
+      ],
+    }])
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const parkChips = () => Array.from(document.querySelectorAll<HTMLElement>('#parks-list .park-chip'))
+    expect(parkChips().map(chip => chip.textContent)).toEqual([
+      expect.stringContaining('Alice Lake'),
+      expect.stringContaining('Porteau Cove'),
+    ])
+
+    parkChips()[0].dispatchEvent(new Event('dragstart', { bubbles: true, cancelable: true }))
+    parkChips()[1].dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }))
+    expect(parkChips().map(chip => chip.textContent)).toEqual([
+      expect.stringContaining('Porteau Cove'),
+      expect.stringContaining('Alice Lake'),
+    ])
+
+    document.getElementById('save-trip-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect((await getStorage()).trips[0].parks.map(park => park.name)).toEqual(['Porteau Cove', 'Alice Lake'])
+  })
+
+  it('does not add duplicate date ranges', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const dateRows = () => Array.from(document.querySelectorAll('#dates-list .range-summary'))
+    expect(dateRows()).toHaveLength(1)
+
+    ;(document.getElementById('date-checkin') as HTMLInputElement).value = '2026-07-04'
+    ;(document.getElementById('date-checkout') as HTMLInputElement).value = '2026-07-05'
+    document.getElementById('add-date-btn')!.click()
+
+    expect(dateRows()).toHaveLength(1)
+    expect(document.getElementById('error-dates')!.textContent).toBe('Date range already added.')
+
+    ;(document.getElementById('date-checkout') as HTMLInputElement).value = '2026-07-06'
+    document.getElementById('add-date-btn')!.click()
+
+    expect(dateRows()).toHaveLength(2)
+    expect(document.getElementById('error-dates')!.textContent).toBe('')
+  })
+
+  it('disables Save & Start Scanning while the async start flow is running', async () => {
+    let finishAuth!: () => void
+    vi.mocked(validateAuth).mockImplementationOnce(() => new Promise<boolean>(resolve => {
+      finishAuth = () => resolve(true)
+    }))
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const saveButton = document.getElementById('save-trip-btn') as HTMLButtonElement
+    saveButton.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(saveButton.disabled).toBe(true)
+    expect(saveButton.getAttribute('aria-busy')).toBe('true')
+    expect(saveButton.textContent).toContain('Saving...')
+
+    saveButton.click()
+    expect(sentScanNow()).toBe(false)
+
+    finishAuth()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'SCAN_NOW',
+      tripId: 'trip-1',
+      resetActiveMatch: true,
+    })
+    expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.filter(([message]) =>
+      (message as { type?: string }).type === 'SCAN_NOW'
+    )).toHaveLength(1)
+    expect(saveButton.disabled).toBe(false)
+    expect(saveButton.getAttribute('aria-busy')).toBeNull()
   })
 
   it('keeps the trip when list deletion is cancelled', async () => {

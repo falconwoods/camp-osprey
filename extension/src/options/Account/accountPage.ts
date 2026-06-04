@@ -1,5 +1,6 @@
 import { bindAccountPanel, renderAccountPanelHTML } from '../../accountPanel'
 import { createPointCheckout, getPointsSummary, type PointsSummary } from '../../serverApi'
+import { withButtonLoading } from '../../shared/components/button'
 import { getAuth, getPendingStartTripId } from '../../storage'
 import type { AuthState } from '../../types'
 import { consumePendingStartTripId } from '../../startAuthGate'
@@ -191,10 +192,7 @@ export class AccountPage {
   private async startCheckout(button: HTMLButtonElement): Promise<void> {
     const packageId = button.dataset.packageId ?? ''
     if (!packageId) return
-    const previousLabel = button.textContent ?? 'Buy now'
-    button.disabled = true
-    button.textContent = 'Opening Stripe...'
-    try {
+    await withButtonLoading(button, 'Opening Stripe...', async () => {
       const returnUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL
         ? chrome.runtime.getURL('options/index.html#account')
         : `${window.location.origin}${window.location.pathname}#account`
@@ -205,10 +203,7 @@ export class AccountPage {
         return
       }
       window.open(checkout.checkoutUrl, '_blank')
-    } finally {
-      button.disabled = false
-      button.textContent = previousLabel
-    }
+    })
   }
 
   private escape(value: string): string {

@@ -1,4 +1,5 @@
 import { requestCode, signOut, verifyCode } from './auth'
+import { withButtonLoading } from './shared/components/button'
 import type { AuthState } from './types'
 
 function escapeHtml(value: string): string {
@@ -107,25 +108,6 @@ export function bindAccountPanel(
 
   let submittedEmail = ''
   let resendTimer: ReturnType<typeof setInterval> | null = null
-
-  const withButtonLoading = async (
-    button: HTMLButtonElement,
-    loadingLabel: string,
-    action: () => Promise<void>,
-  ) => {
-    if (button.disabled) return
-    const previousHTML = button.innerHTML
-    button.disabled = true
-    button.setAttribute('aria-busy', 'true')
-    button.textContent = loadingLabel
-    try {
-      await action()
-    } finally {
-      button.disabled = false
-      button.removeAttribute('aria-busy')
-      button.innerHTML = previousHTML
-    }
-  }
 
   const startResendCooldown = () => {
     const resendButton = document.getElementById('auth-resend-code') as HTMLButtonElement | null
