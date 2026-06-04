@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getStorage, saveAuth, saveTrips } from '../src/storage'
+import { getStorage, saveAuth, savePayment, saveTrips } from '../src/storage'
 import type { DebugLogEntry, Trip } from '../src/types'
 
 vi.mock('../src/background/login', () => ({
@@ -114,6 +114,7 @@ function renderFixture(): void {
       <div id="rec-preview"></div>
       <button id="add-date-btn"></button>
       <select id="trip-mode"><option value="notify"></option><option value="hold"></option><option value="autopay"></option></select>
+      <div id="trip-mode-help"></div>
       <input id="filter-walkin" type="checkbox"><input id="filter-double" type="checkbox">
       <button id="save-trip-btn"></button>
       <button id="delete-trip-btn"></button>
@@ -533,6 +534,53 @@ describe('options auth gate', () => {
     )).toHaveLength(1)
     expect(saveButton.disabled).toBe(false)
     expect(saveButton.getAttribute('aria-busy')).toBeNull()
+  })
+
+  it('blocks auto-pay scanning when Park Payment is not configured', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    ;(document.getElementById('trip-mode') as HTMLSelectElement).value = 'autopay'
+    document.getElementById('save-trip-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(sentScanNow()).toBe(false)
+    expect((await getStorage()).trips[0].mode).toBe('notify')
+    expect(document.getElementById('trip-mode')!.classList.contains('invalid')).toBe(true)
+    expect(document.getElementById('trip-mode-help')!.textContent).toContain('Payment required')
+    expect(document.getElementById('trip-mode-help')!.textContent).toContain('Add valid Park Payment info before starting Auto-pay.')
+  })
+
+  it('allows auto-pay scanning when Park Payment is configured', async () => {
+    await savePayment({
+      cardNumber: '4111111111111111',
+      cardHolder: 'Test Camper',
+      cardExpiry: '12/30',
+      cardCvv: '123',
+      billingAddress: '1 Park Road',
+      billingPostal: 'V6B 1A1',
+    })
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    ;(document.getElementById('trip-mode') as HTMLSelectElement).value = 'autopay'
+    document.getElementById('save-trip-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'SCAN_NOW',
+      tripId: 'trip-1',
+      resetActiveMatch: true,
+    })
+    expect((await getStorage()).trips[0].mode).toBe('autopay')
   })
 
   it('keeps the trip when list deletion is cancelled', async () => {

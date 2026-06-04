@@ -70,10 +70,6 @@ export class PaymentPage {
             <label for="billing-postal">Postal / Zip code</label>
             <input class="input" id="billing-postal" placeholder="Postal / Zip code" ${disabled}>
           </div>
-          <div class="payment-field">
-            <label for="party-size">Party size</label>
-            <input class="input" id="party-size" type="number" min="1" max="8" placeholder="Number of people" ${disabled}>
-          </div>
         </div>
       </div>
       <div class="payment-local-note">
@@ -112,7 +108,6 @@ export class PaymentPage {
     ;(document.getElementById('card-cvv') as HTMLInputElement).value = payment.cardCvv
     ;(document.getElementById('billing-address') as HTMLInputElement).value = payment.billingAddress ?? ''
     ;(document.getElementById('billing-postal') as HTMLInputElement).value = payment.billingPostal ?? ''
-    ;(document.getElementById('party-size') as HTMLInputElement).value = String(payment.partySize)
   }
 
   private async saveFromForm(): Promise<void> {
@@ -123,7 +118,6 @@ export class PaymentPage {
       cardCvv: (document.getElementById('card-cvv') as HTMLInputElement).value,
       billingAddress: (document.getElementById('billing-address') as HTMLInputElement).value,
       billingPostal: (document.getElementById('billing-postal') as HTMLInputElement).value,
-      partySize: parseInt((document.getElementById('party-size') as HTMLInputElement).value) || 1,
     })
     alert('Payment info saved.')
   }

@@ -138,6 +138,8 @@ After "Confirm reservation details", the checkout wizard navigates through these
 | Add-ons | `"Skip add ons"` |
 | Payment | Fill fields, then `"Apply credit card payment,"` |
 
+The extension does not require or store a party size for Auto-pay. It advances through the party information step using the booking flow defaults; users can adjust or pay for extra people on site when applicable.
+
 Payment form field selectors (confirmed from live DOM inspection — fields use `id`, NOT `aria-label`):
 - Card number: `#cardNumber`
 - Name on card: `#cardHolderName`

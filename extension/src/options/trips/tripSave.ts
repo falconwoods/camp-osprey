@@ -1,5 +1,5 @@
 import { getClientId, getStorage, saveTrips } from '../../storage'
-import type { DateRange, Park, Trip } from '../../types'
+import type { DateRange, Park, PaymentConfig, Trip } from '../../types'
 
 type SaveTripInput = {
   editingTripId: string | null
@@ -19,6 +19,42 @@ function fieldError(errorId: string, sectionId: string, message: string): void {
   document.getElementById(sectionId)?.classList.add('section-invalid')
 }
 
+function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
+  if (!payment) return false
+  const requiredFields = [
+    payment.cardNumber,
+    payment.cardHolder,
+    payment.cardExpiry,
+    payment.cardCvv,
+    payment.billingAddress,
+    payment.billingPostal,
+  ]
+  return Boolean(
+    requiredFields.every(value => typeof value === 'string' && value.trim()),
+  )
+}
+
+function clearModePaymentWarning(): void {
+  document.querySelector('.mode-help-payment-warning')?.remove()
+  document.getElementById('trip-mode-help')?.classList.remove('mode-help-warning')
+  document.getElementById('trip-mode')?.classList.remove('invalid')
+}
+
+function showModePaymentWarning(): void {
+  const message = 'Add valid Park Payment info before starting Auto-pay.'
+  const help = document.getElementById('trip-mode-help')
+  const modeSelect = document.getElementById('trip-mode') as HTMLSelectElement | null
+  modeSelect?.classList.add('invalid')
+
+  if (!help) {
+    alert(message)
+    return
+  }
+
+  help.classList.add('mode-help-warning')
+  help.insertAdjacentHTML('beforeend', `<div class="mode-help-payment-warning" role="alert"><strong>Payment required</strong><span>${message}</span><button type="button" data-open-payment-settings>Set up Park Payment</button></div>`)
+}
+
 export function clearFieldErrors(): void {
   document.querySelectorAll('.field-error').forEach(el => {
     el.textContent = ''
@@ -26,6 +62,7 @@ export function clearFieldErrors(): void {
   })
   document.querySelectorAll('.section-invalid').forEach(el => el.classList.remove('section-invalid'))
   document.querySelectorAll('.input.invalid').forEach(el => el.classList.remove('invalid'))
+  clearModePaymentWarning()
 }
 
 export function bindTripNameErrorReset(): void {
@@ -65,7 +102,13 @@ export async function saveTripFromEditor(input: SaveTripInput): Promise<SaveTrip
 
   if (hasErrors) return null
 
-  const { trips } = await getStorage()
+  const { payment, trips } = await getStorage()
+  if (mode === 'autopay' && !isValidParkPayment(payment)) {
+    showModePaymentWarning()
+    ;(document.getElementById('trip-mode') as HTMLSelectElement | null)?.focus()
+    return null
+  }
+
   const clientId = await getClientId()
   const now = Date.now()
   const savedTripId = input.editingTripId ?? crypto.randomUUID()

@@ -123,25 +123,13 @@ export class AccountPage {
       : '<div class="account-empty-state">No point activity yet.</div>'
 
     return `<div class="account-points-page">
-      <section class="account-points-card account-points-summary">
-        <div class="account-points-summary-copy">
-          <div class="account-section-icon">${icon('check')}</div>
-          <div>
-            <div class="account-card-kicker">Campsoon Points</div>
-            <h2>${points.balance.toLocaleString()} points</h2>
-            <p>Available balance</p>
-            <p class="account-points-usage">Used for successful auto-reserve and auto-pay bookings.</p>
-          </div>
-        </div>
-      </section>
-
       <section class="account-points-card account-buy-points">
-        <div class="account-card-heading">
-          <div class="account-section-icon">${icon('card')}</div>
-          <div>
+        <div class="buy-points-header">
+          <div class="buy-points-title-group">
             <h2>Buy points</h2>
-            <p>Choose a package and complete payment securely with Stripe. Points will be added to your account after payment succeeds.</p>
+            <p>Choose a package and complete payment securely with Stripe.</p>
           </div>
+          <div class="points-balance-badge" aria-label="Current points balance">${points.balance.toLocaleString()} points available</div>
         </div>
         <div class="point-package-grid">
           ${packageCards}

@@ -64,7 +64,6 @@ export interface PaymentConfig {
   cardCvv: string
   billingAddress: string  // → #street-field-0
   billingPostal: string   // → #postal-code-field-0
-  partySize: number
 }
 
 export type Theme = 'auto' | 'light' | 'dark'

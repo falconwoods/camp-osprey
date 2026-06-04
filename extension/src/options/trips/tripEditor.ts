@@ -48,6 +48,12 @@ export class TripEditor {
     bindAsyncButton(document.getElementById('save-trip-btn') as HTMLButtonElement, 'Saving...', () => this.save())
     document.getElementById('delete-trip-btn')!.addEventListener('click', () => void this.deleteCurrentTrip())
     document.getElementById('trip-mode')?.addEventListener('change', () => this.updateModeHelp())
+    document.getElementById('trip-mode-help')?.addEventListener('click', event => {
+      const target = (event.target as HTMLElement).closest('[data-open-payment-settings]')
+      if (!target) return
+      event.preventDefault()
+      this.openPaymentSettings()
+    })
   }
 
   async open(trip?: Trip): Promise<void> {
@@ -109,22 +115,47 @@ export class TripEditor {
     if (!modeSelect || !help) return
 
     const mode = modeSelect.value as Trip['mode']
-    const copy: Record<Trip['mode'], { label: string; text: string }> = {
+    const copy: Record<Trip['mode'], { label: string; details: [string, string] }> = {
       notify: {
         label: 'Notify-only',
-        text: 'Free. We only notify you when a matching site is found. No points are deducted.',
+        details: [
+          'Sends a notification when a matching site is found.',
+          'Free: no points are deducted.',
+        ],
       },
       hold: {
         label: 'Auto-reserve',
-        text: '500 points are deducted only after the reservation is held and you manually complete payment successfully.',
+        details: [
+          'Holds a matching reservation for you to complete payment manually.',
+          '500 points are deducted only after you successfully pay the held reservation.',
+        ],
       },
       autopay: {
         label: 'Auto-pay',
-        text: '500 points are deducted only after both reservation and payment complete successfully.',
+        details: [
+          'Holds the reservation and completes payment automatically.',
+          '500 points are deducted only after reservation and payment both succeed.',
+        ],
       },
     }
     const content = copy[mode] ?? copy.hold
-    help.innerHTML = `<strong>${content.label}</strong><span>${content.text}</span><em>Failed scans, skipped matches, and unpaid reservations do not cost points.</em>`
+    const paymentSetup = mode === 'autopay'
+      ? `<div class="mode-help-action"><span>Auto-pay requires payment info in Settings &gt; Park Payment.</span><button type="button" data-open-payment-settings>Set up Park Payment</button></div>`
+      : ''
+    help.innerHTML = `<strong>${content.label}</strong><ul><li>${content.details[0]}</li><li>${content.details[1]}</li></ul>${paymentSetup}`
+  }
+
+  private openPaymentSettings(): void {
+    document.getElementById('trip-editor')?.classList.add('hidden')
+    document.getElementById('trips-view')?.classList.remove('hidden')
+    document.body.classList.remove('trip-editor-open')
+
+    const paymentTab = document.querySelector<HTMLElement>('.settings-nav-item[data-tab="payment"]')
+    if (paymentTab) {
+      paymentTab.click()
+      return
+    }
+    location.hash = 'payment'
   }
 
   private renderParksList(): void {
