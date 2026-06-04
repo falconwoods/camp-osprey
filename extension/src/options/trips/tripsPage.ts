@@ -135,7 +135,7 @@ export class TripsPage {
         <span class="alert-icon" aria-hidden="true">!</span>
         <span class="alert-copy">
           <strong>BC Parks sign-in needed</strong>
-          <span>Not logged in to BC Parks. Hold and Auto-pay modes require a BC Parks account.</span>
+          <span>Not logged in to BC Parks. Auto-reserve and Auto-pay modes require a BC Parks account.</span>
         </span>
         <a class="alert-action" href="https://camping.bcparks.ca/login" target="_blank">Log in →</a>
       </div>`
