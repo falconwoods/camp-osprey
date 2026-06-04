@@ -78,6 +78,27 @@ describe('points routes', () => {
     });
   });
 
+  it('passes extension return URL through checkout creation', async () => {
+    const { POST } = await import('../app/api/stripe/checkout/route');
+    const response = await POST(new Request('http://localhost/api/stripe/checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        packageId: 'starter',
+        returnUrl: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/options/index.html#account',
+        extensionId: 'abcdefghijklmnopabcdefghijklmnop',
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.createCheckoutSession).toHaveBeenCalledWith({
+      userId: 'user-1',
+      userEmail: 'user@example.com',
+      pointPackage: { id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', stripePriceId: 'price_123' },
+      returnUrl: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/options/index.html#account',
+      extensionId: 'abcdefghijklmnopabcdefghijklmnop',
+    });
+  });
+
   it('rejects unknown checkout package ids', async () => {
     const { POST } = await import('../app/api/stripe/checkout/route');
     const response = await POST(new Request('http://localhost/api/stripe/checkout', {

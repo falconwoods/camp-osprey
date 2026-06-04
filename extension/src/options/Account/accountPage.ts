@@ -184,7 +184,11 @@ export class AccountPage {
     button.disabled = true
     button.textContent = 'Opening Stripe...'
     try {
-      const checkout = await createPointCheckout(packageId)
+      const returnUrl = typeof chrome !== 'undefined' && chrome.runtime?.getURL
+        ? chrome.runtime.getURL('options/index.html#account')
+        : `${window.location.origin}${window.location.pathname}#account`
+      const extensionId = typeof chrome !== 'undefined' ? chrome.runtime?.id : undefined
+      const checkout = await createPointCheckout(packageId, returnUrl, extensionId)
       if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
         chrome.tabs.create({ url: checkout.checkoutUrl })
         return

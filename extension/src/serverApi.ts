@@ -168,11 +168,15 @@ export async function getPointsSummary(): Promise<PointsSummary> {
   return summary
 }
 
-export async function createPointCheckout(packageId: string): Promise<{ checkoutUrl: string; stripeSessionId: string }> {
+export async function createPointCheckout(
+  packageId: string,
+  returnUrl?: string,
+  extensionId?: string,
+): Promise<{ checkoutUrl: string; stripeSessionId: string }> {
   return serverFetch('/api/stripe/checkout', {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ packageId }),
+    body: JSON.stringify({ packageId, returnUrl, extensionId }),
   })
 }
 

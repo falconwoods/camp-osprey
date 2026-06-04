@@ -107,6 +107,7 @@ describe('background scanner scheduling', () => {
     mocks.watchLoginChanges.mockReset()
     mocks.getAvailability.mockReset().mockResolvedValue([])
     chrome.runtime.onMessage.addListener.mockClear()
+    chrome.runtime.onMessageExternal.addListener.mockClear()
     chrome.notifications.onClicked.addListener.mockClear()
     chrome.tabs.create.mockClear()
     chrome.notifications.create.mockClear()
@@ -115,6 +116,24 @@ describe('background scanner scheduling', () => {
     chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
     chrome.alarms.clear.mockImplementation((_name, cb) => cb?.(true))
     chrome.notifications.create.mockImplementation((_id, _opts, cb) => cb?.('notif-1'))
+  })
+
+  it('opens the Account tab for external server return messages', async () => {
+    mocks.getStorage.mockResolvedValue(makeStorage([]))
+    chrome.runtime.getURL = vi.fn((path: string) => `chrome-extension://test/${path}`)
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessageExternal.addListener.mock.calls[0][0]
+    const sendResponse = vi.fn()
+    const keepOpen = listener({ type: 'OPEN_ACCOUNT_PAGE' }, {}, sendResponse)
+
+    expect(keepOpen).toBe(true)
+    expect(chrome.tabs.create).toHaveBeenCalledWith(
+      { url: 'chrome-extension://test/options/index.html#account' },
+      expect.any(Function),
+    )
+    chrome.tabs.create.mock.calls[0][1]?.()
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true })
   })
 
   it('SCAN_NOW scans only the requested trip when tripId is provided', async () => {

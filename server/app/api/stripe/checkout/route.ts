@@ -10,7 +10,11 @@ export async function POST(request: Request) {
     return withExtensionCors(request, NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
   }
 
-  const body = await request.json().catch(() => ({})) as { packageId?: unknown };
+  const body = await request.json().catch(() => ({})) as {
+    packageId?: unknown;
+    returnUrl?: unknown;
+    extensionId?: unknown;
+  };
   if (typeof body.packageId !== 'string') {
     return withExtensionCors(request, NextResponse.json({ error: 'invalid_package' }, { status: 400 }));
   }
@@ -30,6 +34,8 @@ export async function POST(request: Request) {
     userId: session.user.id,
     userEmail: session.user.email,
     pointPackage,
+    ...(typeof body.returnUrl === 'string' ? { returnUrl: body.returnUrl } : {}),
+    ...(typeof body.extensionId === 'string' ? { extensionId: body.extensionId } : {}),
   });
 
   return withExtensionCors(request, NextResponse.json({

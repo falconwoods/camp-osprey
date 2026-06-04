@@ -27,6 +27,7 @@ describe('PaymentPage', () => {
       cb?.()
     })
     chrome.tabs.create = vi.fn()
+    chrome.runtime.getURL = vi.fn((path: string) => `chrome-extension://test/${path}`)
     await saveAuth({
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
@@ -64,7 +65,11 @@ describe('PaymentPage', () => {
     document.querySelector<HTMLButtonElement>('.point-package-btn')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(createPointCheckout).toHaveBeenCalledWith('starter')
+    expect(createPointCheckout).toHaveBeenCalledWith(
+      'starter',
+      'chrome-extension://test/options/index.html#account',
+      'abcdefghijklmnopabcdefghijklmnop',
+    )
     expect(chrome.tabs.create).toHaveBeenCalledWith({ url: 'https://checkout.stripe.com/cs_123' })
   })
 })

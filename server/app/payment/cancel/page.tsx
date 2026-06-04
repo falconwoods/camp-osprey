@@ -21,7 +21,6 @@ export default function PaymentCancelPage() {
         { icon: 'dot', text: 'Return to Campsoon to continue browsing' },
       ]}
       closingNote="You can safely close this tab if you don't want to try again now."
-      showTryAgain
     />
   );
 }

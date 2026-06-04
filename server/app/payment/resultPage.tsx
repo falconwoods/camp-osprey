@@ -2,7 +2,6 @@
 
 import {
   Check,
-  ExternalLink,
   Gift,
   HelpCircle,
   Lightbulb,
@@ -28,7 +27,6 @@ type PaymentResultPageProps = {
   sideMessage?: string;
   sideFooterTitle?: string;
   closingNote: string;
-  showTryAgain?: boolean;
 };
 
 const toneStyles = {
@@ -41,7 +39,6 @@ const toneStyles = {
     statusIcon: <Check className="h-16 w-16 stroke-[4]" aria-hidden="true" />,
     accentText: 'text-[#087743]',
     accentBg: 'bg-[#087743]',
-    action: 'bg-[#fb4b18] text-white shadow-[0_16px_34px_rgba(251,75,24,0.26)] hover:bg-[#e94314] focus:ring-[#fb4b18]',
   },
   cancel: {
     iconWrap: 'bg-[#fb4b18] text-white ring-[#ffe0d4]',
@@ -52,7 +49,6 @@ const toneStyles = {
     statusIcon: <X className="h-16 w-16 stroke-[4]" aria-hidden="true" />,
     accentText: 'text-[#e94314]',
     accentBg: 'bg-[#e94314]',
-    action: 'bg-[#fb4b18] text-white shadow-[0_16px_34px_rgba(251,75,24,0.26)] hover:bg-[#e94314] focus:ring-[#fb4b18]',
   },
 } satisfies Record<PaymentResultPageProps['tone'], {
   iconWrap: string;
@@ -63,7 +59,6 @@ const toneStyles = {
   statusIcon: ReactNode;
   accentText: string;
   accentBg: string;
-  action: string;
 }>;
 
 const detailIcons = {
@@ -111,28 +106,6 @@ function DetailIcon({ tone, icon }: { tone: PaymentResultPageProps['tone']; icon
     <span className={`flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full ${styles.halo} ${styles.accentText} ring-1 ring-inset ${styles.border}`}>
       {detailIcons[icon]}
     </span>
-  );
-}
-
-function TryAgainButton() {
-  return (
-    <button
-      className={`inline-flex h-[58px] w-full max-w-[310px] items-center justify-center gap-3 rounded-full px-8 text-xl font-extrabold tracking-normal transition focus:outline-none focus:ring-2 focus:ring-offset-2 ${toneStyles.cancel.action}`}
-      type="button"
-      onClick={() => window.history.back()}
-    >
-      <RefreshCw className="h-6 w-6" aria-hidden="true" />
-      Try Again
-    </button>
-  );
-}
-
-function SecondaryReturnButton() {
-  return (
-    <ReturnToCampsoonButton
-      className="inline-flex h-[58px] w-full max-w-[310px] items-center justify-center gap-3 rounded-full border border-[#d7dee8] bg-white px-8 text-xl font-extrabold tracking-normal text-[#111827] shadow-none transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2"
-      icon={<ExternalLink className="h-6 w-6" aria-hidden="true" />}
-    />
   );
 }
 
@@ -213,7 +186,6 @@ export function PaymentResultPage({
   sideMessage,
   sideFooterTitle,
   closingNote,
-  showTryAgain = false,
 }: PaymentResultPageProps) {
   const styles = toneStyles[tone];
 
@@ -232,8 +204,7 @@ export function PaymentResultPage({
                 <p className="mt-7 max-w-[620px] text-[18px] leading-8 text-[#526174]">{message}</p>
 
                 <div className="mt-10 flex flex-col items-center gap-4 lg:items-start">
-                  {showTryAgain ? <TryAgainButton /> : <ReturnToCampsoonButton />}
-                  {showTryAgain ? <SecondaryReturnButton /> : null}
+                  <ReturnToCampsoonButton />
                 </div>
 
                 <p className="mt-7 max-w-[620px] text-[16px] leading-7 text-[#526174]">{closingNote}</p>

@@ -891,3 +891,18 @@ chrome.runtime.onMessage.addListener((msg: {
     })
   }
 })
+
+chrome.runtime.onMessageExternal.addListener((msg: { type?: string }, _sender, sendResponse) => {
+  if (msg.type !== 'OPEN_ACCOUNT_PAGE') return false
+
+  chrome.tabs.create({ url: chrome.runtime.getURL('options/index.html#account') }, () => {
+    if (chrome.runtime.lastError) {
+      sendResponse({ ok: false, error: chrome.runtime.lastError.message })
+      return
+    }
+
+    sendResponse({ ok: true })
+  })
+
+  return true
+})
