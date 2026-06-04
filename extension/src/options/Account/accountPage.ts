@@ -43,7 +43,7 @@ export class AccountPage {
         <section class="account-points-card account-points-card-locked">
           <div class="account-section-icon">${icon('lock')}</div>
           <div class="account-points-card-copy">
-            <div class="account-card-kicker">campsoon Points</div>
+            <div class="account-card-kicker">Campsoon Points</div>
             <h2>Sign in to buy points</h2>
             <p>Use points to pay for successful auto-bookings. Points are charged only after a campsite is successfully paid.</p>
           </div>
@@ -59,7 +59,7 @@ export class AccountPage {
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
           </div>
           <div class="account-points-card-copy">
-            <div class="account-card-kicker">campsoon Points</div>
+            <div class="account-card-kicker">Campsoon Points</div>
             <h2>Could not load points</h2>
             <p>${this.escape(error)}</p>
           </div>
@@ -70,14 +70,13 @@ export class AccountPage {
     if (!points) {
       return `<div class="account-points-page">
         <section class="account-points-card account-points-summary">
-          <div>
-            <div class="account-card-kicker">campsoon Points</div>
-            <h2>Loading points...</h2>
-            <p>Fetching your balance and available point packages.</p>
-          </div>
-          <div class="account-balance-panel">
-            <span>Current Balance</span>
-            <strong>--</strong>
+          <div class="account-points-summary-copy">
+            <div class="account-section-icon">${icon('check')}</div>
+            <div>
+              <div class="account-card-kicker">Campsoon Points</div>
+              <h2>Loading points...</h2>
+              <p>Fetching your balance and available point packages.</p>
+            </div>
           </div>
         </section>
       </div>`
@@ -128,14 +127,11 @@ export class AccountPage {
         <div class="account-points-summary-copy">
           <div class="account-section-icon">${icon('check')}</div>
           <div>
-            <div class="account-card-kicker">campsoon Points</div>
+            <div class="account-card-kicker">Campsoon Points</div>
             <h2>${points.balance.toLocaleString()} points</h2>
-            <p>Use points to pay for successful auto-bookings. A successful paid booking costs ${points.successfulBookingPointCost.toLocaleString()} points.</p>
+            <p>Available balance</p>
+            <p class="account-points-usage">Used for successful auto-reserve and auto-pay bookings.</p>
           </div>
-        </div>
-        <div class="account-balance-panel">
-          <span>Current Balance</span>
-          <strong>${points.balance.toLocaleString()} points</strong>
         </div>
       </section>
 

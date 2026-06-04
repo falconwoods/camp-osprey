@@ -47,6 +47,7 @@ export class TripEditor {
     bindTripNameErrorReset()
     bindAsyncButton(document.getElementById('save-trip-btn') as HTMLButtonElement, 'Saving...', () => this.save())
     document.getElementById('delete-trip-btn')!.addEventListener('click', () => void this.deleteCurrentTrip())
+    document.getElementById('trip-mode')?.addEventListener('change', () => this.updateModeHelp())
   }
 
   async open(trip?: Trip): Promise<void> {
@@ -61,6 +62,7 @@ export class TripEditor {
     }
     ;(document.getElementById('trip-name') as HTMLInputElement).value = name
     ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'hold'
+    this.updateModeHelp()
     ;(document.getElementById('filter-walkin') as HTMLInputElement).checked = trip?.filters.noWalkin ?? true
     ;(document.getElementById('filter-double') as HTMLInputElement).checked = trip?.filters.noDouble ?? true
     document.getElementById('editor-trip-title')!.textContent = name
@@ -99,6 +101,30 @@ export class TripEditor {
     })
     document.getElementById('specific-inputs')!.classList.toggle('hidden', mode !== 'specific')
     document.getElementById('recurring-inputs')!.classList.toggle('hidden', mode !== 'recurring')
+  }
+
+  private updateModeHelp(): void {
+    const modeSelect = document.getElementById('trip-mode') as HTMLSelectElement | null
+    const help = document.getElementById('trip-mode-help')
+    if (!modeSelect || !help) return
+
+    const mode = modeSelect.value as Trip['mode']
+    const copy: Record<Trip['mode'], { label: string; text: string }> = {
+      notify: {
+        label: 'Notify-only',
+        text: 'Free. We only notify you when a matching site is found. No points are deducted.',
+      },
+      hold: {
+        label: 'Auto-reserve',
+        text: '500 points are deducted only after the reservation is held and you manually complete payment successfully.',
+      },
+      autopay: {
+        label: 'Auto-pay',
+        text: '500 points are deducted only after both reservation and payment complete successfully.',
+      },
+    }
+    const content = copy[mode] ?? copy.hold
+    help.innerHTML = `<strong>${content.label}</strong><span>${content.text}</span><em>Failed scans, skipped matches, and unpaid reservations do not cost points.</em>`
   }
 
   private renderParksList(): void {

@@ -443,6 +443,35 @@
     .editor-filters { display: flex; flex-direction: column; gap: 10px; }
     #trip-editor .checkbox-label { background: transparent; color: var(--text); padding: 0; font-size: 15px; }
     #trip-editor input[type="checkbox"] { accent-color: var(--green); width: 16px; height: 16px; }
+    .mode-help {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--green-border);
+      border-radius: 10px;
+      background: var(--green-subtle);
+      color: var(--text-subtle);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .mode-help strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+    .mode-help span,
+    .mode-help em {
+      display: block;
+      font-style: normal;
+    }
+    .mode-help em {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--green);
+    }
     .editor-action-stack { display: flex; flex-direction: column; gap: 10px; }
     #save-trip-btn, #delete-trip-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 700; padding: 12px 16px; }
     @media (max-width: 900px) {
@@ -1475,11 +1504,11 @@
       backdrop-filter: blur(10px);
     }
     .account-points-summary {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
-      gap: 22px;
+      display: flex;
       align-items: center;
-      padding: 22px;
+      gap: 24px;
+      min-height: auto;
+      padding: 28px 36px;
       overflow: hidden;
     }
     .account-points-summary-copy,
@@ -1488,6 +1517,11 @@
       display: flex;
       align-items: flex-start;
       gap: 14px;
+    }
+    .account-points-summary > .account-points-summary-copy {
+      flex: 1 1 300px;
+      align-items: center;
+      min-width: 0;
     }
     .account-points-card-locked {
       align-items: center;
@@ -1507,22 +1541,27 @@
     }
     .account-points-card h2 {
       color: var(--co-text);
-      font-size: 22px;
+      font-size: 34px;
       line-height: 1.1;
       margin: 0;
     }
     .account-points-card p {
       color: var(--co-text-muted);
-      font-size: 13px;
+      font-size: 16px;
+      line-height: 1.5;
+      margin: 12px 0 0;
+    }
+    .account-points-card .account-points-usage {
+      margin-top: 6px;
+      font-size: 14px;
       line-height: 1.45;
-      margin: 10px 0 0;
     }
     .account-section-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 42px;
-      height: 42px;
+      width: 52px;
+      height: 52px;
       border-radius: 999px;
       flex: 0 0 auto;
       color: var(--co-brand);
@@ -1530,32 +1569,13 @@
       border: 1px solid var(--co-border-strong);
     }
     .account-section-icon .icon {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
     }
     .account-section-icon-warning {
       color: var(--red);
       background: rgba(239,68,68,0.08);
       border-color: var(--red-border);
-    }
-    .account-balance-panel {
-      min-height: 110px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 18px 20px;
-      border-left: 1px solid var(--co-border);
-      color: var(--co-text-muted);
-    }
-    .account-balance-panel span {
-      font-size: 12px;
-      line-height: 1;
-      margin-bottom: 12px;
-    }
-    .account-balance-panel strong {
-      color: var(--co-brand-dark);
-      font-size: 28px;
-      line-height: 1;
     }
     .account-buy-points,
     .account-point-activity {
@@ -1809,13 +1829,8 @@
         flex-direction: column;
       }
       .account-points-summary {
-        grid-template-columns: 1fr;
-      }
-      .account-balance-panel {
-        min-height: 0;
-        border-left: 0;
-        border-top: 1px solid var(--co-border);
-        padding: 16px 0 0;
+        flex-direction: column;
+        align-items: flex-start;
       }
       .account-points-card-locked {
         align-items: stretch;
@@ -2087,6 +2102,7 @@
             <option value="hold">Auto-reserve</option>
             <option value="autopay">Auto-pay</option>
           </select>
+          <div class="mode-help" id="trip-mode-help" aria-live="polite"></div>
         </section>
 
         <section class="editor-side-section">
