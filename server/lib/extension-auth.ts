@@ -1,3 +1,5 @@
+import { EmailSendError } from './email';
+
 export type ExtensionAuthErrorCode =
   | 'invalid_email'
   | 'invalid_code'
@@ -221,11 +223,30 @@ export async function requestExtensionAuthCode(
   try {
     await deps.sendCode(email, existingUser?.name ?? null);
   } catch (err) {
-    console.error('[extension-auth] send code failed:', err);
+    console.error('[extension-auth] send code failed', emailSendErrorLogFields(err, email));
     throw extensionAuthError('email_send_failed');
   }
 
   return { ok: true, isNewUser: !existingUser };
+}
+
+function emailSendErrorLogFields(err: unknown, email: string): Record<string, unknown> {
+  if (err instanceof EmailSendError) {
+    return {
+      event: 'extension_auth.send_code_failed',
+      provider: err.provider,
+      status: err.status,
+      code: err.code,
+      message: err.message,
+      recipientDomain: email.split('@')[1] ?? null,
+    };
+  }
+
+  return {
+    event: 'extension_auth.send_code_failed',
+    message: err instanceof Error ? err.message : String(err),
+    recipientDomain: email.split('@')[1] ?? null,
+  };
 }
 
 export async function verifyExtensionAuthCode(

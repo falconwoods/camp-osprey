@@ -10,7 +10,7 @@ vi.mock('resend', () => ({
   },
 }));
 
-import { buildOtpEmail, buildResultEmail, getEmailFrom, sendEmail } from '../lib/email';
+import { buildOtpEmail, buildResultEmail, getEmailFrom, getEmailProvider, sendEmail } from '../lib/email';
 
 const site = {
   parkName: 'Alice Lake',
@@ -24,7 +24,11 @@ const site = {
 
 beforeEach(() => {
   mocks.send.mockReset();
+  vi.unstubAllGlobals();
+  delete process.env.BREVO_API_KEY;
+  delete process.env.EMAIL_PROVIDER;
   delete process.env.EMAIL_FROM;
+  delete process.env.RESEND_API_KEY;
 });
 
 describe('buildResultEmail', () => {
@@ -100,7 +104,55 @@ describe('buildResultEmail', () => {
 });
 
 describe('sendEmail', () => {
+  it('defaults to Brevo when EMAIL_PROVIDER is not configured', () => {
+    expect(getEmailProvider()).toBe('brevo');
+  });
+
+  it('uses Brevo when EMAIL_PROVIDER is brevo', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ messageId: 'brevo-123' }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.EMAIL_PROVIDER = 'brevo';
+    process.env.BREVO_API_KEY = 'brevo-key';
+    process.env.EMAIL_FROM = 'campsoon <login@example.com>';
+
+    await expect(sendEmail({
+      to: 'user@example.com',
+      subject: 'Test',
+      html: '<p>Test</p>',
+    })).resolves.toEqual({ messageId: 'brevo-123' });
+
+    expect(fetchMock).toHaveBeenCalledWith('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'api-key': 'brevo-key',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'campsoon', email: 'login@example.com' },
+        to: [{ email: 'user@example.com' }],
+        subject: 'Test',
+        htmlContent: '<p>Test</p>',
+      }),
+    });
+  });
+
+  it('throws when Brevo returns an error response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ message: 'Invalid API key' }),
+      { status: 401 },
+    )));
+    process.env.EMAIL_PROVIDER = 'brevo';
+
+    await expect(sendEmail({
+      to: 'user@example.com',
+      subject: 'Test',
+      html: '<p>Test</p>',
+    })).rejects.toThrow('Invalid API key');
+  });
+
   it('uses EMAIL_FROM when configured', async () => {
+    process.env.EMAIL_PROVIDER = 'resend';
     process.env.EMAIL_FROM = 'campsoon <login@example.com>';
     mocks.send.mockResolvedValue({
       data: { id: 'email-123' },
@@ -123,6 +175,7 @@ describe('sendEmail', () => {
   });
 
   it('throws when Resend returns an error response', async () => {
+    process.env.EMAIL_PROVIDER = 'resend';
     mocks.send.mockResolvedValue({
       data: null,
       error: { name: 'validation_error', message: 'Domain is not verified' },
@@ -136,6 +189,7 @@ describe('sendEmail', () => {
   });
 
   it('returns the Resend email id when send succeeds', async () => {
+    process.env.EMAIL_PROVIDER = 'resend';
     mocks.send.mockResolvedValue({
       data: { id: 'email-123' },
       error: null,

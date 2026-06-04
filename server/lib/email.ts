@@ -1,6 +1,20 @@
 import { Resend } from 'resend';
 
 const DEFAULT_EMAIL_FROM = 'campsoon <noreply@campsoon.com>';
+const BREVO_SEND_EMAIL_URL = 'https://api.brevo.com/v3/smtp/email';
+type EmailProvider = 'brevo' | 'resend';
+
+export class EmailSendError extends Error {
+  constructor(
+    message: string,
+    public provider: EmailProvider,
+    public status?: number,
+    public code?: string,
+  ) {
+    super(message);
+    this.name = 'EmailSendError';
+  }
+}
 
 let _resend: Resend | null = null;
 function getResend(): Resend {
@@ -8,8 +22,22 @@ function getResend(): Resend {
   return _resend;
 }
 
+export function getEmailProvider(): EmailProvider {
+  const provider = process.env.EMAIL_PROVIDER?.trim().toLowerCase();
+  return provider === 'resend' ? 'resend' : 'brevo';
+}
+
 export function getEmailFrom(): string {
   return process.env.EMAIL_FROM?.trim() || DEFAULT_EMAIL_FROM;
+}
+
+function parseEmailAddress(value: string): { name?: string; email: string } {
+  const match = value.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+  if (match) {
+    const name = match[1]?.trim();
+    return name ? { name, email: match[2].trim() } : { email: match[2].trim() };
+  }
+  return { email: value.trim() };
 }
 
 export async function sendEmail({
@@ -21,6 +49,36 @@ export async function sendEmail({
   subject: string;
   html: string;
 }) {
+  if (getEmailProvider() === 'brevo') {
+    const response = await fetch(BREVO_SEND_EMAIL_URL, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'api-key': process.env.BREVO_API_KEY ?? '',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: parseEmailAddress(getEmailFrom()),
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+      }),
+    });
+    if (!response.ok) {
+      let message = `Brevo email send failed with status ${response.status}`;
+      let code: string | undefined;
+      try {
+        const error = await response.json();
+        if (typeof error?.message === 'string') message = error.message;
+        if (typeof error?.code === 'string') code = error.code;
+      } catch {
+        // Keep the status-based message when Brevo does not return JSON.
+      }
+      throw new EmailSendError(message, 'brevo', response.status, code);
+    }
+    return response.json();
+  }
+
   const result = await getResend().emails.send({
     from: getEmailFrom(),
     to,
@@ -28,7 +86,7 @@ export async function sendEmail({
     html,
   });
   if (result.error) {
-    throw new Error(result.error.message);
+    throw new EmailSendError(result.error.message, 'resend', undefined, result.error.name);
   }
   return result.data;
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EmailSendError } from '../lib/email';
 import {
   consumePendingOtpName,
   readExtensionAuthJson,
@@ -113,6 +114,31 @@ describe('requestExtensionAuthCode', () => {
 
     await expect(requestExtensionAuthCode({ email: 'blocked@example.com' }, deps))
       .rejects.toMatchObject({ code: 'account_blocked', status: 403 });
+  });
+
+  it('logs provider email send failures without dumping the raw error stack', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const deps = {
+      findUserByEmail: async () => ({ id: 'u1', email: 'old@example.com', name: 'Old User', banned: false }),
+      sendCode: async () => {
+        throw new EmailSendError('Unrecognised IP address', 'brevo', 401, 'unauthorized');
+      },
+    };
+
+    await expect(requestExtensionAuthCode({ email: 'old@example.com' }, deps))
+      .rejects.toMatchObject({ code: 'email_send_failed', status: 500 });
+
+    expect(consoleSpy).toHaveBeenCalledWith('[extension-auth] send code failed', {
+      event: 'extension_auth.send_code_failed',
+      provider: 'brevo',
+      status: 401,
+      code: 'unauthorized',
+      message: 'Unrecognised IP address',
+      recipientDomain: 'example.com',
+    });
+    expect(consoleSpy.mock.calls[0]?.[1]).not.toBeInstanceOf(Error);
+
+    consoleSpy.mockRestore();
   });
 });
 
