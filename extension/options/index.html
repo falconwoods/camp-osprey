@@ -1419,7 +1419,9 @@
     }
     .point-package-featured {
       border-color: var(--co-brand);
-      background: linear-gradient(180deg, color-mix(in srgb, var(--co-brand) 7%, var(--co-surface-solid)), var(--co-surface-solid));
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(242,250,236,0.96) 100%);
+      box-shadow: 0 14px 32px rgba(23,111,58,0.12);
     }
     .point-package-header {
       min-height: 25px;
@@ -1441,8 +1443,9 @@
       min-height: 22px;
       padding: 4px 8px;
       border-radius: 999px;
-      background: var(--co-brand);
-      color: var(--co-on-brand);
+      border: 1px solid var(--amber-border);
+      background: var(--amber-subtle);
+      color: #8a5a0f;
       font-size: 11px;
       font-weight: 850;
       line-height: 1;
@@ -1696,7 +1699,7 @@
       <div class="page-brand">
         <img src="../icons/icon128.png" alt="campsoon">
         <div class="page-title-copy">
-          <h1>campsoon</h1>
+          <h1>campsoon.com</h1>
           <p class="subtitle">Enjoy camping!</p>
         </div>
       </div>
