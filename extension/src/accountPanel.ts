@@ -108,6 +108,25 @@ export function bindAccountPanel(
   let submittedEmail = ''
   let resendTimer: ReturnType<typeof setInterval> | null = null
 
+  const withButtonLoading = async (
+    button: HTMLButtonElement,
+    loadingLabel: string,
+    action: () => Promise<void>,
+  ) => {
+    if (button.disabled) return
+    const previousHTML = button.innerHTML
+    button.disabled = true
+    button.setAttribute('aria-busy', 'true')
+    button.textContent = loadingLabel
+    try {
+      await action()
+    } finally {
+      button.disabled = false
+      button.removeAttribute('aria-busy')
+      button.innerHTML = previousHTML
+    }
+  }
+
   const startResendCooldown = () => {
     const resendButton = document.getElementById('auth-resend-code') as HTMLButtonElement | null
     if (!resendButton) return
@@ -153,9 +172,10 @@ export function bindAccountPanel(
     }
   }
 
-  document.getElementById('auth-send-code')?.addEventListener('click', async () => {
+  document.getElementById('auth-send-code')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget as HTMLButtonElement
     const email = (document.getElementById('auth-email') as HTMLInputElement).value
-    await sendCode(email)
+    await withButtonLoading(button, 'Sending code...', () => sendCode(email))
   })
 
   document.getElementById('auth-resend-code')?.addEventListener('click', async () => {
@@ -175,14 +195,17 @@ export function bindAccountPanel(
     ;(document.getElementById('auth-email') as HTMLInputElement | null)?.focus()
   })
 
-  document.getElementById('auth-verify-code')?.addEventListener('click', async () => {
+  document.getElementById('auth-verify-code')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget as HTMLButtonElement
     const email = submittedEmail || (document.getElementById('auth-email') as HTMLInputElement).value
     const code = (document.getElementById('auth-code') as HTMLInputElement).value
-    try {
-      await verifyCode({ email, code })
-      await onSignedIn()
-    } catch (err) {
-      setError(authMessage(err instanceof Error ? err.message : 'server_error'))
-    }
+    await withButtonLoading(button, 'Verifying...', async () => {
+      try {
+        await verifyCode({ email, code })
+        await onSignedIn()
+      } catch (err) {
+        setError(authMessage(err instanceof Error ? err.message : 'server_error'))
+      }
+    })
   })
 }

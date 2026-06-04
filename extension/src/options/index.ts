@@ -105,6 +105,7 @@ async function openAuthDialog(): Promise<void> {
     const tripId = await consumePendingStartTripId()
     if (tripId) await startTripNow(tripId)
     await renderAccount()
+    await renderHeaderAccount()
     await renderTripList()
     if (navbar.activeTab === 'payment') await renderPayment()
   }, async () => {

@@ -27,6 +27,7 @@ export class AccountPage {
       const tripId = await consumePendingStartTripId()
       if (tripId) await this.options.startTripNow(tripId)
       await this.render()
+      await this.options.renderHeaderAccount()
       await this.options.renderTripList()
     }, async () => {
       await this.render()

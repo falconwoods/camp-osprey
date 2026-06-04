@@ -1661,7 +1661,7 @@ cd campsite-booking && git add extension/src/popup/ && git commit -m "feat(exten
 <body>
   <div id="trips-view">
     <h1>🏕 CampSniper</h1>
-    <p class="subtitle">Manage your camping trips</p>
+    <p class="subtitle">Enjoy your camping!</p>
     <div class="tabs">
       <div class="tab active" data-tab="trips">Trips</div>
       <div class="tab" data-tab="payment">Payment</div>

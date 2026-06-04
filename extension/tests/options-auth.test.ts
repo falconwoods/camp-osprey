@@ -368,6 +368,11 @@ describe('options auth gate', () => {
 
   it('stores pending trip and resumes it after Account verification', async () => {
     vi.mocked(validateAuth).mockResolvedValue(false)
+    vi.mocked(verifyCode).mockImplementationOnce(async () => {
+      const result = { token: 'tok', user: { id: 'u1', email: 'user@example.com', role: 'user' } }
+      await saveAuth({ ...result, lastEmail: result.user.email })
+      return result
+    })
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
 
@@ -390,6 +395,8 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(verifyCode).toHaveBeenCalledWith({ email: 'user@example.com', code: '123456' })
+    expect(document.querySelector('#header-account')!.textContent).toContain('user@example.com')
+    expect(document.querySelector('#header-account')!.textContent).not.toContain('Sign in to start trips')
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
       type: 'SCAN_NOW',
       tripId: 'trip-1',

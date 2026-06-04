@@ -11,6 +11,12 @@ import { requestCode, signOut, verifyCode } from '../src/auth'
 
 describe('account panel', () => {
   beforeEach(() => {
+    vi.mocked(requestCode).mockReset()
+    vi.mocked(verifyCode).mockReset()
+    vi.mocked(signOut).mockReset()
+    vi.mocked(requestCode).mockResolvedValue({ ok: true, isNewUser: false })
+    vi.mocked(verifyCode).mockResolvedValue({ token: 'tok', user: { id: 'u1', email: 'user@example.com', role: 'user' } })
+    vi.mocked(signOut).mockResolvedValue(undefined)
     document.body.innerHTML = '<div id="account-root"></div>'
   })
 
@@ -102,6 +108,73 @@ describe('account panel', () => {
     const resendButton = document.getElementById('auth-resend-code') as HTMLButtonElement
     expect(resendButton.disabled).toBe(true)
     expect(resendButton.textContent).toBe('Resend code in 30s')
+  })
+
+  it('shows loading state and prevents duplicate send-code clicks', async () => {
+    let resolveRequest!: (value: { ok: true; isNewUser: boolean }) => void
+    vi.mocked(requestCode).mockImplementationOnce(() => new Promise(resolve => {
+      resolveRequest = resolve
+    }))
+    document.getElementById('account-root')!.innerHTML = renderAuthPanelHTML({
+      token: null,
+      user: null,
+      lastEmail: null,
+    }, null)
+
+    bindAccountPanel(vi.fn(), vi.fn())
+
+    ;(document.getElementById('auth-email') as HTMLInputElement).value = 'user@example.com'
+    const sendButton = document.getElementById('auth-send-code') as HTMLButtonElement
+    sendButton.click()
+    sendButton.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(sendButton.disabled).toBe(true)
+    expect(sendButton.getAttribute('aria-busy')).toBe('true')
+    expect(sendButton.textContent).toBe('Sending code...')
+    expect(requestCode).toHaveBeenCalledTimes(1)
+
+    resolveRequest({ ok: true, isNewUser: false })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(sendButton.disabled).toBe(false)
+    expect(sendButton.getAttribute('aria-busy')).toBeNull()
+  })
+
+  it('shows loading state and prevents duplicate verify-code clicks', async () => {
+    let resolveVerify!: (value: { token: string; user: { id: string; email: string; role: string } }) => void
+    vi.mocked(verifyCode).mockImplementationOnce(() => new Promise(resolve => {
+      resolveVerify = resolve
+    }))
+    document.getElementById('account-root')!.innerHTML = renderAuthPanelHTML({
+      token: null,
+      user: null,
+      lastEmail: null,
+    }, null)
+
+    const onSignedIn = vi.fn(async () => undefined)
+    bindAccountPanel(onSignedIn, vi.fn())
+    ;(document.getElementById('auth-email') as HTMLInputElement).value = 'user@example.com'
+    document.getElementById('auth-send-code')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    ;(document.getElementById('auth-code') as HTMLInputElement).value = '123456'
+    const verifyButton = document.getElementById('auth-verify-code') as HTMLButtonElement
+    verifyButton.click()
+    verifyButton.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(verifyButton.disabled).toBe(true)
+    expect(verifyButton.getAttribute('aria-busy')).toBe('true')
+    expect(verifyButton.textContent).toBe('Verifying...')
+    expect(verifyCode).toHaveBeenCalledTimes(1)
+
+    resolveVerify({ token: 'tok', user: { id: 'u1', email: 'user@example.com', role: 'user' } })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(verifyButton.disabled).toBe(false)
+    expect(verifyButton.getAttribute('aria-busy')).toBeNull()
+    expect(onSignedIn).toHaveBeenCalled()
   })
 
   it('signs out and refreshes account state', async () => {
