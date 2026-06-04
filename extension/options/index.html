@@ -113,9 +113,10 @@
     .tab .icon { width: 18px; height: 18px; }
     .tab.active { color: var(--green); border-bottom-color: var(--green); }
 
-    /* ── Trip list ───────────────────────────────────────────── */
-    .trip-list-item { background: var(--bg-card); border: 1px solid var(--border); border-left: 6px solid var(--border); border-radius: 8px; padding: 18px 20px 14px; margin-bottom: 18px; box-shadow: 0 7px 16px rgba(15,23,42,0.08); }
-    .trip-list-item.scanning  { border-left-color: var(--green); }
+	    /* ── Trip list ───────────────────────────────────────────── */
+	    .trip-list-item { background: var(--bg-card); border: 1px solid var(--border); border-left: 6px solid var(--border); border-radius: 8px; padding: 18px 20px 14px; margin-bottom: 18px; box-shadow: 0 7px 16px rgba(15,23,42,0.08); }
+	    .trip-list-item[data-trip-card-id] { cursor: pointer; }
+	    .trip-list-item.scanning  { border-left-color: var(--green); }
     .trip-list-item.reserving { border-left-color: var(--blue); }
     .trip-list-item.reserved  { border-left-color: var(--green); }
     .trip-list-item.paid      { border-left-color: var(--green); opacity: 0.9; }

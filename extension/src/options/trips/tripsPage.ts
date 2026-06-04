@@ -49,6 +49,15 @@ export class TripsPage {
       .map(trip => tripListItemHTML(trip, renderWarnings(getTripWarnings(trip))))
       .join('')
 
+    list.querySelectorAll('[data-trip-card-id]').forEach(card => {
+      card.addEventListener('click', e => {
+        const target = e.target as HTMLElement
+        if (target.closest('button, a, input, select, textarea, label')) return
+        const trip = trips.find(t => t.id === (card as HTMLElement).dataset['tripCardId'])
+        if (trip) void this.editor.open(trip)
+      })
+    })
+
     list.querySelectorAll('[data-edit-trip]').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation()

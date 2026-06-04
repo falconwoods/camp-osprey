@@ -638,19 +638,19 @@ chrome.runtime.onMessage.addListener((msg: {
       const trip = trips.find(t => t.id === msg.tripId)
       if (!trip) return
       const attempted = [...trip.attempted]
-      // attemptKey is null when the failure was a timing issue — don't mark as attempted
+      // attemptKey is null when the failure was a timing issue — don't mark as attempted.
       if (msg.attemptKey && !attempted.includes(msg.attemptKey)) {
         attempted.push(msg.attemptKey)
       }
       void logEntry({
         level: 'warning',
         event: 'match_failed',
-        message: msg.attemptKey ? 'Match failed; marked attempted' : 'Match failed; keeping match locked',
+        message: msg.attemptKey ? 'Match failed; marked attempted' : 'Match failed; retrying next scan',
         tripId: trip.id,
         tripName: trip.name,
         metadata: { attemptKey: msg.attemptKey ?? null },
       })
-      updateTrip(msg.tripId!, { status: 'scanning', lastMatch: msg.attemptKey ? null : trip.lastMatch, attempted })
+      updateTrip(msg.tripId!, { status: 'scanning', lastMatch: null, attempted })
         .then(() => syncStoredTripBestEffort(msg.tripId!))
     })
     return

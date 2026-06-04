@@ -59,29 +59,46 @@ function formatTimeLabel(value: string | number): string {
   return TIME_FORMATTER.format(new Date(value))
 }
 
-function bookingActionLabel(mode: Trip['mode']): string {
-  if (mode === 'hold') return 'Go to payment'
-  if (mode === 'autopay') return 'View booking details'
+function bookingActionLabel(match: Trip['lastMatch'], mode: Trip['mode']): string {
+  if (match?.paidAt) return 'View booking details'
+  if (match?.reservedAt) return mode === 'hold' ? 'Go to payment' : 'View checkout'
+  if (mode === 'hold') return 'Open reservation'
+  if (mode === 'autopay') return 'Open checkout'
   return 'Book this site'
+}
+
+function matchStateLabel(match: Trip['lastMatch']): string {
+  if (!match) return ''
+  if (match.paidAt) return 'Site paid'
+  if (match.reservedAt) return 'Site reserved'
+  const count = match.availableCount ?? 1
+  return count > 1 ? 'Sites found' : 'Site found'
+}
+
+function eventTimeLabel(match: Trip['lastMatch']): string {
+  if (!match) return ''
+  if (match.paidAt) return `Paid at ${formatTimeLabel(match.paidAt)}`
+  if (match.reservedAt) return `Reserved at ${formatTimeLabel(match.reservedAt)}`
+  if (match.foundAt) return `Found at ${formatTimeLabel(match.foundAt)}`
+  return ''
 }
 
 function matchCardHTML(match: Trip['lastMatch'], mode: Trip['mode']): string {
   if (!match) return ''
   const count = match.availableCount ?? 1
-  const foundTitle = count > 1 ? 'Sites found' : 'Site found'
+  const stateLabel = matchStateLabel(match)
   const siteLabel = count > 1
     ? `${count} available sites`
     : `${match.sectionName} › Site ${match.siteName}`
-  const eventAt = match.paidAt ?? match.reservedAt ?? match.foundAt
-  const eventLabel = eventAt ? `<span>Found at ${escapeHtml(formatTimeLabel(eventAt))}</span>` : ''
+  const eventLabel = eventTimeLabel(match)
   const bookHTML = match.bookingUrl
-    ? `<a class="trip-book-btn" href="${escapeHtml(match.bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingActionLabel(mode)} ${icon('arrowRight')}</a>`
+    ? `<a class="trip-book-btn" href="${escapeHtml(match.bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingActionLabel(match, mode)} ${icon('arrowRight')}</a>`
     : ''
 
   return `<div class="trip-match-card">
     <div class="trip-match-icon">${icon('check')}</div>
     <div class="trip-match-content">
-      <div class="trip-match-state">${foundTitle}</div>
+      <div class="trip-match-state">${stateLabel}</div>
       <div class="trip-match-title">${escapeHtml(match.parkName)} › ${escapeHtml(siteLabel)}</div>
       <div class="trip-match-meta">
         ${icon('calendar')}
@@ -89,7 +106,7 @@ function matchCardHTML(match: Trip['lastMatch'], mode: Trip['mode']): string {
         <span>→</span>
         <span>${escapeHtml(formatDateLabel(match.checkOut))}</span>
         ${eventLabel ? '<span>•</span>' : ''}
-        ${eventLabel}
+        ${eventLabel ? `<span>${escapeHtml(eventLabel)}</span>` : ''}
       </div>
     </div>
     ${bookHTML}
@@ -133,7 +150,7 @@ export function tripListItemHTML(trip: Trip, warningsHTML = ''): string {
   const resultHTML = trip.lastMatch ? matchCardHTML(trip.lastMatch, trip.mode) : ''
   const activityHTML = !trip.lastMatch && (trip.status === 'scanning' || trip.status === 'reserving') ? scanningCardHTML() : ''
 
-  return `<div class="trip-list-item ${trip.status}">
+  return `<div class="trip-list-item ${trip.status}" data-trip-card-id="${trip.id}">
     <div class="trip-list-header">
       <div>
         <span class="trip-list-name">${escapeHtml(trip.name)}</span>

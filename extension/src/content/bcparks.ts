@@ -153,9 +153,8 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     const el = document.getElementById('campsoon-status')
     if (el) el.textContent = msg
   }
-  const reportUnavailable = (reason: string) => {
-    const attemptKey = `${target.resourceId}|${target.checkIn}|${target.checkOut}`
-    setStatus('Site disappeared — scanner will keep looking.')
+  const reportMatchFailed = (reason: string, attemptKey: string | null) => {
+    setStatus('Reservation attempt failed — scanner will keep looking.')
     dbg(`MATCH_FAILED — ${reason}`, { attemptKey })
     chrome.runtime.sendMessage({
       type: 'MATCH_FAILED',
@@ -163,6 +162,12 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
       attemptKey,
     })
     setTimeout(() => window.close(), 4000)
+  }
+  const reportUnavailable = (reason: string) => {
+    reportMatchFailed(reason, `${target.resourceId}|${target.checkIn}|${target.checkOut}`)
+  }
+  const reportRetryableFailure = (reason: string) => {
+    reportMatchFailed(reason, null)
   }
 
   // Step 1: wait for Angular to render (2s)
@@ -205,6 +210,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     if (!loaded) {
       setStatus('Results not loading — try refreshing the page.')
       dbg('FAILED: no toggles appeared. Paste __cs_debug() to developer.')
+      reportRetryableFailure('results toggles did not load')
       return
     }
   }
@@ -249,6 +255,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     }
     setStatus('List view not loading — click "List" → "Campground" → "Details" → "Reserve" manually.')
     dbg('FAILED: panels never appeared. Paste __cs_debug() to developer.')
+    reportRetryableFailure('list panels did not load')
     return
   }
 
@@ -265,13 +272,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     // Reserve button not found — likely a panel expansion timing issue, not confirmed unavailable.
     // Do NOT add to attempted — allow retry next scan cycle.
     setStatus('Could not click Reserve — will retry next scan (tab closing in 4s)')
-    dbg('MATCH_FAILED — no reserve button found, retrying next cycle')
-    chrome.runtime.sendMessage({
-      type: 'MATCH_FAILED',
-      tripId: target.tripId,
-      attemptKey: null,
-    })
-    setTimeout(() => window.close(), 4000)
+    reportRetryableFailure('no reserve button found, retrying next cycle')
   }
 }
 
