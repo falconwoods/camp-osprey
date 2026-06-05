@@ -25,6 +25,7 @@ export async function POST(request: Request) {
   const clientInfo = normalizeExtensionClientInfo(body);
   const entries = normalizeExtensionLogEntries(body);
   const accepted = filterAcceptedExtensionLogs(entries);
+  let lokiStored = true;
 
   try {
     await sendExtensionLogsToLoki(accepted, {
@@ -36,19 +37,16 @@ export async function POST(request: Request) {
       clientInfo,
     });
   } catch (err) {
-    logger.error('extension_logs.loki_push_failed', '[extension-logs] loki push failed', {
+    lokiStored = false;
+    logger.warn('extension_logs.loki_push_failed', '[extension-logs] loki push failed', {
       userId: session.user.id,
       userEmail: session.user.email,
       acceptedCount: accepted.length,
       error: err,
     });
-    return withExtensionCors(
-      request,
-      NextResponse.json({ error: 'loki_push_failed' }, { status: 502 }),
-    );
   }
 
-  return withExtensionCors(request, NextResponse.json({ ok: true, accepted: accepted.length }));
+  return withExtensionCors(request, NextResponse.json({ ok: true, accepted: accepted.length, lokiStored }));
 }
 
 export function OPTIONS(request: Request) {
