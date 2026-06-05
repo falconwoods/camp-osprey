@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { trips } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 
@@ -15,7 +15,13 @@ export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return withExtensionCors(request, NextResponse.json({ error: 'Unauthorized' }, { status: 401 }));
 
-  const rows = await db.select().from(trips).where(eq(trips.userId, session.user.id));
+  const url = new URL(request.url);
+  const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
+  const rows = await db
+    .select()
+    .from(trips)
+    .where(includeDeleted ? eq(trips.userId, session.user.id) : and(eq(trips.userId, session.user.id), isNull(trips.deletedAt)))
+    .orderBy(desc(trips.updatedAt));
   return withExtensionCors(request, NextResponse.json(rows));
 }
 

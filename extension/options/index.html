@@ -81,6 +81,17 @@
     .trip-list-name { font-weight: 800; font-size: 19px; line-height: 1.2; }
     .trip-list-meta { color: var(--text-subtle); font-size: 14px; margin-top: 8px; }
     .trip-action-zone { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+    .trip-list-skeleton { pointer-events: none; border-left-color: var(--border); }
+    .trip-skeleton-main { flex: 1 1 auto; min-width: 0; }
+    .trip-skeleton-line { display: block; overflow: hidden; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--border) 70%, transparent), color-mix(in srgb, var(--bg-card) 78%, var(--border)), color-mix(in srgb, var(--border) 70%, transparent)); background-size: 220% 100%; animation: tripSkeletonPulse 1.35s ease-in-out infinite; }
+    .trip-skeleton-title { width: min(220px, 64%); height: 20px; }
+    .trip-skeleton-meta { width: min(420px, 86%); height: 14px; margin-top: 11px; }
+    .trip-skeleton-status { width: 82px; height: 26px; flex: 0 0 auto; }
+    .trip-skeleton-button { width: 112px; height: 36px; border-radius: 7px; }
+    @keyframes tripSkeletonPulse {
+      0% { background-position: 120% 0; }
+      100% { background-position: -120% 0; }
+    }
     .trip-match-card, .trip-scan-card { display: flex; align-items: center; gap: 16px; min-height: 86px; border-radius: 8px; padding: 18px; }
     .trip-match-card { background: var(--green-subtle); border: 1px solid var(--green-border); }
     .trip-scan-card { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); color: var(--text); font-weight: 700; }
@@ -103,7 +114,8 @@
     }
     @media (prefers-reduced-motion: reduce) {
       .trip-book-btn,
-      .trip-book-btn .icon {
+      .trip-book-btn .icon,
+      .trip-skeleton-line {
         animation: none;
         transition: none;
       }

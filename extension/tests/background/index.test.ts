@@ -3,6 +3,7 @@ import type { AvailableSite, Settings, StorageData, Trip } from '../../src/types
 
 const mocks = vi.hoisted(() => ({
   getStorage: vi.fn(),
+  getTrips: vi.fn(),
   updateTrip: vi.fn(),
   addDebugLog: vi.fn(),
   isLoggedIn: vi.fn(),
@@ -17,7 +18,6 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../src/storage', () => ({
   getStorage: mocks.getStorage,
-  updateTrip: mocks.updateTrip,
   addDebugLog: mocks.addDebugLog,
   formatDateTime: (date: Date | string | number = new Date()) => new Date(date).toLocaleString(undefined, {
     year: 'numeric',
@@ -27,6 +27,11 @@ vi.mock('../../src/storage', () => ({
     minute: '2-digit',
     second: '2-digit',
   }),
+}))
+
+vi.mock('../../src/tripStore', () => ({
+  getTrips: mocks.getTrips,
+  updateTrip: mocks.updateTrip,
 }))
 
 vi.mock('../../src/background/login', () => ({
@@ -69,8 +74,8 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
 }
 
 function makeStorage(trips: Trip[], settings: Partial<Settings> = {}): StorageData {
+  mocks.getTrips.mockResolvedValue(trips)
   return {
-    trips,
     clientId: 'client-1',
     payment: null,
     settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info', ...settings },
@@ -100,6 +105,7 @@ describe('background scanner scheduling', () => {
   beforeEach(() => {
     vi.resetModules()
     mocks.getStorage.mockReset()
+    mocks.getTrips.mockReset()
     mocks.updateTrip.mockReset().mockResolvedValue(undefined)
     mocks.addDebugLog.mockReset().mockResolvedValue(undefined)
     mocks.isLoggedIn.mockReset().mockResolvedValue(true)

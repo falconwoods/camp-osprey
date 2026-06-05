@@ -1,4 +1,4 @@
-import type { AuthState, StorageData, Trip, PaymentConfig, Settings, DebugLogEntry } from './types'
+import type { AuthState, StorageData, PaymentConfig, Settings, DebugLogEntry } from './types'
 
 export const MAX_DEBUG_LOG_ENTRIES = 2_000
 export const MAX_PENDING_SERVER_LOG_ENTRIES = 10_000
@@ -6,7 +6,6 @@ export const PENDING_SERVER_LOGS_KEY = 'pendingServerLogs'
 let debugLogWriteQueue = Promise.resolve()
 
 const DEFAULTS: StorageData = {
-  trips: [],
   clientId: null,
   payment: null,
   settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info' },
@@ -28,12 +27,6 @@ export async function getStorage(): Promise<StorageData> {
   const data = { ...DEFAULTS, ...result } as StorageData
   data.settings = { ...DEFAULTS.settings, ...(data.settings ?? {}) }
   data.auth = { ...DEFAULTS.auth, ...(data.auth ?? {}) }
-  data.trips = data.trips.map(trip => ({
-    ...trip,
-    updatedAt: trip.updatedAt ?? trip.createdAt ?? Date.now(),
-    deletedAt: trip.deletedAt ?? null,
-    status: (trip.status as string) === 'completed' ? 'paid' : trip.status,
-  }))
   return data
 }
 
@@ -55,10 +48,6 @@ export async function getClientId(): Promise<string> {
   const clientId = crypto.randomUUID()
   await promisify<void>(cb => chrome.storage.local.set({ clientId }, cb))
   return clientId
-}
-
-export async function saveTrips(trips: Trip[]): Promise<void> {
-  await promisify<void>(cb => chrome.storage.local.set({ trips }, cb))
 }
 
 export async function savePayment(payment: PaymentConfig | null): Promise<void> {
@@ -162,12 +151,4 @@ export async function addDebugLog(
 
 export async function clearDebugLog(): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.set({ debugLog: [] }, cb))
-}
-
-export async function updateTrip(tripId: string, updates: Partial<Trip>): Promise<void> {
-  const { trips } = await getStorage()
-  const idx = trips.findIndex(t => t.id === tripId)
-  if (idx === -1) throw new Error(`Trip ${tripId} not found`)
-  trips[idx] = { ...trips[idx], ...updates, updatedAt: Date.now() }
-  await saveTrips(trips)
 }

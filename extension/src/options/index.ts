@@ -131,10 +131,14 @@ watchLoginChanges(() => {
 // Live refresh when service worker updates storage
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
-    if ('payment' in changes || (navbar.activeTab === 'trips' && ('trips' in changes || 'auth' in changes))) void renderTripList()
+    if ('payment' in changes || (navbar.activeTab === 'trips' && 'auth' in changes)) void renderTripList()
     if (navbar.activeTab === 'account' && 'auth' in changes) void renderAccount()
     if (navbar.activeTab === 'logs' && 'debugLog' in changes) scheduleDebugLogRefresh()
   }
+})
+
+chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
+  if (msg.type === 'TRIPS_CHANGED' && navbar.activeTab === 'trips') void renderTripList()
 })
 
 async function loadSettingsForm(): Promise<void> {

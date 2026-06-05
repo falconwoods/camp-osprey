@@ -1,6 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveAuth, saveTrips } from '../src/storage'
+import { saveAuth } from '../src/storage'
 import type { Trip } from '../src/types'
+
+const tripStoreMock = vi.hoisted(() => {
+  let trips: Trip[] = []
+  return {
+    getTrips: vi.fn(async () => trips),
+    updateTrip: vi.fn(async (tripId: string, updates: Partial<Trip>) => {
+      const trip = trips.find(existing => existing.id === tripId)
+      if (!trip) throw new Error(`Trip ${tripId} not found`)
+      const updated = { ...trip, ...updates, updatedAt: Date.now() } as Trip
+      trips = trips.map(existing => existing.id === tripId ? updated : existing)
+      return updated
+    }),
+    setTrips: (nextTrips: Trip[]) => {
+      trips = nextTrips
+    },
+  }
+})
+
+vi.mock('../src/tripStore', () => ({
+  getTrips: tripStoreMock.getTrips,
+  updateTrip: tripStoreMock.updateTrip,
+}))
 
 vi.mock('../src/background/login', () => ({ isLoggedIn: vi.fn(async () => true) }))
 vi.mock('../src/auth', () => ({
@@ -45,7 +67,7 @@ beforeEach(async () => {
   ;(chrome.storage as unknown as { onChanged: { addListener: ReturnType<typeof vi.fn> } }).onChanged = {
     addListener: vi.fn(),
   }
-  await saveTrips([trip()])
+  tripStoreMock.setTrips([trip()])
   await saveAuth({ token: null, user: null, lastEmail: null })
   chrome.runtime.sendMessage = vi.fn()
   chrome.runtime.getURL = vi.fn((path: string) => `chrome-extension://test/${path}`)

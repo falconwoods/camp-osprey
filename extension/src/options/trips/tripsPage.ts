@@ -1,11 +1,12 @@
 import { isLoggedIn } from '../../background/login'
-import { getStorage, saveTrips, updateTrip } from '../../storage'
+import { getStorage } from '../../storage'
 import { requireServerAuthForStart } from '../../startAuthGate'
-import { softDeleteTripOnServer, syncTripToServer } from '../../serverApi'
+import { deleteTrip, getTrips, updateTrip } from '../../tripStore'
 import { getGlobalWarnings, getTripWarnings, renderWarnings } from '../../warnings'
 import type { PaymentConfig, Trip } from '../../types'
 import { TripEditor } from './tripEditor'
-import { tripListItemHTML } from './tripDisplay'
+import { tripListItemHTML, tripListSkeletonHTML } from './tripDisplay'
+import { withButtonLoading } from '../../shared/components/button'
 
 type TripsPageOptions = {
   openAuthDialog: () => Promise<void>
@@ -14,14 +15,15 @@ type TripsPageOptions = {
 
 export class TripsPage {
   private readonly editor: TripEditor
+  private trips: Trip[] = []
 
   constructor(private readonly options: TripsPageOptions) {
     this.editor = new TripEditor({
       deleteTripById: tripId => this.deleteTripById(tripId),
+      getTripCount: () => this.trips.length,
       openAuthDialog: () => this.options.openAuthDialog(),
       renderTripList: () => this.renderList(),
       startTripNow: tripId => this.startTripNow(tripId),
-      syncTripBestEffort: trip => void this.syncTripBestEffort(trip),
     })
   }
 
@@ -30,7 +32,13 @@ export class TripsPage {
   }
 
   async renderList(): Promise<void> {
-    const { trips, auth, payment } = await getStorage()
+    const list = document.getElementById('trip-list')!
+    if (this.trips.length === 0) list.innerHTML = tripListSkeletonHTML()
+    list.setAttribute('aria-busy', 'true')
+
+    const { payment } = await getStorage()
+    const trips = await getTrips()
+    this.trips = trips
     const loggedIn = await isLoggedIn()
     await this.options.renderHeaderAccount()
 
@@ -39,7 +47,7 @@ export class TripsPage {
       globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn, payment))
     }
 
-    const list = document.getElementById('trip-list')!
+    list.removeAttribute('aria-busy')
     if (trips.length === 0) {
       list.innerHTML = '<p style="color:#64748b;font-size:12px;padding:8px 0">No trips yet.</p>'
       return
@@ -69,51 +77,48 @@ export class TripsPage {
     list.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation()
-        const id = (btn as HTMLElement).dataset['id']!
-        const action = (btn as HTMLElement).dataset['action']!
-
-        if (action === 'start') {
-          if (!(await requireServerAuthForStart(id, false))) {
-            await this.options.openAuthDialog()
-            return
+        const button = btn as HTMLButtonElement
+        const id = button.dataset['id']!
+        const action = button.dataset['action']!
+        await withButtonLoading(button, action === 'start' ? 'Starting...' : 'Pausing...', async () => {
+          if (action === 'start') {
+            if (!(await requireServerAuthForStart(id, false))) {
+              await this.options.openAuthDialog()
+              return
+            }
+            if (!(await this.startTripNow(id))) return
+          } else {
+            await updateTrip(id, { status: 'paused' })
+            chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
+            chrome.storage.local.remove('campOspreyTarget')
           }
-          if (!(await this.startTripNow(id))) return
-        } else {
-          await updateTrip(id, { status: 'paused' })
-          const { trips: updatedTrips } = await getStorage()
-          const updatedTrip = updatedTrips.find(t => t.id === id)
-          if (updatedTrip) void this.syncTripBestEffort(updatedTrip)
-          chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
-          chrome.storage.local.remove('campOspreyTarget')
-        }
-        await this.renderList()
+          await this.renderList()
+        })
       })
     })
 
     list.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation()
-        const id = (btn as HTMLElement).dataset['id']!
-        await this.deleteTripById(id)
+        const button = btn as HTMLButtonElement
+        const id = button.dataset['id']!
+        await withButtonLoading(button, 'Deleting...', () => this.deleteTripById(id))
       })
     })
   }
 
   async deleteTripById(id: string): Promise<void> {
-    const { trips } = await getStorage()
+    const trips = await getTrips()
     const trip = trips.find(t => t.id === id)
     const label = trip?.name ? `"${trip.name}"` : 'this trip'
     if (!trip || !confirm(`Delete ${label}?`)) return
-    void softDeleteTripOnServer({ ...trip, deletedAt: Date.now(), updatedAt: Date.now() }).catch(err => {
-      console.warn('Trip delete sync failed:', err)
-    })
-    await saveTrips(trips.filter(t => t.id !== id))
+    await deleteTrip(trip)
     this.editor.clearEditingTripIf(id)
     await this.renderList()
   }
 
   async startTripNow(id: string): Promise<boolean> {
-    const { trips } = await getStorage()
+    const trips = await getTrips()
     const trip = trips.find(t => t.id === id)
     if (trip && trip.mode !== 'notify' && !(await isLoggedIn())) {
       this.promptLogin()
@@ -125,9 +130,6 @@ export class TripsPage {
     }
     chrome.storage.local.remove('campOspreyTarget')
     await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
-    const { trips: updatedTrips } = await getStorage()
-    const updatedTrip = updatedTrips.find(t => t.id === id)
-    if (updatedTrip) void this.syncTripBestEffort(updatedTrip)
     chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
     return true
   }
@@ -184,13 +186,5 @@ export class TripsPage {
       payment.billingAddress,
       payment.billingPostal,
     ].every(value => typeof value === 'string' && value.trim())
-  }
-
-  private async syncTripBestEffort(trip: Trip): Promise<void> {
-    try {
-      await syncTripToServer(trip)
-    } catch (err) {
-      console.warn('Trip sync failed:', err)
-    }
   }
 }

@@ -1,21 +1,14 @@
-import { getAuth, getStorage, updateTrip } from '../storage'
+import { getAuth, getStorage } from '../storage'
 import { isLoggedIn } from '../background/login'
 import { applyTheme } from '../theme'
 import { getTripWarnings, getGlobalWarnings, renderWarnings } from '../warnings'
 import { openOptionsAccount, requireServerAuthForStart } from '../startAuthGate'
-import { syncTripToServer } from '../serverApi'
+import { getTrips, updateTrip } from '../tripStore'
+import { withButtonLoading } from '../shared/components/button'
 import type { Trip, MatchedSite } from '../types'
 
 // Apply saved theme immediately before render
 getStorage().then(({ settings }) => applyTheme(settings.theme ?? 'auto'))
-
-async function syncTripBestEffort(trip: Trip): Promise<void> {
-  try {
-    await syncTripToServer(trip)
-  } catch (err) {
-    console.warn('Trip sync failed:', err)
-  }
-}
 
 document.getElementById('settings-link')!.addEventListener('click', e => {
   e.preventDefault()
@@ -215,7 +208,8 @@ function accountCtaHTML(authEmail: string | null): string {
 }
 
 async function render() {
-  const { trips, payment } = await getStorage()
+  const { payment } = await getStorage()
+  const trips = await getTrips()
   const auth = await getAuth()
   const loggedIn = await isLoggedIn()
   const container = document.getElementById('trips-container')!
@@ -234,32 +228,35 @@ async function render() {
 
   container.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = (btn as HTMLElement).dataset['id']!
-      const action = (btn as HTMLElement).dataset['action']!
-      if (action === 'start' && !(await requireServerAuthForStart(id))) {
+      const button = btn as HTMLButtonElement
+      const id = button.dataset['id']!
+      const action = button.dataset['action']!
+      await withButtonLoading(button, action === 'start' ? 'Starting...' : 'Pausing...', async () => {
+        if (action === 'start' && !(await requireServerAuthForStart(id))) {
+          await render()
+          return
+        }
+        await updateTrip(id, action === 'start'
+          ? { status: 'scanning', lastMatch: null, attempted: [] }
+          : { status: 'paused' })
+        if (action === 'start') {
+          chrome.storage.local.remove('campOspreyTarget')
+          chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
+        }
+        if (action === 'pause') {
+          chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
+          chrome.storage.local.remove('campOspreyTarget')
+        }
         await render()
-        return
-      }
-      await updateTrip(id, action === 'start'
-        ? { status: 'scanning', lastMatch: null, attempted: [] }
-        : { status: 'paused' })
-      const { trips } = await getStorage()
-      const updatedTrip = trips.find(t => t.id === id)
-      if (updatedTrip) void syncTripBestEffort(updatedTrip)
-      if (action === 'start') {
-        chrome.storage.local.remove('campOspreyTarget')
-        chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId: id, resetActiveMatch: true })
-      }
-      if (action === 'pause') {
-        chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: id })
-        chrome.storage.local.remove('campOspreyTarget')
-      }
-      await render()
+      })
     })
   })
 }
 
 // Re-render whenever storage changes (catches service worker updates)
 chrome.storage.onChanged.addListener(() => render())
+chrome.runtime.onMessage.addListener((msg: { type?: string }) => {
+  if (msg.type === 'TRIPS_CHANGED') void render()
+})
 
 render()

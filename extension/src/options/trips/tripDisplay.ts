@@ -168,3 +168,20 @@ export function tripListItemHTML(trip: Trip, warningsHTML = ''): string {
     </div>
   </div>`
 }
+
+export function tripListSkeletonHTML(count = 3): string {
+  return Array.from({ length: count }, () => `<div class="trip-list-item trip-list-skeleton" aria-hidden="true">
+    <div class="trip-list-header">
+      <div class="trip-skeleton-main">
+        <span class="trip-skeleton-line trip-skeleton-title"></span>
+        <span class="trip-skeleton-line trip-skeleton-meta"></span>
+      </div>
+      <span class="trip-skeleton-line trip-skeleton-status"></span>
+    </div>
+    <div class="trip-action-zone">
+      <span class="trip-skeleton-line trip-skeleton-button"></span>
+      <span class="trip-skeleton-line trip-skeleton-button"></span>
+      <span class="trip-skeleton-line trip-skeleton-button"></span>
+    </div>
+  </div>`).join('')
+}

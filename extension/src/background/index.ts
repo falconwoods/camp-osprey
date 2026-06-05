@@ -1,12 +1,13 @@
 import { BCParksProvider } from '../providers/bcparks'
-import { getStorage, updateTrip, addDebugLog, formatDateTime } from '../storage'
+import { getStorage, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
 import type { AvailableSite, DebugLogEntry, MatchedSite, Trip } from '../types'
 import { validateAuth } from '../auth'
-import { notifyUserResult, sendBookingPaymentEvent, syncTripToServer } from '../serverApi'
+import { notifyUserResult, sendBookingPaymentEvent } from '../serverApi'
 import type { BookingPaymentEventPayload } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
+import { getTrips, updateTrip } from '../tripStore'
 
 const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
@@ -216,20 +217,6 @@ async function flushPendingBookingPaymentEvents(): Promise<void> {
   }
 }
 
-async function syncTripBestEffort(trip: Trip | undefined): Promise<void> {
-  if (!trip) return
-  try {
-    await syncTripToServer(trip)
-  } catch (err) {
-    console.warn('Trip sync failed:', err)
-  }
-}
-
-async function syncStoredTripBestEffort(tripId: string): Promise<void> {
-  const { trips } = await getStorage()
-  await syncTripBestEffort(trips.find(t => t.id === tripId))
-}
-
 function scheduleContentLogFlush(): void {
   if (contentLogFlushTimer) return
   contentLogFlushTimer = setTimeout(() => {
@@ -351,7 +338,8 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
 
   scanInProgress = true
   try {
-    const { trips, settings } = await getStorage()
+    const { settings } = await getStorage()
+    const trips = await getTrips()
     await setupAlarm(settings.pollIntervalSeconds)
     const targetSet = targetTripIds
       ? new Set(Array.isArray(targetTripIds) ? targetTripIds : [targetTripIds])
@@ -672,7 +660,6 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
       true,
     )
     await updateTrip(trip.id, { lastMatch: matchedSite })
-    await syncStoredTripBestEffort(trip.id)
     return
   }
 
@@ -702,7 +689,6 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
 
   if (trip.mode === 'hold') {
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
-    await syncStoredTripBestEffort(trip.id)
     await notify(
       `Site Available — Reserve Now`,
       `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}\nBC Parks is opening — click Reserve in your browser.`,
@@ -727,7 +713,6 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
 
   if (trip.mode === 'autopay') {
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
-    await syncStoredTripBestEffort(trip.id)
     await notify(
       `Site Available — Auto-paying`,
       `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}`,
@@ -830,7 +815,7 @@ chrome.runtime.onMessage.addListener((msg: {
   }
   if (msg.type === 'MATCH_FAILED' && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
-    getStorage().then(({ trips }) => {
+    getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       if (!trip) return
       const attempted = [...trip.attempted]
@@ -846,14 +831,13 @@ chrome.runtime.onMessage.addListener((msg: {
         tripName: trip.name,
         metadata: { attemptKey: msg.attemptKey ?? null },
       })
-      updateTrip(msg.tripId!, { status: 'scanning', lastMatch: null, attempted })
-        .then(() => syncStoredTripBestEffort(msg.tripId!))
+      void updateTrip(msg.tripId!, { status: 'scanning', lastMatch: null, attempted })
     })
     return
   }
   if (msg.type === 'BOOKING_RESERVED' && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
-    getStorage().then(({ trips }) => {
+    getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const reservedAt = new Date().toISOString()
       const match = trip?.lastMatch ? { ...trip.lastMatch, reservedAt } : undefined
@@ -874,7 +858,6 @@ chrome.runtime.onMessage.addListener((msg: {
       })
       updateTrip(msg.tripId!, match ? { status: 'reserved', lastMatch: match } : { status: 'reserved' })
         .then(async () => {
-          await syncStoredTripBestEffort(msg.tripId!)
           if (match) {
             const siteDetail = `${match.parkName} › ${match.sectionName ? `${match.sectionName} › ` : ''}Site ${match.siteName}`
             await notify(
@@ -940,7 +923,7 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
-    getStorage().then(({ trips }) => {
+    getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
       const paidAt = msg.paidAt && !Number.isNaN(new Date(msg.paidAt).getTime())
@@ -969,7 +952,6 @@ chrome.runtime.onMessage.addListener((msg: {
         metadata: { confirmationNumber: msg.confirmationNumber ?? 'unknown' },
       }, { forceServerSync: true })
       updateTrip(msg.tripId!, match ? { status: 'paid', lastMatch: match } : { status: 'paid' }).then(async () => {
-        await syncStoredTripBestEffort(msg.tripId!)
         if (paymentEvent) {
           await enqueueBookingPaymentEvent(paymentEvent, trip?.name)
         } else {
@@ -1034,7 +1016,7 @@ chrome.runtime.onMessage.addListener((msg: {
   }
   if (msg.type === 'BOOKING_FAILED' && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
-    getStorage().then(({ trips }) => {
+    getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
       const detail = m ? `${m.parkName} › Site ${m.siteName}` : ''
@@ -1053,7 +1035,6 @@ chrome.runtime.onMessage.addListener((msg: {
         error: msg.error ?? 'Unknown error',
       }, { forceServerSync: true })
       updateTrip(msg.tripId!, { status: 'failed' }).then(async () => {
-        await syncStoredTripBestEffort(msg.tripId!)
         notify(
           '❌ Payment Failed',
           `${detail}${detail ? '\n' : ''}${msg.error ?? 'Unknown error — check BC Parks tab.'}`,

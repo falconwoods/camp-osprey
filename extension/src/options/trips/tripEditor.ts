@@ -1,6 +1,5 @@
 import { BCParksProvider } from '../../providers/bcparks'
 import { bindAsyncButton } from '../../shared/components/button'
-import { getStorage } from '../../storage'
 import { requireServerAuthForStart } from '../../startAuthGate'
 import type { DateRange, Park, Trip } from '../../types'
 import { escapeHtml } from '../settings/shared'
@@ -9,10 +8,10 @@ import { bindTripNameErrorReset, saveTripFromEditor } from './tripSave'
 
 type TripEditorOptions = {
   deleteTripById: (tripId: string) => Promise<void>
+  getTripCount: () => number
   openAuthDialog: () => Promise<void>
   renderTripList: () => Promise<void>
   startTripNow: (tripId: string) => Promise<boolean>
-  syncTripBestEffort: (trip: Trip) => void
 }
 
 function dateRangesEqual(a: DateRange, b: DateRange): boolean {
@@ -47,7 +46,7 @@ export class TripEditor {
     bindTripNameErrorReset()
     bindAsyncButton(document.getElementById('save-trip-btn') as HTMLButtonElement, 'Saving...', () => this.saveOnly())
     bindAsyncButton(document.getElementById('start-trip-btn') as HTMLButtonElement, 'Starting...', () => this.saveAndStart())
-    document.getElementById('delete-trip-btn')!.addEventListener('click', () => void this.deleteCurrentTrip())
+    bindAsyncButton(document.getElementById('delete-trip-btn') as HTMLButtonElement, 'Deleting...', () => this.deleteCurrentTrip())
     document.getElementById('trip-mode')?.addEventListener('change', () => this.updateModeHelp())
     document.getElementById('trip-mode-help')?.addEventListener('click', event => {
       const target = (event.target as HTMLElement).closest('[data-open-payment-settings]')
@@ -64,8 +63,7 @@ export class TripEditor {
 
     let name = trip?.name ?? ''
     if (!trip) {
-      const { trips } = await getStorage()
-      name = `Trip ${trips.length + 1}`
+      name = `Trip ${this.options.getTripCount() + 1}`
     }
     ;(document.getElementById('trip-name') as HTMLInputElement).value = name
     ;(document.getElementById('trip-mode') as HTMLSelectElement).value = trip?.mode ?? 'hold'
@@ -372,7 +370,6 @@ export class TripEditor {
       requireAutoPayPayment: false,
     })
     if (!result) return
-    if (result.savedTrip) this.options.syncTripBestEffort(result.savedTrip)
     document.getElementById('back-btn')!.click()
   }
 
@@ -390,7 +387,6 @@ export class TripEditor {
       return
     }
 
-    if (result.savedTrip) this.options.syncTripBestEffort(result.savedTrip)
     if (!(await this.options.startTripNow(result.savedTripId))) return
     document.getElementById('back-btn')!.click()
   }

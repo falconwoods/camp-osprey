@@ -1,4 +1,6 @@
-import { getAuth, getStorage, savePayment, saveTrips } from '../../storage'
+import { getAuth, getStorage, savePayment } from '../../storage'
+import { getTrips, updateTrip } from '../../tripStore'
+import { bindAsyncButton } from '../../shared/components/button'
 import type { AuthState, PaymentConfig, Trip } from '../../types'
 
 type ParkPaymentPageOptions = {
@@ -104,8 +106,10 @@ export class ParkPaymentPage {
 
   private bindSectionActions(): void {
     document.getElementById('cancel-payment-btn')?.addEventListener('click', () => void this.loadForm())
-    document.getElementById('delete-payment-btn')?.addEventListener('click', () => void this.deletePayment())
-    document.getElementById('save-payment-btn')?.addEventListener('click', () => void this.saveFromForm())
+    const deleteButton = document.getElementById('delete-payment-btn') as HTMLButtonElement | null
+    if (deleteButton) bindAsyncButton(deleteButton, 'Deleting...', () => this.deletePayment())
+    const saveButton = document.getElementById('save-payment-btn') as HTMLButtonElement | null
+    if (saveButton) bindAsyncButton(saveButton, 'Saving...', () => this.saveFromForm())
     document.getElementById('payment-sign-in-btn')?.addEventListener('click', () => void this.options.openAuthDialog())
     this.fieldIds().forEach(id => {
       document.getElementById(id)?.addEventListener('input', event => {
@@ -139,7 +143,7 @@ export class ParkPaymentPage {
   }
 
   private async deletePayment(): Promise<void> {
-    const { trips } = await getStorage()
+    const trips = await getTrips()
     const activeAutoPayTrips = trips.filter(trip => this.isActiveAutoPayTrip(trip))
     const message = activeAutoPayTrips.length
       ? `Delete saved park payment info from this device? This will pause ${activeAutoPayTrips.length} active auto-pay trip${activeAutoPayTrips.length === 1 ? '' : 's'}.`
@@ -147,11 +151,7 @@ export class ParkPaymentPage {
     if (!confirm(message)) return
     await savePayment(null)
     if (activeAutoPayTrips.length) {
-      await saveTrips(trips.map(trip =>
-        this.isActiveAutoPayTrip(trip)
-          ? { ...trip, status: 'paused', updatedAt: Date.now() }
-          : trip
-      ))
+      await Promise.all(activeAutoPayTrips.map(trip => updateTrip(trip.id, { status: 'paused' })))
       activeAutoPayTrips.forEach(trip => {
         chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: trip.id })
       })

@@ -1,4 +1,5 @@
-import { getClientId, getStorage, saveTrips } from '../../storage'
+import { getClientId, getStorage } from '../../storage'
+import { getTrips, saveTrip } from '../../tripStore'
 import type { DateRange, Park, PaymentConfig, Trip } from '../../types'
 
 type SaveTripInput = {
@@ -117,7 +118,8 @@ export async function saveTripFromEditor(input: SaveTripInput): Promise<SaveTrip
 
   if (hasErrors) return null
 
-  const { payment, trips } = await getStorage()
+  const { payment } = await getStorage()
+  const trips = await getTrips()
   if (input.requireAutoPayPayment !== false && mode === 'autopay' && !isValidParkPayment(payment)) {
     showModePaymentWarning()
     ;(document.getElementById('trip-mode') as HTMLSelectElement | null)?.focus()
@@ -164,9 +166,11 @@ export async function saveTripFromEditor(input: SaveTripInput): Promise<SaveTrip
     })
   }
 
-  await saveTrips(trips)
+  const savedTrip = trips.find(t => t.id === savedTripId)
+  if (!savedTrip) throw new Error(`Trip ${savedTripId} not found`)
+  const serverTrip = await saveTrip(savedTrip)
   return {
     savedTripId,
-    savedTrip: trips.find(t => t.id === savedTripId),
+    savedTrip: serverTrip,
   }
 }

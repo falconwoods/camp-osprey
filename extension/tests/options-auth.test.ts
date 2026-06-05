@@ -1,6 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getStorage, saveAuth, savePayment, saveTrips } from '../src/storage'
+import { getStorage, saveAuth, savePayment } from '../src/storage'
 import type { DebugLogEntry, Trip } from '../src/types'
+
+const tripStoreMock = vi.hoisted(() => {
+  let trips: Trip[] = []
+  return {
+    getTrips: vi.fn(async () => trips),
+    saveTrip: vi.fn(async (trip: Trip) => {
+      const idx = trips.findIndex(existing => existing.id === trip.id)
+      if (idx === -1) trips = [...trips, trip]
+      else trips = trips.map(existing => existing.id === trip.id ? trip : existing)
+      return trip
+    }),
+    updateTrip: vi.fn(async (tripId: string, updates: Partial<Trip>) => {
+      const trip = trips.find(existing => existing.id === tripId)
+      if (!trip) throw new Error(`Trip ${tripId} not found`)
+      const updated = { ...trip, ...updates, updatedAt: Date.now() } as Trip
+      trips = trips.map(existing => existing.id === tripId ? updated : existing)
+      return updated
+    }),
+    deleteTrip: vi.fn(async (trip: Trip) => {
+      trips = trips.filter(existing => existing.id !== trip.id)
+    }),
+    setTrips: (nextTrips: Trip[]) => {
+      trips = nextTrips
+    },
+    getTripsState: () => trips,
+  }
+})
+
+vi.mock('../src/tripStore', () => ({
+  getTrips: tripStoreMock.getTrips,
+  saveTrip: tripStoreMock.saveTrip,
+  updateTrip: tripStoreMock.updateTrip,
+  deleteTrip: tripStoreMock.deleteTrip,
+}))
 
 vi.mock('../src/background/login', () => ({
   isLoggedIn: vi.fn(async () => true),
@@ -150,7 +184,7 @@ beforeEach(async () => {
     value: vi.fn(() => true),
     writable: true,
   })
-  await saveTrips([trip()])
+  await tripStoreMock.setTrips([trip()])
   await saveAuth({ token: null, user: null, lastEmail: null })
   vi.resetModules()
 })
@@ -328,7 +362,7 @@ describe('options auth gate', () => {
 
   it('selects Logs tab from hash and renders structured log rows', async () => {
     location.hash = '#logs'
-    await saveTrips([trip()])
+    await tripStoreMock.setTrips([trip()])
     chrome.storage.local.get.mockImplementation((_keys, cb) => cb({
       trips: [trip()],
       debugLog: [
@@ -440,11 +474,11 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(window.confirm).toHaveBeenCalledWith('Delete "Weekend"?')
-    expect((await getStorage()).trips).toHaveLength(0)
+    expect(tripStoreMock.getTripsState()).toHaveLength(0)
   })
 
   it('saves parks in drag-and-drop priority order', async () => {
-    await saveTrips([{
+    await tripStoreMock.setTrips([{
       ...trip(),
       parks: [
         { id: 'p1', name: 'Alice Lake' },
@@ -473,7 +507,7 @@ describe('options auth gate', () => {
     document.getElementById('save-trip-btn')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect((await getStorage()).trips[0].parks.map(park => park.name)).toEqual(['Porteau Cove', 'Alice Lake'])
+    expect(tripStoreMock.getTripsState()[0].parks.map(park => park.name)).toEqual(['Porteau Cove', 'Alice Lake'])
   })
 
   it('does not add duplicate date ranges', async () => {
@@ -550,7 +584,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(sentScanNow()).toBe(false)
-    expect((await getStorage()).trips[0].mode).toBe('notify')
+    expect(tripStoreMock.getTripsState()[0].mode).toBe('notify')
     expect(document.getElementById('trip-mode')!.classList.contains('invalid')).toBe(true)
     expect(document.getElementById('trip-mode-help')!.textContent).toContain('Payment required')
     expect(document.getElementById('trip-mode-help')!.textContent).toContain('Add valid Park Payment info before starting Auto-pay.')
@@ -567,7 +601,7 @@ describe('options auth gate', () => {
     document.getElementById('save-trip-btn')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    const { trips } = await getStorage()
+    const trips = tripStoreMock.getTripsState()
     expect(sentScanNow()).toBe(false)
     expect(trips[0].mode).toBe('autopay')
     expect(trips[0].status).toBe('idle')
@@ -580,7 +614,7 @@ describe('options auth gate', () => {
       lastEmail: null,
       pointsBalance: 700,
     })
-    await saveTrips([trip({ mode: 'autopay', status: 'idle' })])
+    await tripStoreMock.setTrips([trip({ mode: 'autopay', status: 'idle' })])
     vi.mocked(validateAuth).mockResolvedValue(true)
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -588,7 +622,7 @@ describe('options auth gate', () => {
     document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    const { trips } = await getStorage()
+    const trips = tripStoreMock.getTripsState()
     expect(sentScanNow()).toBe(false)
     expect(trips[0].status).toBe('idle')
     expect(document.getElementById('global-alerts')!.textContent).toContain('Park Payment required')
@@ -603,7 +637,7 @@ describe('options auth gate', () => {
       lastEmail: null,
       pointsBalance: 700,
     })
-    await saveTrips([trip({ mode: 'autopay', status: 'idle' })])
+    await tripStoreMock.setTrips([trip({ mode: 'autopay', status: 'idle' })])
     vi.mocked(validateAuth).mockResolvedValue(true)
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -648,7 +682,7 @@ describe('options auth gate', () => {
       billingAddress: '1 Park Road',
       billingPostal: 'V6B 1A1',
     })
-    await saveTrips([trip({ mode: 'autopay', status: 'scanning' })])
+    await tripStoreMock.setTrips([trip({ mode: 'autopay', status: 'scanning' })])
     vi.mocked(validateAuth).mockResolvedValue(true)
     await import('../src/options/index')
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -662,7 +696,8 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    const { trips, payment } = await getStorage()
+    const { payment } = await getStorage()
+    const trips = tripStoreMock.getTripsState()
     expect(payment).toBeNull()
     expect(trips[0].status).toBe('paused')
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'STOP_SCAN', tripId: 'trip-1' })
@@ -696,7 +731,7 @@ describe('options auth gate', () => {
       tripId: 'trip-1',
       resetActiveMatch: true,
     })
-    expect((await getStorage()).trips[0].mode).toBe('autopay')
+    expect(tripStoreMock.getTripsState()[0].mode).toBe('autopay')
   })
 
   it('keeps the trip when list deletion is cancelled', async () => {
@@ -708,6 +743,6 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(window.confirm).toHaveBeenCalledWith('Delete "Weekend"?')
-    expect((await getStorage()).trips).toHaveLength(1)
+    expect(tripStoreMock.getTripsState()).toHaveLength(1)
   })
 })

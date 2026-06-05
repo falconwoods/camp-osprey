@@ -1,9 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getStorage, saveAuth, savePayment, saveTrips } from '../src/storage'
+import { getStorage, saveAuth, savePayment } from '../src/storage'
 import type { Trip } from '../src/types'
 import { AccountPage } from '../src/options/Account/accountPage'
 import { ParkPaymentPage } from '../src/options/settings/parkPaymentPage'
 import { createPointCheckout, getPointsSummary } from '../src/serverApi'
+
+const tripStoreMock = vi.hoisted(() => {
+  let trips: Trip[] = []
+  return {
+    getTrips: vi.fn(async () => trips),
+    updateTrip: vi.fn(async (tripId: string, updates: Partial<Trip>) => {
+      const trip = trips.find(existing => existing.id === tripId)
+      if (!trip) throw new Error(`Trip ${tripId} not found`)
+      const updated = { ...trip, ...updates, updatedAt: Date.now() } as Trip
+      trips = trips.map(existing => existing.id === tripId ? updated : existing)
+      return updated
+    }),
+    setTrips: (nextTrips: Trip[]) => {
+      trips = nextTrips
+    },
+    getTripsState: () => trips,
+  }
+})
+
+vi.mock('../src/tripStore', () => ({
+  getTrips: tripStoreMock.getTrips,
+  updateTrip: tripStoreMock.updateTrip,
+}))
 
 vi.mock('../src/serverApi', () => ({
   getPointsSummary: vi.fn(async () => ({
@@ -67,6 +90,7 @@ describe('ParkPaymentPage', () => {
     chrome.tabs.create = vi.fn()
     chrome.runtime.sendMessage = vi.fn()
     chrome.runtime.getURL = vi.fn((path: string) => `chrome-extension://test/${path}`)
+    tripStoreMock.setTrips([])
     await saveAuth({
       token: 'tok',
       user: { id: 'u1', email: 'user@example.com', role: 'user' },
@@ -185,7 +209,7 @@ describe('ParkPaymentPage', () => {
       billingAddress: '123 Forest Road',
       billingPostal: 'V6B 1A1',
     })
-    await saveTrips([
+    await tripStoreMock.setTrips([
       trip({ id: 'active-autopay', mode: 'autopay', status: 'scanning' }),
       trip({ id: 'idle-autopay', mode: 'autopay', status: 'idle' }),
       trip({ id: 'active-hold', mode: 'hold', status: 'scanning' }),
@@ -197,7 +221,8 @@ describe('ParkPaymentPage', () => {
     document.querySelector<HTMLButtonElement>('#delete-payment-btn')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    const { trips, payment } = await getStorage()
+    const { payment } = await getStorage()
+    const trips = tripStoreMock.getTripsState()
     expect(window.confirm).toHaveBeenCalledWith('Delete saved park payment info from this device? This will pause 1 active auto-pay trip.')
     expect(payment).toBeNull()
     expect(trips.find(t => t.id === 'active-autopay')?.status).toBe('paused')

@@ -96,9 +96,12 @@ export function bindAccountPanel(
   onSignedIn: () => Promise<void>,
   onChanged: () => Promise<void>,
 ): void {
-  document.getElementById('sign-out-btn')?.addEventListener('click', async () => {
-    await signOut()
-    await onChanged()
+  document.getElementById('sign-out-btn')?.addEventListener('click', async event => {
+    const button = event.currentTarget as HTMLButtonElement
+    await withButtonLoading(button, 'Signing out...', async () => {
+      await signOut()
+      await onChanged()
+    })
   })
 
   const setError = (message: string) => {
@@ -140,29 +143,33 @@ export function bindAccountPanel(
     const copy = document.getElementById('auth-code-copy')
     if (copy) copy.innerHTML = `We sent a 6-digit code to <strong>${escapeHtml(email)}</strong>.`
     ;(document.getElementById('auth-code') as HTMLInputElement | null)?.focus()
-    startResendCooldown()
   }
 
-  const sendCode = async (email: string) => {
+  const sendCode = async (email: string): Promise<boolean> => {
     try {
       await requestCode({ email })
       showCodeStep(email)
       setError('')
+      return true
     } catch (err) {
       const code = err instanceof Error ? err.message : 'server_error'
       setError(authMessage(code))
+      return false
     }
   }
 
   document.getElementById('auth-send-code')?.addEventListener('click', async (event) => {
     const button = event.currentTarget as HTMLButtonElement
     const email = (document.getElementById('auth-email') as HTMLInputElement).value
-    await withButtonLoading(button, 'Sending code...', () => sendCode(email))
+    const sent = await withButtonLoading(button, 'Sending code...', () => sendCode(email))
+    if (sent) startResendCooldown()
   })
 
-  document.getElementById('auth-resend-code')?.addEventListener('click', async () => {
+  document.getElementById('auth-resend-code')?.addEventListener('click', async event => {
     if (!submittedEmail) return
-    await sendCode(submittedEmail)
+    const button = event.currentTarget as HTMLButtonElement
+    const sent = await withButtonLoading(button, 'Resending...', () => sendCode(submittedEmail))
+    if (sent) startResendCooldown()
   })
 
   document.getElementById('auth-change-email')?.addEventListener('click', () => {

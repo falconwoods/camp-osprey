@@ -127,7 +127,6 @@ export interface DebugLogEntry {
 }
 
 export interface StorageData {
-  trips: Trip[]
   clientId: string | null
   payment: PaymentConfig | null
   settings: Settings
