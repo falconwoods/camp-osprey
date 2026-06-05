@@ -22,7 +22,7 @@ Usage:
 
 Environment:
   CAMPSOON_RECORD_START_URL  URL to open first (default: https://camping.bcparks.ca/)
-  CAMPSOON_RECORD_DIR        Output directory (default: ../dump/bcparks-checkout-recordings/<timestamp>)
+  CAMPSOON_RECORD_DIR        Output directory (default: ../tmp/bcparks-checkout-recordings/<timestamp>)
 `)
   process.exit(0)
 }
@@ -33,7 +33,7 @@ function timestampSlug(date = new Date()) {
 
 const runDir = path.resolve(
   process.env.CAMPSOON_RECORD_DIR
-    ?? path.join(repoRoot, 'dump', 'bcparks-checkout-recordings', timestampSlug()),
+    ?? path.join(repoRoot, 'tmp', 'bcparks-checkout-recordings', timestampSlug()),
 )
 const snapshotsDir = path.join(runDir, 'dom-snapshots')
 const networkPath = path.join(runDir, 'network.ndjson')

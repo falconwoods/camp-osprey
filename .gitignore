@@ -13,3 +13,4 @@ config.yaml
 extension/node_modules/
 extension/dist/
 .superpowers/
+tmp/

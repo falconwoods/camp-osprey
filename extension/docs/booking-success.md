@@ -81,6 +81,46 @@ Current reliable checks:
 
 The confirmation number is parsed from the reservation-number element.
 
+## Local Debug Harness
+
+Use the fake success harness to test this flow without paying BC Parks:
+
+```bash
+cd extension
+npm run build:development
+npm run debug:booking-success
+```
+
+For CI-style verification that closes Chromium after success:
+
+```bash
+cd extension
+npm run build:development
+npm run debug:booking-success -- --once
+```
+
+The harness:
+
+1. Loads the built Chrome extension from `extension/dist`.
+2. Seeds `chrome.storage.local` with a fake autopay trip and `campOspreyTarget`.
+3. Intercepts `https://camping.bcparks.ca/create-booking/confirmation/fake-cart/fake-transaction`.
+4. Serves `extension/fixtures/bcparks/booking-success.html`.
+5. Waits for the real content script/background flow to mark the trip `paid`.
+
+Expected `--once` result:
+
+```json
+{
+  "tripStatus": "paid",
+  "targetExists": false,
+  "paidLog": {
+    "event": "booking_paid",
+    "status": "paid",
+    "confirmationNumber": "BCIN123456B1"
+  }
+}
+```
+
 ## Notes
 
 The previous broad selector `[class*="reference-number"]` happened to match the recorded page because BC Parks renders `.success-reference-number`, but it was not specific enough to prove the user reached the paid booking confirmation page.
