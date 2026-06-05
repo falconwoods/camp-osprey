@@ -5,6 +5,7 @@ import {
   extractSelectedCampsiteName,
   findBookingConfirmation,
   findDetailsControl,
+  findPaymentFailure,
   findReserveControl,
   hasNoAvailabilityMessage,
   hasListResultOutcome,
@@ -202,6 +203,42 @@ describe('findBookingConfirmation', () => {
     expect(findBookingConfirmation(
       document,
       'https://camping.bcparks.ca/create-booking/payment/create-booking%2Fconfirmation',
+    )).toBeNull()
+  })
+})
+
+describe('findPaymentFailure', () => {
+  it('detects the recorded BC Parks payment failure alert', () => {
+    document.body.innerHTML = `
+      <app-payment>
+        <h1 id="pageTitle">Payment</h1>
+        <div role="alert" aria-live="assertive" class="alert-box error-box">
+          <div class="alert-box-title">Payment was unsuccessful</div>
+          <div>The payment was unsuccessful. Please try again.</div>
+        </div>
+        <button id="applyPaymentButton">Apply payment</button>
+      </app-payment>
+    `
+
+    expect(findPaymentFailure(
+      document,
+      'https://camping.bcparks.ca/create-booking/payment/create-booking%252Fconfirmation',
+    )).toMatchObject({
+      message: expect.stringContaining('Payment was unsuccessful'),
+    })
+  })
+
+  it('does not treat a success confirmation page as a payment failure', () => {
+    document.body.innerHTML = `
+      <app-checkout-confirmation>
+        <h1 id="pageTitle">Success!</h1>
+        <p class="success-reference-number">Reservation Number: BCIN123B1</p>
+      </app-checkout-confirmation>
+    `
+
+    expect(findPaymentFailure(
+      document,
+      'https://camping.bcparks.ca/create-booking/confirmation/cart/transaction',
     )).toBeNull()
   })
 })

@@ -75,6 +75,11 @@ export interface BookingConfirmation {
   referenceElement: Element
 }
 
+export interface PaymentFailure {
+  message: string
+  alertElement: Element
+}
+
 export function findBookingConfirmation(
   root: ParentNode = document,
   url: string = window.location.href,
@@ -101,5 +106,29 @@ export function findBookingConfirmation(
   return {
     confirmationNumber: confirmationNumber || 'unknown',
     referenceElement,
+  }
+}
+
+export function findPaymentFailure(
+  root: ParentNode = document,
+  url: string = window.location.href,
+): PaymentFailure | null {
+  if (!url.includes('/create-booking/payment/')) return null
+  if (!root.querySelector('app-payment')) return null
+
+  const title = root.querySelector('#pageTitle, h1')?.textContent?.trim().toLowerCase()
+  if (title !== 'payment') return null
+
+  const alertElement = root.querySelector('[role="alert"].error-box, .alert-box.error-box, [role="alert"]')
+  if (!alertElement) return null
+
+  const alertText = alertElement.textContent?.trim().replace(/\s+/g, ' ') ?? ''
+  const normalized = alertText.toLowerCase()
+  if (!normalized.includes('payment was unsuccessful')) return null
+  if (!normalized.includes('please try again')) return null
+
+  return {
+    message: alertText || 'Payment was unsuccessful. Please try again.',
+    alertElement,
   }
 }

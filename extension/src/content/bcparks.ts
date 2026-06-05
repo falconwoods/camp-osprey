@@ -1,5 +1,5 @@
 // Content script — injected on all camping.bcparks.ca pages
-import { extractCampsiteName, extractSelectedCampsiteName, findBookingConfirmation, findDetailsControl, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
+import { extractCampsiteName, extractSelectedCampsiteName, findBookingConfirmation, findDetailsControl, findPaymentFailure, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
 
 // ── Debug logging ──────────────────────────────────────────────────────────
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
@@ -764,6 +764,8 @@ async function waitForBookingConfirmation(timeoutMs = 60_000): Promise<NonNullab
   while (Date.now() - start < timeoutMs) {
     const confirmation = findBookingConfirmation(document, window.location.href)
     if (confirmation) return confirmation
+    const failure = findPaymentFailure(document, window.location.href)
+    if (failure) throw new Error(failure.message)
     await sleep(250)
   }
   throw new Error('Payment submitted, but BC Parks confirmation page was not detected')
@@ -804,6 +806,8 @@ async function runCheckout(tripId: string): Promise<void> {
       reportConfirmedBooking(existingConfirmation.confirmationNumber)
       return
     }
+    const existingFailure = findPaymentFailure(document, window.location.href)
+    if (existingFailure) throw new Error(existingFailure.message)
 
     // ── Acknowledgements ──────────────────────────────────────────────────
     if (btn('confirm acknowledgements')) {
@@ -904,7 +908,8 @@ async function runCheckout(tripId: string): Promise<void> {
 
     dbg('runCheckout: no matching step — page buttons listed above')
   } catch (err) {
-    dbg('runCheckout error', String(err))
-    chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: String(err) })
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    dbg('runCheckout error', errorMessage)
+    chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: errorMessage })
   }
 }

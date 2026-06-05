@@ -8,6 +8,7 @@
     "build:production": "vite build --mode production",
     "dev:development": "vite build --watch --mode development",
     "dev:production": "vite build --watch --mode production",
+    "debug:booking-fail": "node scripts/debug-booking-fail.mjs",
     "debug:booking-success": "node scripts/debug-booking-success.mjs",
     "record:bcparks-checkout": "node scripts/record-bcparks-checkout.mjs",
     "test": "vitest run",

@@ -67,6 +67,51 @@ The confirmation API response included a `bookingNumber`.
 
 Google Analytics also emitted purchase/create-confirmation events, but those should not be used as app logic.
 
+## Failed Payment Signals
+
+Captured failed-payment recording:
+
+```text
+dump/bcparks-checkout-recordings/fail/2026-06-05T03-27-55-401Z/
+```
+
+Final snapshot:
+
+```text
+dom-snapshots/036-manual-finish.html
+```
+
+The failed-payment flow stayed on:
+
+```text
+/create-booking/payment/create-booking%252Fconfirmation
+```
+
+The page title remained:
+
+```text
+Payment
+```
+
+The payment API returned:
+
+```text
+POST /api/payment -> 400
+{"messageKey":"PAYMENTFAILED","messageLocales":{}}
+```
+
+The final DOM contained:
+
+```html
+<app-payment>
+  <h1 id="pageTitle">Payment</h1>
+  <div role="alert" aria-live="assertive" class="alert-box error-box">
+    <div class="alert-box-title">Payment was unsuccessful</div>
+    <div>The payment was unsuccessful. Please try again.</div>
+  </div>
+</app-payment>
+```
+
 ## Extension Detection
 
 The extension should treat a booking as paid only after detecting the BC Parks confirmation page, not just after clicking the payment button.
@@ -80,6 +125,14 @@ Current reliable checks:
 5. `.success-reference-number` or `#referenceNumber_*` contains `Reservation Number:`.
 
 The confirmation number is parsed from the reservation-number element.
+
+The extension should treat a booking as failed only after detecting the recorded payment failure page:
+
+1. URL contains `/create-booking/payment/`.
+2. DOM contains `app-payment`.
+3. `#pageTitle` or `h1` text is exactly `Payment`.
+4. A `role="alert"` / `.alert-box.error-box` element contains `Payment was unsuccessful`.
+5. The same alert contains `Please try again`.
 
 ## Local Debug Harness
 
@@ -118,6 +171,37 @@ Expected `--once` result:
     "status": "paid",
     "confirmationNumber": "BCIN123456B1"
   }
+}
+```
+
+Use the fake failure harness to test the declined/failed payment path:
+
+```bash
+cd extension
+npm run build:development
+npm run debug:booking-fail
+```
+
+For CI-style verification:
+
+```bash
+cd extension
+npm run build:development
+npm run debug:booking-fail -- --once
+```
+
+Expected `--once` result:
+
+```json
+{
+  "tripStatus": "failed",
+  "targetExists": false,
+  "failedLog": {
+    "event": "booking_failed",
+    "status": "failed",
+    "error": "Payment was unsuccessful The payment was unsuccessful. Please try again."
+  },
+  "paidLog": null
 }
 ```
 
