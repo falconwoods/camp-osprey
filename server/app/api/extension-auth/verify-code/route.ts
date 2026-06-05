@@ -11,6 +11,7 @@ import {
   readExtensionAuthJson,
   verifyExtensionAuthCode,
 } from '@/lib/extension-auth';
+import { logger } from '../../../../lib/loki';
 import { buildRequestContext } from '../../../../lib/request-context';
 
 type BetterAuthUser = {
@@ -64,7 +65,11 @@ export async function POST(request: Request) {
         ...context,
       });
     } catch (err) {
-      console.error('[extension-auth] auth event insert failed:', err);
+      logger.error('extension_auth.auth_event_insert_failed', '[extension-auth] auth event insert failed', {
+        userId: result.user.id,
+        eventType: existingUserBeforeVerify ? 'login' : 'signup',
+        error: err,
+      });
     }
 
     const points = await getPointAccountSummary(result.user.id);

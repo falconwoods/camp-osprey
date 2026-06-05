@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
 import { processStripeWebhookEventInDb } from '@/lib/stripe-webhooks';
+import { logger } from '../../../../lib/loki';
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -15,8 +16,7 @@ export async function POST(request: Request) {
   try {
     event = getStripe().webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
-    console.error('[stripe] webhook signature invalid', {
-      event: 'stripe.webhook.signature_invalid',
+    logger.error('stripe.webhook.signature_invalid', '[stripe] webhook signature invalid', {
       error: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
@@ -26,8 +26,7 @@ export async function POST(request: Request) {
     await processStripeWebhookEventInDb(event);
     return NextResponse.json({ received: true });
   } catch (err) {
-    console.error('[stripe] webhook processing failed', {
-      event: 'stripe.webhook.error',
+    logger.error('stripe.webhook.error', '[stripe] webhook processing failed', {
       stripeEventId: event.id,
       stripeEventType: event.type,
       error: err instanceof Error ? err.message : String(err),

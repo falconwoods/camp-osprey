@@ -3,6 +3,7 @@ import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors'
 import { getPointPackage } from '@/lib/points-config';
 import { getSession } from '@/lib/session';
 import { createCheckoutSession } from '@/lib/stripe';
+import { logger } from '../../../../lib/loki';
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -21,8 +22,7 @@ export async function POST(request: Request) {
 
   const pointPackage = getPointPackage(body.packageId);
   if (!pointPackage) {
-    console.warn('[points] checkout package not found', {
-      event: 'points.checkout.package_not_found',
+    logger.warn('points.checkout.package_not_found', '[points] checkout package not found', {
       userId: session.user.id,
       userEmail: session.user.email,
       packageId: body.packageId,

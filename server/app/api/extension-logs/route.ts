@@ -8,6 +8,7 @@ import {
   normalizeExtensionLogEntries,
   sendExtensionLogsToLoki,
 } from '@/lib/extension-logs';
+import { logger } from '../../../lib/loki';
 import { getClientIp, getRequestCountry } from '../../../lib/request-context';
 
 export async function POST(request: Request) {
@@ -35,7 +36,12 @@ export async function POST(request: Request) {
       clientInfo,
     });
   } catch (err) {
-    console.error('[extension-logs] loki push failed:', err);
+    logger.error('extension_logs.loki_push_failed', '[extension-logs] loki push failed', {
+      userId: session.user.id,
+      userEmail: session.user.email,
+      acceptedCount: accepted.length,
+      error: err,
+    });
     return withExtensionCors(
       request,
       NextResponse.json({ error: 'loki_push_failed' }, { status: 502 }),

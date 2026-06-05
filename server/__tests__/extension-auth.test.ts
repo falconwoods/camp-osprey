@@ -128,15 +128,20 @@ describe('requestExtensionAuthCode', () => {
     await expect(requestExtensionAuthCode({ email: 'old@example.com' }, deps))
       .rejects.toMatchObject({ code: 'email_send_failed', status: 500 });
 
-    expect(consoleSpy).toHaveBeenCalledWith('[extension-auth] send code failed', {
+    expect(consoleSpy).toHaveBeenCalledWith(expect.any(String));
+    expect(consoleSpy.mock.calls[0]).toHaveLength(1);
+    const payload = JSON.parse(consoleSpy.mock.calls[0][0] as string);
+    expect(payload).toEqual(expect.objectContaining({
       event: 'extension_auth.send_code_failed',
       provider: 'brevo',
       status: 401,
       code: 'unauthorized',
-      message: 'Unrecognised IP address',
+      message: '[extension-auth] send code failed',
       recipientDomain: 'example.com',
-    });
-    expect(consoleSpy.mock.calls[0]?.[1]).not.toBeInstanceOf(Error);
+      level: 'error',
+      ts: expect.any(String),
+    }));
+    expect(consoleSpy.mock.calls[0][0]).not.toContain('stack');
 
     consoleSpy.mockRestore();
   });

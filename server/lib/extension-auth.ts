@@ -1,4 +1,5 @@
 import { EmailSendError } from './email';
+import { logger } from './loki';
 
 export type ExtensionAuthErrorCode =
   | 'invalid_email'
@@ -223,7 +224,7 @@ export async function requestExtensionAuthCode(
   try {
     await deps.sendCode(email, existingUser?.name ?? null);
   } catch (err) {
-    console.error('[extension-auth] send code failed', emailSendErrorLogFields(err, email));
+    logger.error('extension_auth.send_code_failed', '[extension-auth] send code failed', emailSendErrorLogFields(err, email));
     throw extensionAuthError('email_send_failed');
   }
 
@@ -289,6 +290,6 @@ export function jsonForExtensionAuthError(err: unknown): Response {
       { status: err.status },
     );
   }
-  console.error('[extension-auth] unexpected error:', err);
+  logger.error('extension_auth.unexpected_error', '[extension-auth] unexpected error', { error: err });
   return Response.json({ error: 'server_error' }, { status: 500 });
 }

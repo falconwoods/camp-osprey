@@ -4,6 +4,7 @@ import { normalizeBookingPaymentEventBody, recordBookingPaymentEventInDb } from 
 import { getSuccessfulBookingPointCost } from '@/lib/points-config';
 import { buildRequestContext, normalizeRequestClientInfo } from '@/lib/request-context';
 import { getSession } from '@/lib/session';
+import { logger } from '../../../lib/loki';
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -23,16 +24,14 @@ export async function POST(request: Request) {
   }
 
   if (!event.confirmationNumber) {
-    console.warn('[booking-payment] missing confirmation number', {
-      event: 'booking_payment.missing_confirmation_number',
+    logger.warn('booking_payment.missing_confirmation_number', '[booking-payment] missing confirmation number', {
       userId: session.user.id,
       userEmail: session.user.email,
       idempotencyKey: event.idempotencyKey,
     });
   }
 
-  console.info('[booking-payment] received', {
-    event: 'booking_payment.received',
+  logger.info('booking_payment.received', '[booking-payment] received', {
     userId: session.user.id,
     userEmail: session.user.email,
     tripId: event.tripId,

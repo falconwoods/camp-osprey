@@ -35,8 +35,13 @@ interface PendingBookingPaymentEvent {
   lastError?: string
 }
 
-function logEntry(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
-  return addDebugLog(entry)
+function logEntry(
+  entry: Omit<DebugLogEntry, 'ts'> & { ts?: string },
+  options: { forceServerSync?: boolean } = {},
+): Promise<void> {
+  const result = options.forceServerSync ? addDebugLog(entry, options) : addDebugLog(entry)
+  if (options.forceServerSync) void result.then(scheduleContentLogFlush)
+  return result
 }
 
 function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
@@ -178,7 +183,7 @@ async function flushPendingBookingPaymentEvents(): Promise<void> {
             duplicate: result.duplicate,
             idempotencyKey,
           },
-        })
+        }, { forceServerSync: true })
       } catch (err) {
         const latest = await getPendingBookingPaymentEvents()
         if (!latest[idempotencyKey]) continue
@@ -203,7 +208,7 @@ async function flushPendingBookingPaymentEvents(): Promise<void> {
           status: 'paid',
           error: err instanceof Error ? err.message : String(err),
           metadata: { idempotencyKey, attempts: latest[idempotencyKey].attempts },
-        })
+        }, { forceServerSync: true })
       }
     }
   } finally {
@@ -962,7 +967,7 @@ chrome.runtime.onMessage.addListener((msg: {
         bookingDate: paidAt,
         status: 'paid',
         metadata: { confirmationNumber: msg.confirmationNumber ?? 'unknown' },
-      })
+      }, { forceServerSync: true })
       updateTrip(msg.tripId!, match ? { status: 'paid', lastMatch: match } : { status: 'paid' }).then(async () => {
         await syncStoredTripBestEffort(msg.tripId!)
         if (paymentEvent) {
@@ -975,7 +980,7 @@ chrome.runtime.onMessage.addListener((msg: {
             tripId: msg.tripId!,
             tripName: trip?.name,
             metadata: { confirmationNumber: msg.confirmationNumber ?? 'unknown' },
-          })
+          }, { forceServerSync: true })
         }
         notify(
           'Booking Paid',
@@ -1046,7 +1051,7 @@ chrome.runtime.onMessage.addListener((msg: {
         bookingDate: new Date().toISOString(),
         status: 'failed',
         error: msg.error ?? 'Unknown error',
-      })
+      }, { forceServerSync: true })
       updateTrip(msg.tripId!, { status: 'failed' }).then(async () => {
         await syncStoredTripBestEffort(msg.tripId!)
         notify(

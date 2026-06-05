@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { stripeCheckoutSessions } from '@/db/schema';
 import type { PointPackage } from '@/lib/points-config';
 import { appendCheckoutReturnParams } from '@/lib/stripe-return-url';
+import { logger } from './loki';
 
 let stripeClient: Stripe | null = null;
 
@@ -51,8 +52,7 @@ export async function createCheckoutSession(input: {
     metadata: { url: session.url },
   });
 
-  console.info('[points] checkout created', {
-    event: 'points.checkout.created',
+  logger.info('points.checkout.created', '[points] checkout created', {
     userId: input.userId,
     userEmail: input.userEmail,
     packageId: input.pointPackage.id,

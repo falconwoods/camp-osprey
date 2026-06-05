@@ -2,6 +2,7 @@ import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { bookingPaymentEvents, pointTransactions, userPointAccounts } from '@/db/schema';
 import { getPointPackage } from '@/lib/points-config';
+import { logger } from './loki';
 
 export type PointTransactionType =
   | 'stripe_purchase'
@@ -37,8 +38,7 @@ export async function applyPointTransaction(
   const existing = await deps.findTransaction(input.idempotencyKey);
 
   if (existing) {
-    console.debug('[points] duplicate transaction ignored', {
-      event: 'points.transaction.duplicate_ignored',
+    logger.debug('points.transaction.duplicate_ignored', '[points] duplicate transaction ignored', {
       userId: input.userId,
       idempotencyKey: input.idempotencyKey,
       pointTransactionId: existing.id,

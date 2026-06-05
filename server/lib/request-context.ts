@@ -10,6 +10,8 @@ export interface RequestContext {
   extensionVersion?: string;
 }
 
+import { logger } from './loki';
+
 export interface RequestClientInfo {
   extensionVersion?: string;
   userAgent?: string;
@@ -93,7 +95,10 @@ async function geoFromIpInfo(ipAddress?: string): Promise<Pick<RequestContext, '
       city: body.city,
     };
   } catch (err) {
-    console.error('[request-context] geo lookup failed:', err);
+    logger.error('request_context.geo_lookup_failed', '[request-context] geo lookup failed', {
+      ipAddress,
+      error: err,
+    });
     return {};
   }
 }

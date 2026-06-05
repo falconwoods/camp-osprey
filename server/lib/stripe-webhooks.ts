@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { stripeCheckoutSessions, stripeWebhookEvents } from '@/db/schema';
 import { getPointPackage, type PointPackage } from '@/lib/points-config';
 import { applyPointTransactionInDb, type PointTransactionInput } from '@/lib/points-ledger';
+import { logger } from './loki';
 
 type WebhookClaim = 'new' | 'processed' | 'retry';
 
@@ -49,8 +50,7 @@ function objectId(value: unknown): string | null {
 async function handleCheckoutCompleted(deps: StripeWebhookDeps, event: Pick<Stripe.Event, 'id' | 'type' | 'data'>): Promise<void> {
   const session = event.data.object as Stripe.Checkout.Session;
   if (session.payment_status !== 'paid') {
-    console.debug('[stripe] checkout session completed before payment', {
-      event: 'stripe.webhook.checkout_unpaid_ignored',
+    logger.debug('stripe.webhook.checkout_unpaid_ignored', '[stripe] checkout session completed before payment', {
       stripeEventId: event.id,
       stripeSessionId: session.id,
       paymentStatus: session.payment_status,
@@ -94,8 +94,7 @@ async function handleCheckoutCompleted(deps: StripeWebhookDeps, event: Pick<Stri
     },
   });
 
-  console.info('[points] credit applied', {
-    event: 'points.credit.applied',
+  logger.info('points.credit.applied', '[points] credit applied', {
     userId: checkout.userId,
     stripeSessionId: session.id,
     stripePaymentIntentId,
@@ -141,8 +140,7 @@ async function handleChargeRefunded(deps: StripeWebhookDeps, event: Pick<Stripe.
   });
 
   await deps.updateCheckoutStatus(checkout.stripeSessionId, 'refunded');
-  console.info('[points] refund applied', {
-    event: 'points.refund.applied',
+  logger.info('points.refund.applied', '[points] refund applied', {
     userId: checkout.userId,
     stripeSessionId: checkout.stripeSessionId,
     stripePaymentIntentId: paymentIntentId,
@@ -161,16 +159,14 @@ export async function processStripeWebhookEvent(
 ): Promise<void> {
   const claim = await deps.claimWebhookEvent(event.id, event.type);
   if (claim === 'processed') {
-    console.debug('[stripe] duplicate webhook ignored', {
-      event: 'stripe.webhook.duplicate_ignored',
+    logger.debug('stripe.webhook.duplicate_ignored', '[stripe] duplicate webhook ignored', {
       stripeEventId: event.id,
       stripeEventType: event.type,
     });
     return;
   }
 
-  console.info('[stripe] webhook received', {
-    event: 'stripe.webhook.received',
+  logger.info('stripe.webhook.received', '[stripe] webhook received', {
     stripeEventId: event.id,
     stripeEventType: event.type,
   });

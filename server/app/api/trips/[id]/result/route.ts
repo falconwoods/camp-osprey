@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { sendEmail, buildResultEmail } from '@/lib/email';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
+import { logger } from '../../../../../lib/loki';
 import { buildRequestContext, normalizeRequestClientInfo } from '../../../../../lib/request-context';
 
 type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
@@ -93,7 +94,7 @@ export async function POST(
       updatedAt,
     }).returning();
 
-    console.info('[result] created missing trip from result payload:', {
+    logger.info('result.trip_created_from_payload', '[result] created missing trip from result payload', {
       tripId: id,
       userId: session.user.id,
       name: trip.name,
@@ -117,7 +118,9 @@ export async function POST(
     checkOut: matchedSite?.checkOut,
   };
 
-  console.info('[result] received booking result:', resultContext);
+  logger.info('result.received', '[result] received booking result', {
+    ...resultContext,
+  });
 
   const statusMap: Record<Outcome, string> = {
     found:       trip.status as string,
@@ -159,7 +162,7 @@ export async function POST(
       );
       await sendEmail({ to: session.user.email, subject, html });
       emailSent = true;
-      console.info('[result] email sent:', {
+      logger.info('result.email_sent', '[result] email sent', {
         ...resultContext,
         bookingResultId: result.id,
         to: session.user.email,
@@ -170,7 +173,7 @@ export async function POST(
         .set({ emailSent: true })
         .where(eq(bookingResults.id, result.id));
     } catch (err) {
-      console.error('[result] email send failed:', {
+      logger.error('result.email_send_failed', '[result] email send failed', {
         ...resultContext,
         bookingResultId: result.id,
         to: session.user.email,

@@ -7,6 +7,7 @@ import {
   userPointAccounts,
 } from '@/db/schema';
 import type { RequestContext } from '@/lib/request-context';
+import { logger } from './loki';
 
 export interface NormalizedBookingPaymentEvent {
   tripId?: string;
@@ -161,8 +162,7 @@ export async function recordBookingPaymentEventInDb(input: {
         pointTransactionId: bookingPointCharges.pointTransactionId,
       }).from(bookingPointCharges).where(eq(bookingPointCharges.bookingPaymentEventId, existingEvent.id));
 
-      console.debug('[booking-payment] duplicate ignored', {
-        event: 'booking_payment.duplicate_ignored',
+      logger.info('booking_payment.duplicate_ignored', '[booking-payment] duplicate ignored', {
         userId: input.userId,
         userEmail: input.userEmail,
         bookingPaymentEventId: existingEvent.id,
@@ -178,8 +178,7 @@ export async function recordBookingPaymentEventInDb(input: {
       };
     }
 
-    console.info('[booking-payment] recorded', {
-      event: 'booking_payment.recorded',
+    logger.info('booking_payment.recorded', '[booking-payment] recorded', {
       userId: input.userId,
       userEmail: input.userEmail,
       bookingPaymentEventId: insertedEvent.id,
@@ -211,8 +210,7 @@ export async function recordBookingPaymentEventInDb(input: {
         idempotencyKey: `booking_payment:${insertedEvent.id}:charge`,
       }).returning({ id: bookingPointCharges.id });
 
-      console.warn('[points] charge insufficient balance', {
-        event: 'points.charge.insufficient_balance',
+      logger.warn('points.charge.insufficient_balance', '[points] charge insufficient balance', {
         userId: input.userId,
         userEmail: input.userEmail,
         bookingPaymentEventId: insertedEvent.id,
@@ -263,8 +261,7 @@ export async function recordBookingPaymentEventInDb(input: {
       idempotencyKey: `booking_payment:${insertedEvent.id}:charge`,
     });
 
-    console.info('[points] charge applied', {
-      event: 'points.charge.applied',
+    logger.info('points.charge.applied', '[points] charge applied', {
       userId: input.userId,
       userEmail: input.userEmail,
       tripId: input.event.tripId,

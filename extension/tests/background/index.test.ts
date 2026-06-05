@@ -561,7 +561,7 @@ describe('background scanner scheduling', () => {
       paidAt: expect.any(String),
       bookingDate: expect.any(String),
       metadata: expect.objectContaining({ confirmationNumber: 'ABC123' }),
-    }))
+    }), { forceServerSync: true })
   })
 
   it('reports confirmed paid bookings to the booking payment event endpoint', async () => {
@@ -619,7 +619,7 @@ describe('background scanner scheduling', () => {
         balanceAfter: 600,
         idempotencyKey: 'bc_parks:confirmation:ABC123',
       }),
-    }))
+    }), { forceServerSync: true })
     vi.useRealTimers()
   })
 
@@ -653,7 +653,7 @@ describe('background scanner scheduling', () => {
         idempotencyKey: 'bc_parks:confirmation:ABC123',
         attempts: 1,
       }),
-    })))
+    }), { forceServerSync: true }))
     expect(chrome.storage.local.set).toHaveBeenCalledWith(expect.objectContaining({
       pendingBookingPaymentEvents: expect.objectContaining({
         'bc_parks:confirmation:ABC123': expect.objectContaining({
@@ -681,6 +681,6 @@ describe('background scanner scheduling', () => {
       status: 'failed',
       error: 'card declined',
       bookingDate: expect.any(String),
-    }))
+    }), { forceServerSync: true })
   })
 })
