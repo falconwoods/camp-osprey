@@ -34,7 +34,7 @@ vi.mock('../src/serverApi', () => ({
 
 import { requestCode, validateAuth, verifyCode } from '../src/auth'
 
-function trip(): Trip {
+function trip(overrides: Partial<Trip> = {}): Trip {
   return {
     id: 'trip-1',
     name: 'Weekend',
@@ -46,6 +46,7 @@ function trip(): Trip {
     lastMatch: null,
     attempted: [],
     createdAt: Date.now(),
+    ...overrides,
   }
 }
 
@@ -117,6 +118,7 @@ function renderFixture(): void {
       <div id="trip-mode-help"></div>
       <input id="filter-walkin" type="checkbox"><input id="filter-double" type="checkbox">
       <button id="save-trip-btn"></button>
+      <button id="start-trip-btn"></button>
       <button id="delete-trip-btn"></button>
     </div>
   `
@@ -509,15 +511,15 @@ describe('options auth gate', () => {
     document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    const saveButton = document.getElementById('save-trip-btn') as HTMLButtonElement
-    saveButton.click()
+    const startButton = document.getElementById('start-trip-btn') as HTMLButtonElement
+    startButton.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(saveButton.disabled).toBe(true)
-    expect(saveButton.getAttribute('aria-busy')).toBe('true')
-    expect(saveButton.textContent).toContain('Saving...')
+    expect(startButton.disabled).toBe(true)
+    expect(startButton.getAttribute('aria-busy')).toBe('true')
+    expect(startButton.textContent).toContain('Starting...')
 
-    saveButton.click()
+    startButton.click()
     expect(sentScanNow()).toBe(false)
 
     finishAuth()
@@ -532,8 +534,8 @@ describe('options auth gate', () => {
     expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.filter(([message]) =>
       (message as { type?: string }).type === 'SCAN_NOW'
     )).toHaveLength(1)
-    expect(saveButton.disabled).toBe(false)
-    expect(saveButton.getAttribute('aria-busy')).toBeNull()
+    expect(startButton.disabled).toBe(false)
+    expect(startButton.getAttribute('aria-busy')).toBeNull()
   })
 
   it('blocks auto-pay scanning when Park Payment is not configured', async () => {
@@ -544,7 +546,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     ;(document.getElementById('trip-mode') as HTMLSelectElement).value = 'autopay'
-    document.getElementById('save-trip-btn')!.click()
+    document.getElementById('start-trip-btn')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(sentScanNow()).toBe(false)
@@ -552,6 +554,120 @@ describe('options auth gate', () => {
     expect(document.getElementById('trip-mode')!.classList.contains('invalid')).toBe(true)
     expect(document.getElementById('trip-mode-help')!.textContent).toContain('Payment required')
     expect(document.getElementById('trip-mode-help')!.textContent).toContain('Add valid Park Payment info before starting Auto-pay.')
+  })
+
+  it('saves auto-pay trip settings without starting when Park Payment is not configured', async () => {
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-edit-trip]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    ;(document.getElementById('trip-mode') as HTMLSelectElement).value = 'autopay'
+    document.getElementById('save-trip-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const { trips } = await getStorage()
+    expect(sentScanNow()).toBe(false)
+    expect(trips[0].mode).toBe('autopay')
+    expect(trips[0].status).toBe('idle')
+  })
+
+  it('blocks starting an existing auto-pay trip when Park Payment is not configured', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      lastEmail: null,
+      pointsBalance: 700,
+    })
+    await saveTrips([trip({ mode: 'autopay', status: 'idle' })])
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const { trips } = await getStorage()
+    expect(sentScanNow()).toBe(false)
+    expect(trips[0].status).toBe('idle')
+    expect(document.getElementById('global-alerts')!.textContent).toContain('Park Payment required')
+    expect(document.getElementById('global-alerts')!.textContent).toContain('Add valid Park Payment info before starting an auto-pay trip.')
+  })
+
+  it('clears the missing Park Payment alert after payment info is saved', async () => {
+    window.alert = vi.fn()
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      lastEmail: null,
+      pointsBalance: 700,
+    })
+    await saveTrips([trip({ mode: 'autopay', status: 'idle' })])
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.querySelector<HTMLButtonElement>('[data-action="start"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.getElementById('global-alerts')!.textContent).toContain('Park Payment required')
+
+    document.querySelector<HTMLButtonElement>('[data-open-payment-settings]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    ;(document.getElementById('card-number') as HTMLInputElement).value = '4111111111111111'
+    ;(document.getElementById('card-holder') as HTMLInputElement).value = 'Test Camper'
+    ;(document.getElementById('card-expiry') as HTMLInputElement).value = '12/30'
+    ;(document.getElementById('card-cvv') as HTMLInputElement).value = '123'
+    ;(document.getElementById('billing-address') as HTMLInputElement).value = '1 Park Road'
+    ;(document.getElementById('billing-postal') as HTMLInputElement).value = 'V6B 1A1'
+    document.getElementById('save-payment-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(window.alert).toHaveBeenCalledWith('Payment info saved.')
+    expect(document.getElementById('global-alerts')!.textContent).not.toContain('Park Payment required')
+    expect(document.getElementById('global-alerts')!.textContent).not.toContain('Add valid Park Payment info before starting an auto-pay trip.')
+  })
+
+  it('shows the Park Payment alert after saved payment info is deleted for an auto-pay trip', async () => {
+    window.alert = vi.fn()
+    window.confirm = vi.fn(() => true)
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      lastEmail: null,
+      pointsBalance: 700,
+    })
+    await savePayment({
+      cardNumber: '4111111111111111',
+      cardHolder: 'Test Camper',
+      cardExpiry: '12/30',
+      cardCvv: '123',
+      billingAddress: '1 Park Road',
+      billingPostal: 'V6B 1A1',
+    })
+    await saveTrips([trip({ mode: 'autopay', status: 'scanning' })])
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.getElementById('global-alerts')!.textContent).not.toContain('Park Payment required')
+
+    document.querySelector<HTMLElement>('[data-tab="payment"]')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.getElementById('delete-payment-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const { trips, payment } = await getStorage()
+    expect(payment).toBeNull()
+    expect(trips[0].status).toBe('paused')
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'STOP_SCAN', tripId: 'trip-1' })
+    expect(document.getElementById('global-alerts')!.textContent).toContain('Park Payment required')
+    expect(document.getElementById('global-alerts')!.textContent).toContain('Add valid Park Payment info before using auto-pay trips.')
   })
 
   it('allows auto-pay scanning when Park Payment is configured', async () => {
@@ -571,7 +687,7 @@ describe('options auth gate', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     ;(document.getElementById('trip-mode') as HTMLSelectElement).value = 'autopay'
-    document.getElementById('save-trip-btn')!.click()
+    document.getElementById('start-trip-btn')!.click()
     await new Promise(resolve => setTimeout(resolve, 0))
     await new Promise(resolve => setTimeout(resolve, 0))
 

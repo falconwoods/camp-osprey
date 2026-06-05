@@ -5,7 +5,7 @@ import { renderAuthPanelHTML, bindAccountPanel } from '../accountPanel'
 import { clearPendingStartTripId, consumePendingStartTripId } from '../startAuthGate'
 import { AccountPage } from './Account/accountPage'
 import { LogsPage } from './settings/logsPage'
-import { PaymentPage } from './settings/paymentPage'
+import { ParkPaymentPage } from './settings/parkPaymentPage'
 import { SettingsPage } from './settings/settingsPage'
 import { HeaderAccount } from './navbar/headerAccount'
 import { OptionsNavbar } from './navbar/optionsNavbar'
@@ -37,7 +37,7 @@ const accountPage = new AccountPage({
   startTripNow,
 })
 const logsPage = new LogsPage()
-const paymentPage = new PaymentPage({ openAuthDialog })
+const paymentPage = new ParkPaymentPage({ openAuthDialog, renderTripList })
 const settingsPage = new SettingsPage({ onDebugModeChange: enabled => navbar.updateLogsTabVisibility(enabled) })
 
 // ── Page coordination ──────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ watchLoginChanges(() => {
 // Live refresh when service worker updates storage
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
-    if (navbar.activeTab === 'trips' && ('trips' in changes || 'auth' in changes)) void renderTripList()
+    if ('payment' in changes || (navbar.activeTab === 'trips' && ('trips' in changes || 'auth' in changes))) void renderTripList()
     if (navbar.activeTab === 'account' && 'auth' in changes) void renderAccount()
     if (navbar.activeTab === 'logs' && 'debugLog' in changes) scheduleDebugLogRefresh()
   }

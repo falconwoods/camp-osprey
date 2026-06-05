@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-06-05T02:58:16.458Z",
+  "startUrl": "https://camping.bcparks.ca/",
+  "artifacts": {
+    "network": "network.ndjson",
+    "events": "events.ndjson",
+    "domSnapshots": "dom-snapshots"
+  },
+  "note": "Artifacts are best-effort redacted. Review before sharing externally."
+}

@@ -5,6 +5,7 @@ type SaveTripInput = {
   editingTripId: string | null
   tripParks: Park[]
   tripDates: DateRange[]
+  requireAutoPayPayment?: boolean
 }
 
 type SaveTripResult = {
@@ -36,6 +37,12 @@ function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentCo
 
 function clearModePaymentWarning(): void {
   document.querySelector('.mode-help-payment-warning')?.remove()
+  const warningAction = document.querySelector<HTMLElement>('.mode-help-action-warning')
+  if (warningAction) {
+    warningAction.classList.remove('mode-help-action-warning')
+    warningAction.removeAttribute('role')
+    warningAction.innerHTML = '<span>Auto-pay requires payment info in Settings &gt; Park Payment.</span><button type="button" data-open-payment-settings>Set up Park Payment</button>'
+  }
   document.getElementById('trip-mode-help')?.classList.remove('mode-help-warning')
   document.getElementById('trip-mode')?.classList.remove('invalid')
 }
@@ -52,7 +59,15 @@ function showModePaymentWarning(): void {
   }
 
   help.classList.add('mode-help-warning')
-  help.insertAdjacentHTML('beforeend', `<div class="mode-help-payment-warning" role="alert"><strong>Payment required</strong><span>${message}</span><button type="button" data-open-payment-settings>Set up Park Payment</button></div>`)
+  const existingAction = help.querySelector('.mode-help-action')
+  const warningHTML = `<span><b>Payment required</b> ${message}</span><button type="button" data-open-payment-settings>Set up Park Payment</button>`
+  if (existingAction) {
+    existingAction.classList.add('mode-help-action-warning')
+    existingAction.setAttribute('role', 'alert')
+    existingAction.innerHTML = warningHTML
+    return
+  }
+  help.insertAdjacentHTML('beforeend', `<div class="mode-help-action mode-help-action-warning" role="alert">${warningHTML}</div>`)
 }
 
 export function clearFieldErrors(): void {
@@ -103,7 +118,7 @@ export async function saveTripFromEditor(input: SaveTripInput): Promise<SaveTrip
   if (hasErrors) return null
 
   const { payment, trips } = await getStorage()
-  if (mode === 'autopay' && !isValidParkPayment(payment)) {
+  if (input.requireAutoPayPayment !== false && mode === 'autopay' && !isValidParkPayment(payment)) {
     showModePaymentWarning()
     ;(document.getElementById('trip-mode') as HTMLSelectElement | null)?.focus()
     return null

@@ -215,7 +215,7 @@ function accountCtaHTML(authEmail: string | null): string {
 }
 
 async function render() {
-  const { trips } = await getStorage()
+  const { trips, payment } = await getStorage()
   const auth = await getAuth()
   const loggedIn = await isLoggedIn()
   const container = document.getElementById('trips-container')!
@@ -223,7 +223,7 @@ async function render() {
   const headerEmailEl = document.getElementById('header-email')!
 
   headerEmailEl.textContent = auth.user?.email ?? 'Sign in required'
-  globalAlertsEl.innerHTML = (auth.user?.email ? '' : accountCtaHTML(null)) + renderWarnings(getGlobalWarnings(trips, loggedIn))
+  globalAlertsEl.innerHTML = (auth.user?.email ? '' : accountCtaHTML(null)) + renderWarnings(getGlobalWarnings(trips, loggedIn, payment))
   document.getElementById('open-account-btn')?.addEventListener('click', openOptionsAccount)
 
   if (trips.length === 0) {

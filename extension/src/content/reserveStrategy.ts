@@ -69,3 +69,37 @@ export function isExpansionPanelOpen(panel: Element, header?: Element | null): b
     || header?.classList.contains('mat-expanded') === true
     || header?.getAttribute('aria-expanded') === 'true'
 }
+
+export interface BookingConfirmation {
+  confirmationNumber: string
+  referenceElement: Element
+}
+
+export function findBookingConfirmation(
+  root: ParentNode = document,
+  url: string = window.location.href,
+): BookingConfirmation | null {
+  if (!url.includes('/create-booking/confirmation/')) return null
+  if (!root.querySelector('app-checkout-confirmation')) return null
+
+  const title = root.querySelector('#pageTitle, h1')?.textContent?.trim().toLowerCase()
+  if (title !== 'success!') return null
+
+  const confirmationText = (root.querySelector('[id^="confirmationMessage_"]')?.textContent ?? '').toLowerCase()
+  if (!confirmationText.includes('successfully made a reservation')) return null
+
+  const referenceElement = root.querySelector('[id^="referenceNumber_"] .success-reference-number, .success-reference-number, [id^="referenceNumber_"]')
+  if (!referenceElement) return null
+
+  const referenceText = referenceElement.textContent?.trim().replace(/\s+/g, ' ') ?? ''
+  if (!/reservation\s+number/i.test(referenceText)) return null
+
+  const confirmationNumber = referenceText
+    .replace(/reservation\s+number\s*:?\s*/i, '')
+    .trim()
+
+  return {
+    confirmationNumber: confirmationNumber || 'unknown',
+    referenceElement,
+  }
+}

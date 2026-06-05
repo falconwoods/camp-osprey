@@ -3,6 +3,7 @@ import {
   reservePasses,
   extractCampsiteName,
   extractSelectedCampsiteName,
+  findBookingConfirmation,
   findDetailsControl,
   findReserveControl,
   hasNoAvailabilityMessage,
@@ -165,5 +166,42 @@ describe('isExpansionPanelOpen', () => {
       document.querySelector('mat-expansion-panel')!,
       document.querySelector('mat-expansion-panel-header'),
     )).toBe(true)
+  })
+})
+
+describe('findBookingConfirmation', () => {
+  it('detects the recorded BC Parks success page structure', () => {
+    document.body.innerHTML = `
+      <app-checkout-confirmation>
+        <h1 id="pageTitle">Success!</h1>
+        <div id="confirmationMessage_1">
+          You have successfully made a reservation for <strong>Campsite 18</strong>.
+        </div>
+        <div class="success-reference" id="referenceNumber_1">
+          <p class="success-reference-number"> Reservation Number: BCIN123B1 </p>
+        </div>
+      </app-checkout-confirmation>
+    `
+
+    expect(findBookingConfirmation(
+      document,
+      'https://camping.bcparks.ca/create-booking/confirmation/cart/transaction',
+    )).toMatchObject({
+      confirmationNumber: 'BCIN123B1',
+    })
+  })
+
+  it('does not treat non-confirmation checkout pages as paid', () => {
+    document.body.innerHTML = `
+      <app-create-booking>
+        <h1 id="pageTitle">Payment</h1>
+        <button>Apply credit card payment</button>
+      </app-create-booking>
+    `
+
+    expect(findBookingConfirmation(
+      document,
+      'https://camping.bcparks.ca/create-booking/payment/create-booking%2Fconfirmation',
+    )).toBeNull()
   })
 })

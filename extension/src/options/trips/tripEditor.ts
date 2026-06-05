@@ -45,7 +45,8 @@ export class TripEditor {
     this.bindParkSearch()
     this.bindDateControls()
     bindTripNameErrorReset()
-    bindAsyncButton(document.getElementById('save-trip-btn') as HTMLButtonElement, 'Saving...', () => this.save())
+    bindAsyncButton(document.getElementById('save-trip-btn') as HTMLButtonElement, 'Saving...', () => this.saveOnly())
+    bindAsyncButton(document.getElementById('start-trip-btn') as HTMLButtonElement, 'Starting...', () => this.saveAndStart())
     document.getElementById('delete-trip-btn')!.addEventListener('click', () => void this.deleteCurrentTrip())
     document.getElementById('trip-mode')?.addEventListener('change', () => this.updateModeHelp())
     document.getElementById('trip-mode-help')?.addEventListener('click', event => {
@@ -113,6 +114,9 @@ export class TripEditor {
     const modeSelect = document.getElementById('trip-mode') as HTMLSelectElement | null
     const help = document.getElementById('trip-mode-help')
     if (!modeSelect || !help) return
+
+    help.classList.remove('mode-help-warning')
+    modeSelect.classList.remove('invalid')
 
     const mode = modeSelect.value as Trip['mode']
     const copy: Record<Trip['mode'], { label: string; details: [string, string] }> = {
@@ -360,7 +364,19 @@ export class TripEditor {
     this.updateRecurringPreview()
   }
 
-  private async save(): Promise<void> {
+  private async saveOnly(): Promise<void> {
+    const result = await saveTripFromEditor({
+      editingTripId: this.editingTripId,
+      tripParks: this.tripParks,
+      tripDates: this.tripDates,
+      requireAutoPayPayment: false,
+    })
+    if (!result) return
+    if (result.savedTrip) this.options.syncTripBestEffort(result.savedTrip)
+    document.getElementById('back-btn')!.click()
+  }
+
+  private async saveAndStart(): Promise<void> {
     const result = await saveTripFromEditor({
       editingTripId: this.editingTripId,
       tripParks: this.tripParks,

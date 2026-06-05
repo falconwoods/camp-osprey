@@ -269,13 +269,23 @@
       justify-content: center;
       min-height: 34px;
       padding: 0 14px;
+      border: 0;
       border-radius: 7px;
+      appearance: none;
       background: var(--green);
       color: #fff;
+      cursor: pointer;
+      font-family: inherit;
       font-size: 13px;
       font-weight: 800;
+      line-height: 1;
       white-space: nowrap;
       text-decoration: none;
+    }
+    .alert-action:hover { filter: brightness(0.96); }
+    .alert-action:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--green) 35%, transparent);
+      outline-offset: 2px;
     }
     @media (max-width: 720px) {
       .alert-has-action { align-items: flex-start; flex-wrap: wrap; }
@@ -501,42 +511,23 @@
       border-color: var(--amber);
       background: var(--amber-subtle);
     }
-    .mode-help-payment-warning {
-      display: grid;
-      gap: 6px;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(180,83,9,0.24);
-      color: var(--text-subtle);
-      font-size: 13px;
-      line-height: 1.4;
+    .mode-help-action-warning {
+      border-top-color: rgba(180,83,9,0.24);
     }
-    .mode-help-payment-warning strong {
-      margin: 0;
+    .mode-help-action-warning b {
       color: var(--amber);
-    }
-    .mode-help-payment-warning span {
-      display: block;
-    }
-    .mode-help-payment-warning button {
-      width: fit-content;
-      min-height: 30px;
-      border: 1px solid rgba(180,83,9,0.35);
-      border-radius: 7px;
-      background: var(--co-card);
-      color: var(--amber);
-      cursor: pointer;
-      font-size: 13px;
       font-weight: 800;
-      padding: 6px 10px;
     }
-    .mode-help-payment-warning button:hover,
-    .mode-help-payment-warning button:focus-visible {
+    .mode-help-action-warning button {
+      border-color: rgba(180,83,9,0.35);
+      color: var(--amber);
+    }
+    .mode-help-action-warning button:hover,
+    .mode-help-action-warning button:focus-visible {
       border-color: var(--amber);
-      outline: none;
     }
     .editor-action-stack { display: flex; flex-direction: column; gap: 10px; }
-    #save-trip-btn, #delete-trip-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 700; padding: 12px 16px; }
+    #save-trip-btn, #start-trip-btn, #delete-trip-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 700; padding: 12px 16px; }
     @media (max-width: 900px) {
       .editor-layout { grid-template-columns: minmax(0, 1fr); }
       .editor-side-panel { position: static; }
@@ -2226,7 +2217,8 @@
             Actions
           </div>
           <div class="editor-action-stack">
-            <button class="btn-primary" id="save-trip-btn">▶ Save &amp; Start Scanning</button>
+            <button class="btn-secondary" id="save-trip-btn" type="button">Save Trip</button>
+            <button class="btn-primary" id="start-trip-btn" type="button">▶ Save &amp; Start Scanning</button>
             <button class="btn-danger" id="delete-trip-btn"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>Delete Trip</button>
           </div>
         </section>

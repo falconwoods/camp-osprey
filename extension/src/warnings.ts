@@ -1,8 +1,9 @@
-import type { Trip } from './types'
+import type { PaymentConfig, Trip } from './types'
 import { expandDateRange, isBookable } from './dates'
 
 export interface Warning {
   level: 'error' | 'warn'
+  title?: string
   message: string
   action?: { label: string; url: string }
 }
@@ -28,14 +29,24 @@ export function getTripWarnings(trip: Trip): Warning[] {
   return warnings
 }
 
-export function getGlobalWarnings(_trips: Trip[], loggedIn: boolean): Warning[] {
+export function getGlobalWarnings(trips: Trip[], loggedIn: boolean, payment: PaymentConfig | null = null): Warning[] {
   const warnings: Warning[] = []
 
   if (!loggedIn) {
     warnings.push({
       level: 'warn',
+      title: 'BC Parks sign-in needed',
       message: 'Not logged in to BC Parks. Auto-reserve and Auto-pay modes require a BC Parks account.',
       action: { label: 'Log in →', url: 'https://camping.bcparks.ca/login' },
+    })
+  }
+
+  if (trips.some(trip => trip.mode === 'autopay') && !isValidParkPayment(payment)) {
+    warnings.push({
+      level: 'warn',
+      title: 'Park Payment required',
+      message: 'Add valid Park Payment info before using auto-pay trips.',
+      action: { label: 'Set up Park Payment', url: '#payment' },
     })
   }
 
@@ -45,10 +56,10 @@ export function getGlobalWarnings(_trips: Trip[], loggedIn: boolean): Warning[] 
 export function renderWarnings(warnings: Warning[]): string {
   return warnings.map(w => {
     const actionHTML = w.action
-      ? `<a class="alert-action" href="${w.action.url}" target="_blank">${w.action.label}</a>`
+      ? `<a class="alert-action" href="${w.action.url}"${w.action.url.startsWith('#') ? '' : ' target="_blank"'}>${w.action.label}</a>`
       : ''
     const actionClass = w.action ? ' alert-has-action' : ''
-    const title = w.level === 'error' ? 'Action needed' : w.action ? 'BC Parks sign-in needed' : 'Heads up'
+    const title = w.title ?? (w.level === 'error' ? 'Action needed' : 'Heads up')
     return `<div class="alert-${w.level}${actionClass}">
       <span class="alert-icon" aria-hidden="true">!</span>
       <span class="alert-copy">
@@ -58,4 +69,16 @@ export function renderWarnings(warnings: Warning[]): string {
       ${actionHTML}
     </div>`
   }).join('')
+}
+
+function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
+  if (!payment) return false
+  return [
+    payment.cardNumber,
+    payment.cardHolder,
+    payment.cardExpiry,
+    payment.cardCvv,
+    payment.billingAddress,
+    payment.billingPostal,
+  ].every(value => typeof value === 'string' && value.trim())
 }

@@ -1,5 +1,5 @@
 // Content script — injected on all camping.bcparks.ca pages
-import { extractCampsiteName, extractSelectedCampsiteName, findDetailsControl, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
+import { extractCampsiteName, extractSelectedCampsiteName, findBookingConfirmation, findDetailsControl, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
 
 // ── Debug logging ──────────────────────────────────────────────────────────
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
@@ -759,6 +759,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
 
+async function waitForBookingConfirmation(timeoutMs = 60_000): Promise<NonNullable<ReturnType<typeof findBookingConfirmation>>> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const confirmation = findBookingConfirmation(document, window.location.href)
+    if (confirmation) return confirmation
+    await sleep(250)
+  }
+  throw new Error('Payment submitted, but BC Parks confirmation page was not detected')
+}
+
 // Checkout wizard driver — confirmed selectors from Playwright recording.
 // BC Parks checkout is a multi-step wizard; each step is a separate page load.
 // We detect which step we're on by looking for the step's unique confirm button.
@@ -770,6 +780,12 @@ function sleep(ms: number): Promise<void> {
 async function runCheckout(tripId: string): Promise<void> {
   dbg('runCheckout', { url: window.location.pathname })
   await sleep(1500)  // wait for Angular to render the step
+
+  const reportConfirmedBooking = (confirmationNumber: string) => {
+    dbg('booking confirmed', confirmationNumber)
+    chrome.runtime.sendMessage({ type: 'BOOKING_CONFIRMED', tripId, confirmationNumber })
+    chrome.storage.local.remove('campOspreyTarget')
+  }
 
   // Helper: find a button containing the given text (case-insensitive)
   const btn = (text: string): HTMLElement | null =>
@@ -783,6 +799,12 @@ async function runCheckout(tripId: string): Promise<void> {
   dbg('buttons on page', allBtnTexts)
 
   try {
+    const existingConfirmation = findBookingConfirmation(document, window.location.href)
+    if (existingConfirmation) {
+      reportConfirmedBooking(existingConfirmation.confirmationNumber)
+      return
+    }
+
     // ── Acknowledgements ──────────────────────────────────────────────────
     if (btn('confirm acknowledgements')) {
       const unchecked = Array.from(document.querySelectorAll('input[type="checkbox"]:not(:checked)'))
@@ -875,14 +897,8 @@ async function runCheckout(tripId: string): Promise<void> {
       applyBtn.click()
       dbg('clicked: Apply payment')
 
-      const confirmEl = await waitForElement(
-        '[class*="confirmation"], [class*="booking-ref"], [class*="reference-number"], [class*="confirm-number"]',
-        30_000
-      )
-      const confirmationNumber = confirmEl.textContent?.trim() ?? 'unknown'
-      dbg('booking confirmed', confirmationNumber)
-      chrome.runtime.sendMessage({ type: 'BOOKING_CONFIRMED', tripId, confirmationNumber })
-      chrome.storage.local.remove('campOspreyTarget')
+      const confirmed = await waitForBookingConfirmation(60_000)
+      reportConfirmedBooking(confirmed.confirmationNumber)
       return
     }
 

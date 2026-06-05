@@ -3,7 +3,7 @@ import { getStorage, saveTrips, updateTrip } from '../../storage'
 import { requireServerAuthForStart } from '../../startAuthGate'
 import { softDeleteTripOnServer, syncTripToServer } from '../../serverApi'
 import { getGlobalWarnings, getTripWarnings, renderWarnings } from '../../warnings'
-import type { Trip } from '../../types'
+import type { PaymentConfig, Trip } from '../../types'
 import { TripEditor } from './tripEditor'
 import { tripListItemHTML } from './tripDisplay'
 
@@ -30,13 +30,13 @@ export class TripsPage {
   }
 
   async renderList(): Promise<void> {
-    const { trips, auth } = await getStorage()
+    const { trips, auth, payment } = await getStorage()
     const loggedIn = await isLoggedIn()
     await this.options.renderHeaderAccount()
 
     const globalAlertsEl = document.getElementById('global-alerts')
     if (globalAlertsEl) {
-      globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn))
+      globalAlertsEl.innerHTML = renderWarnings(getGlobalWarnings(trips, loggedIn, payment))
     }
 
     const list = document.getElementById('trip-list')!
@@ -77,7 +77,7 @@ export class TripsPage {
             await this.options.openAuthDialog()
             return
           }
-          await this.startTripNow(id)
+          if (!(await this.startTripNow(id))) return
         } else {
           await updateTrip(id, { status: 'paused' })
           const { trips: updatedTrips } = await getStorage()
@@ -119,6 +119,10 @@ export class TripsPage {
       this.promptLogin()
       return false
     }
+    if (trip?.mode === 'autopay' && !this.isValidParkPayment((await getStorage()).payment)) {
+      this.promptParkPayment()
+      return false
+    }
     chrome.storage.local.remove('campOspreyTarget')
     await updateTrip(id, { status: 'scanning', lastMatch: null, attempted: [] })
     const { trips: updatedTrips } = await getStorage()
@@ -141,6 +145,45 @@ export class TripsPage {
       </div>`
     }
     chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
+  }
+
+  private promptParkPayment(): void {
+    const alertsEl = document.getElementById('global-alerts')
+    if (alertsEl) {
+      alertsEl.innerHTML = `<div class="alert-warn alert-has-action">
+        <span class="alert-icon" aria-hidden="true">!</span>
+        <span class="alert-copy">
+          <strong>Park Payment required</strong>
+          <span>Add valid Park Payment info before starting an auto-pay trip.</span>
+        </span>
+        <button class="alert-action" type="button" data-open-payment-settings>Set up Park Payment</button>
+      </div>`
+      alertsEl.querySelector('[data-open-payment-settings]')?.addEventListener('click', event => {
+        event.preventDefault()
+        this.openPaymentSettings()
+      })
+    }
+  }
+
+  private openPaymentSettings(): void {
+    const paymentTab = document.querySelector<HTMLElement>('.settings-nav-item[data-tab="payment"], .tab[data-tab="payment"]')
+    if (paymentTab) {
+      paymentTab.click()
+      return
+    }
+    location.hash = 'payment'
+  }
+
+  private isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
+    if (!payment) return false
+    return [
+      payment.cardNumber,
+      payment.cardHolder,
+      payment.cardExpiry,
+      payment.cardCvv,
+      payment.billingAddress,
+      payment.billingPostal,
+    ].every(value => typeof value === 'string' && value.trim())
   }
 
   private async syncTripBestEffort(trip: Trip): Promise<void> {
