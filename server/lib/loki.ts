@@ -26,11 +26,43 @@ function stringifyLogPayload(value: unknown): string {
   return JSON.stringify(value, jsonReplacer);
 }
 
+function isServerLocalDebugEnabled(): boolean {
+  return process.env.SERVER_LOCAL_DEBUG === 'true';
+}
+
+function formatLocalDebugConsoleLogArgs(entry: LokiLogEntry & { ts: string }): unknown[] {
+  const { level, event, message, ts, ...fields } = entry;
+  const header = `[${ts}] ${level.toUpperCase()} ${event}: ${message}`;
+  const args: unknown[] = [header];
+  const data: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value instanceof Error) {
+      args.push(value);
+    } else {
+      data[key] = value;
+    }
+  }
+
+  if (Object.keys(data).length > 0) {
+    args.splice(1, 0, data);
+  }
+
+  return args;
+}
+
 export function logServerEvent(entry: LokiLogEntry): void {
   const { level, ...payload } = entry;
   const consoleMethod = level === 'warning' ? 'warn' : level;
   const ts = entry.ts ?? new Date().toISOString();
-  console[consoleMethod](stringifyLogPayload({ ...payload, level, ts }));
+  const logPayload = { ...payload, level, ts };
+
+  if (isServerLocalDebugEnabled()) {
+    console[consoleMethod](...formatLocalDebugConsoleLogArgs(logPayload));
+    return;
+  }
+
+  console[consoleMethod](stringifyLogPayload(logPayload));
 }
 
 function log(level: LokiLogLevel, event: string, message: string, fields: LokiLogFields = {}): void {

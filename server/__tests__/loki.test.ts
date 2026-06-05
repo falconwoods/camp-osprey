@@ -31,4 +31,31 @@ describe('server Loki logging', () => {
     }));
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it('writes readable console arguments when local debug mode is enabled', () => {
+    vi.stubEnv('SERVER_LOCAL_DEBUG', 'true');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = new Error('not enough points');
+
+    logServerEvent({
+      level: 'warning',
+      event: 'points.charge.insufficient_balance',
+      message: '[points] charge insufficient balance',
+      ts: '2026-06-05T12:00:00.000Z',
+      userId: 'user-1',
+      balance: 100,
+      cost: 500,
+      error,
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+        '[2026-06-05T12:00:00.000Z] WARNING points.charge.insufficient_balance: [points] charge insufficient balance',
+      {
+        userId: 'user-1',
+        balance: 100,
+        cost: 500,
+      },
+      error,
+    );
+  });
 });
