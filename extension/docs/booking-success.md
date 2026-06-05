@@ -134,6 +134,41 @@ The extension should treat a booking as failed only after detecting the recorded
 4. A `role="alert"` / `.alert-box.error-box` element contains `Payment was unsuccessful`.
 5. The same alert contains `Please try again`.
 
+## Point Deduction Reporting
+
+After `findBookingConfirmation` succeeds, the content script sends `BOOKING_CONFIRMED` with:
+
+```text
+tripId
+provider: bc_parks
+confirmationNumber
+bookingUrl: current confirmation URL
+paidAt: current ISO timestamp
+```
+
+The background script owns server reporting. It builds a `POST /api/booking-payment-events` payload from the confirmation signal plus `trip.lastMatch`:
+
+```text
+provider: bc_parks
+idempotencyKey: bc_parks:confirmation:<confirmationNumber>
+confirmationNumber
+parkName
+sectionName
+siteName
+resourceId
+checkIn
+checkOut
+paidAt
+bookingUrl
+rawProviderSnapshot.source: bcparks_confirmation_dom
+```
+
+The event is first saved in `chrome.storage.local.pendingBookingPaymentEvents`, then sent to the server. The pending event is removed only after the server accepts it or returns a duplicate/idempotent result. If the server call fails, the event stays queued with `attempts`, `lastAttemptAt`, and `lastError`, and the background retries on service-worker startup, the one-minute sync alarm, and server login changes.
+
+Point deduction happens only on the server. The extension records the local trip as `paid` after the BC Parks confirmation page is detected, but it does not subtract points locally.
+
+Failure pages must not send `BOOKING_CONFIRMED` and must not enqueue a booking payment event.
+
 ## Local Debug Harness
 
 Use the fake success harness to test this flow without paying BC Parks:
@@ -158,7 +193,8 @@ The harness:
 2. Seeds `chrome.storage.local` with a fake autopay trip and `campOspreyTarget`.
 3. Intercepts `https://camping.bcparks.ca/create-booking/confirmation/fake-cart/fake-transaction`.
 4. Serves `extension/fixtures/bcparks/booking-success.html`.
-5. Waits for the real content script/background flow to mark the trip `paid`.
+5. Seeds development-mode fake Campsoon server responses.
+6. Waits for the real content script/background flow to mark the trip `paid` and report the booking payment event.
 
 Expected `--once` result:
 
@@ -166,9 +202,16 @@ Expected `--once` result:
 {
   "tripStatus": "paid",
   "targetExists": false,
+  "pendingBookingPaymentEventCount": 0,
   "paidLog": {
     "event": "booking_paid",
     "status": "paid",
+    "confirmationNumber": "BCIN123456B1"
+  },
+  "paymentEventLog": {
+    "event": "booking_payment_event_reported",
+    "chargeStatus": "charged",
+    "balanceAfter": 900,
     "confirmationNumber": "BCIN123456B1"
   }
 }
@@ -201,7 +244,8 @@ Expected `--once` result:
     "status": "failed",
     "error": "Payment was unsuccessful The payment was unsuccessful. Please try again."
   },
-  "paidLog": null
+  "paidLog": null,
+  "paymentEventLog": null
 }
 ```
 

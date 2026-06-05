@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestCode, signOut, validateAuth, verifyCode } from '../src/auth'
-import { sendExtensionLogs, sendTripResult } from '../src/serverApi'
+import { notifyUserResult, sendExtensionLogs } from '../src/serverApi'
 import { getAuth, saveAuth } from '../src/storage'
 
 beforeEach(() => {
@@ -134,7 +134,7 @@ describe('extension auth client', () => {
     })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: true, emailSent: true }), { status: 200 })))
 
-    await expect(sendTripResult('trip 1', {
+    await expect(notifyUserResult('trip 1', {
       outcome: 'hold_placed',
       matchedSite: {
         parkName: 'Park 1',

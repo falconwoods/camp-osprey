@@ -93,14 +93,6 @@ async function main() {
     await route.fulfill({ status: 404, contentType: 'text/plain', body: 'debug fixture only' })
   })
 
-  await context.route('https://campsoon.com/**', async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ ok: true, emailSent: false }),
-    })
-  })
-
   const extensionId = await getExtensionId(context)
   const storagePage = await extensionStoragePage(context, extensionId)
   const now = Date.now()
@@ -136,6 +128,17 @@ async function main() {
       auth: { token: null, user: null, lastEmail: null, pointsBalance: null },
       settings: { pollIntervalSeconds: 60, debugMode: true, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info' },
       debugLog: [],
+      campOspreyDebugServerResponses: {
+        '/api/booking-payment-events': {
+          ok: true,
+          bookingPaymentEventId: 1,
+          chargeStatus: 'charged',
+          pointTransactionId: 1,
+          balanceAfter: 900,
+          duplicate: false,
+        },
+        default: { ok: true, emailSent: false },
+      },
       campOspreyTarget: {
         resourceId: '-2147480687',
         siteName: '18',
@@ -160,13 +163,15 @@ async function main() {
   const result = await storagePage.evaluate(({ tripId }) => new Promise(resolve => {
     const deadline = Date.now() + 10_000
     const poll = () => {
-      chrome.storage.local.get(['trips', 'debugLog', 'campOspreyTarget'], data => {
+      chrome.storage.local.get(['trips', 'debugLog', 'campOspreyTarget', 'pendingBookingPaymentEvents'], data => {
         const trip = (data.trips ?? []).find(t => t.id === tripId)
-        if (trip?.status === 'paid' || Date.now() > deadline) {
+        const paymentEventLog = (data.debugLog ?? []).find(entry => entry.event === 'booking_payment_event_reported')
+        if ((trip?.status === 'paid' && paymentEventLog) || Date.now() > deadline) {
           resolve({
             trip,
             targetExists: !!data.campOspreyTarget,
             debugLog: data.debugLog ?? [],
+            pendingBookingPaymentEvents: data.pendingBookingPaymentEvents ?? {},
           })
           return
         }
@@ -177,21 +182,34 @@ async function main() {
   }), { tripId })
 
   const paidLog = result.debugLog.find(entry => entry.event === 'booking_paid')
+  const paymentEventLog = result.debugLog.find(entry => entry.event === 'booking_payment_event_reported')
   console.log('\nDebug result:')
   console.log(JSON.stringify({
     tripStatus: result.trip?.status,
     paidAt: result.trip?.lastMatch?.paidAt,
     targetExists: result.targetExists,
+    pendingBookingPaymentEventCount: Object.keys(result.pendingBookingPaymentEvents).length,
+    pendingBookingPaymentEvent: Object.values(result.pendingBookingPaymentEvents)[0] ? {
+      attempts: Object.values(result.pendingBookingPaymentEvents)[0].attempts,
+      lastError: Object.values(result.pendingBookingPaymentEvents)[0].lastError,
+      idempotencyKey: Object.values(result.pendingBookingPaymentEvents)[0].payload?.idempotencyKey,
+    } : null,
     paidLog: paidLog ? {
       event: paidLog.event,
       status: paidLog.status,
       confirmationNumber: paidLog.metadata?.confirmationNumber,
     } : null,
+    paymentEventLog: paymentEventLog ? {
+      event: paymentEventLog.event,
+      chargeStatus: paymentEventLog.metadata?.chargeStatus,
+      balanceAfter: paymentEventLog.metadata?.balanceAfter,
+      confirmationNumber: paymentEventLog.metadata?.confirmationNumber,
+    } : null,
   }, null, 2))
 
-  if (result.trip?.status !== 'paid') {
+  if (result.trip?.status !== 'paid' || !paymentEventLog) {
     await context.close()
-    throw new Error('Fake success page did not mark the trip paid')
+    throw new Error('Fake success page did not mark the trip paid and report the booking payment event')
   }
 
   if (closeAfterSuccess) {

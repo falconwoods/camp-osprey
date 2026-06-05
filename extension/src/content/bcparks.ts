@@ -785,7 +785,14 @@ async function runCheckout(tripId: string): Promise<void> {
 
   const reportConfirmedBooking = (confirmationNumber: string) => {
     dbg('booking confirmed', confirmationNumber)
-    chrome.runtime.sendMessage({ type: 'BOOKING_CONFIRMED', tripId, confirmationNumber })
+    chrome.runtime.sendMessage({
+      type: 'BOOKING_CONFIRMED',
+      tripId,
+      provider: 'bc_parks',
+      confirmationNumber,
+      bookingUrl: window.location.href,
+      paidAt: new Date().toISOString(),
+    })
     chrome.storage.local.remove('campOspreyTarget')
   }
 

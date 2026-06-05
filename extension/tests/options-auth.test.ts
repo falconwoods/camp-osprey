@@ -27,7 +27,7 @@ vi.mock('../src/serverApi', () => ({
   })),
   syncTripToServer: vi.fn(async (trip: Trip) => trip),
   softDeleteTripOnServer: vi.fn(async () => ({ ok: true })),
-  sendTripResult: vi.fn(async () => ({ ok: true, emailSent: true })),
+  notifyUserResult: vi.fn(async () => ({ ok: true, emailSent: true })),
   sendExtensionLogs: vi.fn(async () => ({ ok: true, accepted: 1 })),
   getServerBaseUrl: vi.fn(() => 'https://campsoon.com'),
 }))

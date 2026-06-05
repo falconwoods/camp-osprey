@@ -12,6 +12,26 @@ export function getServerBaseUrl(): string {
   return BACKEND_BASE_URL
 }
 
+function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
+  return new Promise(resolve => {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+      resolve({})
+      return
+    }
+    chrome.storage.local.get(keys, result => resolve(result as Record<string, unknown>))
+  })
+}
+
+async function debugServerFetch<T>(path: string): Promise<T | null> {
+  if (import.meta.env.MODE !== 'development') return null
+  const result = await storageGet(['campOspreyDebugServerResponses'])
+  const responses = result.campOspreyDebugServerResponses
+  if (!responses || typeof responses !== 'object' || Array.isArray(responses)) return null
+  const map = responses as Record<string, unknown>
+  const response = map[path] ?? map.default
+  return response === undefined ? null : response as T
+}
+
 export async function serverFetch<T>(
   path: string,
   options: RequestInit & { auth?: boolean } = {},
@@ -23,6 +43,9 @@ export async function serverFetch<T>(
     const { token } = await getAuth()
     if (token) headers.set('Authorization', `Bearer ${token}`)
   }
+
+  const debugResponse = await debugServerFetch<T>(path)
+  if (debugResponse) return debugResponse
 
   const response = await fetch(`${getServerBaseUrl()}${path}`, {
     ...options,
@@ -44,7 +67,7 @@ export async function serverFetch<T>(
   return data as T
 }
 
-export interface TripResultPayload {
+export interface NotifyUserResultPayload {
   outcome: 'found' | 'hold_placed' | 'booked' | 'failed'
   matchedSite?: MatchedSite
   error?: string
@@ -95,9 +118,9 @@ export async function getClientInfo(): Promise<ClientInfo> {
   }
 }
 
-export async function sendTripResult(
+export async function notifyUserResult(
   tripId: string,
-  payload: TripResultPayload,
+  payload: NotifyUserResultPayload,
 ): Promise<{ ok: true; emailSent: boolean }> {
   const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
   return serverFetch(`/api/trips/${encodeURIComponent(tripId)}/result`, {
@@ -214,9 +237,21 @@ export async function sendBookingPaymentEvent(
   duplicate: boolean
 }> {
   const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
-  return serverFetch('/api/booking-payment-events', {
+  const result = await serverFetch<{
+    ok: true
+    bookingPaymentEventId: number
+    chargeStatus: 'charged' | 'failed_insufficient_points' | 'duplicate_ignored'
+    pointTransactionId: number | null
+    balanceAfter: number | null
+    duplicate: boolean
+  }>('/api/booking-payment-events', {
     method: 'POST',
     auth: true,
     body: JSON.stringify({ ...payload, clientId, clientInfo }),
   })
+  if (typeof result.balanceAfter === 'number') {
+    const auth = await getAuth()
+    if (auth.user) await saveAuth({ ...auth, pointsBalance: result.balanceAfter })
+  }
+  return result
 }

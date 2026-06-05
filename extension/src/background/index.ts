@@ -4,13 +4,16 @@ import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
 import type { AvailableSite, DebugLogEntry, MatchedSite, Trip } from '../types'
 import { validateAuth } from '../auth'
-import { sendTripResult, syncTripToServer } from '../serverApi'
+import { notifyUserResult, sendBookingPaymentEvent, syncTripToServer } from '../serverApi'
+import type { BookingPaymentEventPayload } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
 
 const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
+const PENDING_BOOKING_PAYMENT_EVENTS_KEY = 'pendingBookingPaymentEvents'
 const provider = new BCParksProvider()
 let scanInProgress = false
+let bookingPaymentFlushInProgress = false
 let pendingScanAll = false
 const pendingScanTripIds = new Set<string>()
 const stoppedTripIds = new Set<string>()
@@ -21,8 +24,191 @@ const AUTH_NOTIFICATION_SUPPRESSIONS_KEY = 'campOspreyAuthNotificationSuppressio
 type AuthNotificationKind = 'server' | 'bcparks'
 let contentLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 
+type ConfirmedBookingPaymentPayload = BookingPaymentEventPayload & { idempotencyKey: string }
+
+interface PendingBookingPaymentEvent {
+  payload: ConfirmedBookingPaymentPayload
+  tripName?: string
+  queuedAt: string
+  attempts: number
+  lastAttemptAt?: string
+  lastError?: string
+}
+
 function logEntry(entry: Omit<DebugLogEntry, 'ts'> & { ts?: string }): Promise<void> {
   return addDebugLog(entry)
+}
+
+function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
+  return new Promise(resolve => chrome.storage.local.get(keys, result => resolve(result as Record<string, unknown>)))
+}
+
+function storageSet(values: Record<string, unknown>): Promise<void> {
+  return new Promise(resolve => chrome.storage.local.set(values, () => resolve()))
+}
+
+function isConfirmedBookingPaymentPayload(value: unknown): value is ConfirmedBookingPaymentPayload {
+  if (!value || typeof value !== 'object') return false
+  const payload = value as Partial<ConfirmedBookingPaymentPayload>
+  return payload.provider === 'bc_parks'
+    && typeof payload.idempotencyKey === 'string'
+    && !!payload.idempotencyKey
+    && typeof payload.parkName === 'string'
+    && typeof payload.siteName === 'string'
+    && typeof payload.checkIn === 'string'
+    && typeof payload.checkOut === 'string'
+}
+
+function isPendingBookingPaymentEvent(value: unknown): value is PendingBookingPaymentEvent {
+  if (!value || typeof value !== 'object') return false
+  const event = value as Partial<PendingBookingPaymentEvent>
+  return isConfirmedBookingPaymentPayload(event.payload)
+    && typeof event.queuedAt === 'string'
+    && typeof event.attempts === 'number'
+}
+
+async function getPendingBookingPaymentEvents(): Promise<Record<string, PendingBookingPaymentEvent>> {
+  const result = await storageGet([PENDING_BOOKING_PAYMENT_EVENTS_KEY])
+  const value = result[PENDING_BOOKING_PAYMENT_EVENTS_KEY]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter((entry): entry is [string, PendingBookingPaymentEvent] =>
+        typeof entry[0] === 'string' && isPendingBookingPaymentEvent(entry[1])
+      )
+  )
+}
+
+async function savePendingBookingPaymentEvents(events: Record<string, PendingBookingPaymentEvent>): Promise<void> {
+  await storageSet({ [PENDING_BOOKING_PAYMENT_EVENTS_KEY]: events })
+}
+
+async function enqueueBookingPaymentEvent(payload: ConfirmedBookingPaymentPayload, tripName?: string): Promise<void> {
+  const pending = await getPendingBookingPaymentEvents()
+  const existing = pending[payload.idempotencyKey]
+  pending[payload.idempotencyKey] = {
+    ...existing,
+    payload,
+    tripName: tripName ?? existing?.tripName,
+    queuedAt: existing?.queuedAt ?? new Date().toISOString(),
+    attempts: existing?.attempts ?? 0,
+  }
+  await savePendingBookingPaymentEvents(pending)
+}
+
+async function removePendingBookingPaymentEvent(idempotencyKey: string): Promise<void> {
+  const pending = await getPendingBookingPaymentEvents()
+  if (!pending[idempotencyKey]) return
+  delete pending[idempotencyKey]
+  await savePendingBookingPaymentEvents(pending)
+}
+
+function bookingPaymentIdempotencyKey(
+  trip: Trip,
+  match: MatchedSite,
+  confirmationNumber: string | undefined,
+  paidAt: string,
+): string {
+  const normalizedConfirmation = confirmationNumber?.trim()
+  return normalizedConfirmation && normalizedConfirmation !== 'unknown'
+    ? `bc_parks:confirmation:${normalizedConfirmation}`
+    : `bc_parks:booking:${trip.id}:${match.resourceId}:${match.checkIn}:${match.checkOut}:${paidAt}`
+}
+
+function buildBookingPaymentEvent(
+  trip: Trip,
+  match: MatchedSite,
+  confirmationNumber: string | undefined,
+  paidAt: string,
+  bookingUrl?: string,
+): ConfirmedBookingPaymentPayload {
+  const normalizedConfirmation = confirmationNumber?.trim() || undefined
+  return {
+    tripId: trip.id,
+    clientEventId: `booking-confirmed:${trip.id}:${paidAt}`,
+    idempotencyKey: bookingPaymentIdempotencyKey(trip, match, normalizedConfirmation, paidAt),
+    provider: 'bc_parks',
+    confirmationNumber: normalizedConfirmation,
+    parkName: match.parkName,
+    sectionName: match.sectionName,
+    siteName: match.siteName,
+    resourceId: match.resourceId,
+    checkIn: match.checkIn,
+    checkOut: match.checkOut,
+    paidAt,
+    bookingUrl: bookingUrl ?? match.bookingUrl,
+    rawProviderSnapshot: {
+      source: 'bcparks_confirmation_dom',
+      confirmationRouteObserved: true,
+      confirmationNumber: normalizedConfirmation,
+    },
+  }
+}
+
+async function flushPendingBookingPaymentEvents(): Promise<void> {
+  if (bookingPaymentFlushInProgress) return
+  bookingPaymentFlushInProgress = true
+  try {
+    const pending = await getPendingBookingPaymentEvents()
+    for (const [idempotencyKey, event] of Object.entries(pending)) {
+      const lastAttemptAt = new Date().toISOString()
+      try {
+        const result = await sendBookingPaymentEvent(event.payload)
+        await removePendingBookingPaymentEvent(idempotencyKey)
+        await logEntry({
+          level: result.chargeStatus === 'failed_insufficient_points' ? 'warning' : 'info',
+          event: 'booking_payment_event_reported',
+          message: result.duplicate
+            ? 'Booking payment event already reported'
+            : 'Booking payment event reported',
+          tripId: event.payload.tripId,
+          tripName: event.tripName,
+          parkName: event.payload.parkName,
+          siteName: event.payload.siteName,
+          checkIn: event.payload.checkIn,
+          checkOut: event.payload.checkOut,
+          paidAt: event.payload.paidAt,
+          status: 'paid',
+          metadata: {
+            confirmationNumber: event.payload.confirmationNumber,
+            bookingPaymentEventId: result.bookingPaymentEventId,
+            chargeStatus: result.chargeStatus,
+            pointTransactionId: result.pointTransactionId,
+            balanceAfter: result.balanceAfter,
+            duplicate: result.duplicate,
+            idempotencyKey,
+          },
+        })
+      } catch (err) {
+        const latest = await getPendingBookingPaymentEvents()
+        if (!latest[idempotencyKey]) continue
+        latest[idempotencyKey] = {
+          ...latest[idempotencyKey],
+          attempts: latest[idempotencyKey].attempts + 1,
+          lastAttemptAt,
+          lastError: err instanceof Error ? err.message : String(err),
+        }
+        await savePendingBookingPaymentEvents(latest)
+        await logEntry({
+          level: 'error',
+          event: 'booking_payment_event_report_failed',
+          message: 'Booking payment event reporting failed; will retry',
+          tripId: event.payload.tripId,
+          tripName: event.tripName,
+          parkName: event.payload.parkName,
+          siteName: event.payload.siteName,
+          checkIn: event.payload.checkIn,
+          checkOut: event.payload.checkOut,
+          paidAt: event.payload.paidAt,
+          status: 'paid',
+          error: err instanceof Error ? err.message : String(err),
+          metadata: { idempotencyKey, attempts: latest[idempotencyKey].attempts },
+        })
+      }
+    }
+  } finally {
+    bookingPaymentFlushInProgress = false
+  }
 }
 
 async function syncTripBestEffort(trip: Trip | undefined): Promise<void> {
@@ -111,6 +297,7 @@ chrome.storage.local.get('settings', result => {
   const interval = (result as Record<string, { pollIntervalSeconds?: number }>)['settings']?.pollIntervalSeconds ?? 60
   setupAlarm(interval)
   setupLogSyncAlarm()
+  void flushPendingBookingPaymentEvents()
 })
 
 async function setupAlarm(intervalSeconds: number): Promise<void> {
@@ -127,12 +314,14 @@ chrome.alarms.onAlarm.addListener(async (alarm: chrome.alarms.Alarm) => {
   if (alarm.name === ALARM_NAME) {
     await runScanCycle()
   } else if (alarm.name === LOG_SYNC_ALARM_NAME) {
+    await flushPendingBookingPaymentEvents()
     await flushPendingServerLogs()
   }
 })
 
 watchLoginChanges(async loggedIn => {
   if (!loggedIn) return
+  await flushPendingBookingPaymentEvents()
   // Trigger a scan immediately on login
   await runScanCycle()
 })
@@ -371,7 +560,7 @@ async function reportFoundResult(trip: Trip, matchedSite: MatchedSite, sendEmail
       checkOut: matchedSite.checkOut,
       status: 'found',
     })
-    const result = await sendTripResult(trip.id, {
+    const result = await notifyUserResult(trip.id, {
       outcome: 'found',
       matchedSite,
       sendEmail,
@@ -600,12 +789,14 @@ chrome.runtime.onMessage.addListener((msg: {
   siteName?: string
   checkIn?: string
   checkOut?: string
-  metadata?: Record<string, unknown>
-  confirmationNumber?: string
-  error?: string
-  attemptKey?: string
-  resetActiveMatch?: boolean
-}) => {
+	  metadata?: Record<string, unknown>
+	  confirmationNumber?: string
+	  bookingUrl?: string
+	  paidAt?: string
+	  error?: string
+	  attemptKey?: string
+	  resetActiveMatch?: boolean
+	}) => {
   if (msg.type === 'CONTENT_DEBUG_LOG') {
     void addDebugLog({
       level: msg.level ?? 'info',
@@ -702,7 +893,7 @@ chrome.runtime.onMessage.addListener((msg: {
               checkOut: match.checkOut,
               status: 'reserved',
             })
-            const result = await sendTripResult(msg.tripId!, {
+            const result = await notifyUserResult(msg.tripId!, {
               outcome: 'hold_placed',
               matchedSite: match,
               tripSnapshot: {
@@ -747,11 +938,16 @@ chrome.runtime.onMessage.addListener((msg: {
     getStorage().then(({ trips }) => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
-      const paidAt = new Date().toISOString()
+      const paidAt = msg.paidAt && !Number.isNaN(new Date(msg.paidAt).getTime())
+        ? msg.paidAt
+        : new Date().toISOString()
       const detail = m
         ? `${m.parkName} › ${m.sectionName} › Site ${m.siteName}\n${m.checkIn} → ${m.checkOut}`
         : ''
       const match = m ? { ...m, paidAt } : undefined
+      const paymentEvent = trip && match
+        ? buildBookingPaymentEvent(trip, match, msg.confirmationNumber, paidAt, msg.bookingUrl)
+        : null
       void logEntry({
         level: 'info',
         event: 'booking_paid',
@@ -769,15 +965,28 @@ chrome.runtime.onMessage.addListener((msg: {
       })
       updateTrip(msg.tripId!, match ? { status: 'paid', lastMatch: match } : { status: 'paid' }).then(async () => {
         await syncStoredTripBestEffort(msg.tripId!)
+        if (paymentEvent) {
+          await enqueueBookingPaymentEvent(paymentEvent, trip?.name)
+        } else {
+          await logEntry({
+            level: 'error',
+            event: 'booking_payment_event_missing_metadata',
+            message: 'Booking was paid, but matched site metadata was missing; cannot report point charge event',
+            tripId: msg.tripId!,
+            tripName: trip?.name,
+            metadata: { confirmationNumber: msg.confirmationNumber ?? 'unknown' },
+          })
+        }
         notify(
           'Booking Paid',
           `${detail}${detail ? '\n' : ''}Paid: ${formatDateTime(paidAt)}\nConfirmation: ${msg.confirmationNumber ?? 'unknown'}`,
           undefined,
           true,
         )
+        if (paymentEvent) await flushPendingBookingPaymentEvents()
         if (!trip) return
         try {
-          const result = await sendTripResult(msg.tripId!, {
+          const result = await notifyUserResult(msg.tripId!, {
             outcome: 'booked',
             matchedSite: match,
             sendEmail: true,
@@ -848,7 +1057,7 @@ chrome.runtime.onMessage.addListener((msg: {
         )
         if (!trip) return
         try {
-          const result = await sendTripResult(msg.tripId!, {
+          const result = await notifyUserResult(msg.tripId!, {
             outcome: 'failed',
             matchedSite: m,
             error: msg.error ?? 'Unknown error',

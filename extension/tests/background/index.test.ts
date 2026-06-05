@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
   addDebugLog: vi.fn(),
   isLoggedIn: vi.fn(),
   validateAuth: vi.fn(),
-  sendTripResult: vi.fn(),
+  notifyUserResult: vi.fn(),
+  sendBookingPaymentEvent: vi.fn(),
   syncTripToServer: vi.fn(),
   sendExtensionLogs: vi.fn(),
   watchLoginChanges: vi.fn(),
@@ -38,7 +39,8 @@ vi.mock('../../src/auth', () => ({
 }))
 
 vi.mock('../../src/serverApi', () => ({
-  sendTripResult: mocks.sendTripResult,
+  notifyUserResult: mocks.notifyUserResult,
+  sendBookingPaymentEvent: mocks.sendBookingPaymentEvent,
   syncTripToServer: mocks.syncTripToServer,
   sendExtensionLogs: mocks.sendExtensionLogs,
 }))
@@ -102,7 +104,15 @@ describe('background scanner scheduling', () => {
     mocks.addDebugLog.mockReset().mockResolvedValue(undefined)
     mocks.isLoggedIn.mockReset().mockResolvedValue(true)
     mocks.validateAuth.mockReset().mockResolvedValue(true)
-    mocks.sendTripResult.mockReset().mockResolvedValue({ ok: true, emailSent: false })
+    mocks.notifyUserResult.mockReset().mockResolvedValue({ ok: true, emailSent: false })
+    mocks.sendBookingPaymentEvent.mockReset().mockResolvedValue({
+      ok: true,
+      bookingPaymentEventId: 1,
+      chargeStatus: 'charged',
+      pointTransactionId: 2,
+      balanceAfter: 600,
+      duplicate: false,
+    })
     mocks.sendExtensionLogs.mockReset().mockResolvedValue({ ok: true, accepted: 0 })
     mocks.watchLoginChanges.mockReset()
     mocks.getAvailability.mockReset().mockResolvedValue([])
@@ -112,8 +122,26 @@ describe('background scanner scheduling', () => {
     chrome.tabs.create.mockClear()
     chrome.notifications.create.mockClear()
     chrome.runtime.getURL = vi.fn(() => 'chrome-extension://test/icons/icon48.png')
-    chrome.storage.local.get.mockImplementation((_keys, cb) => cb({}))
-    chrome.storage.local.set.mockImplementation((_data, cb) => cb?.())
+    let localStore: Record<string, unknown> = {}
+    chrome.storage.local.get.mockImplementation((keys, cb) => {
+      if (Array.isArray(keys)) {
+        cb(Object.fromEntries(keys.map(key => [key, localStore[key]])))
+        return
+      }
+      if (typeof keys === 'string') {
+        cb({ [keys]: localStore[keys] })
+        return
+      }
+      cb(localStore)
+    })
+    chrome.storage.local.set.mockImplementation((data, cb) => {
+      localStore = { ...localStore, ...data }
+      cb?.()
+    })
+    chrome.storage.local.remove.mockImplementation((keys, cb) => {
+      for (const key of Array.isArray(keys) ? keys : [keys]) delete localStore[key]
+      cb?.()
+    })
     chrome.alarms.clear.mockImplementation((_name, cb) => cb?.(true))
     chrome.notifications.create.mockImplementation((_id, _opts, cb) => cb?.('notif-1'))
   })
@@ -361,7 +389,7 @@ describe('background scanner scheduling', () => {
     const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
     listener({ type: 'SCAN_NOW', tripId: trip.id })
 
-    await vi.waitFor(() => expect(mocks.sendTripResult).toHaveBeenCalledWith(trip.id, expect.objectContaining({
+    await vi.waitFor(() => expect(mocks.notifyUserResult).toHaveBeenCalledWith(trip.id, expect.objectContaining({
       outcome: 'found',
       sendEmail: true,
       matchedSite: expect.objectContaining({
@@ -434,7 +462,7 @@ describe('background scanner scheduling', () => {
     const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
     listener({ type: 'BOOKING_RESERVED', tripId: trip.id })
 
-    await vi.waitFor(() => expect(mocks.sendTripResult).toHaveBeenCalledWith(trip.id, {
+    await vi.waitFor(() => expect(mocks.notifyUserResult).toHaveBeenCalledWith(trip.id, {
       outcome: 'hold_placed',
       matchedSite: expect.objectContaining({
         parkName: 'Park 1',
@@ -460,7 +488,7 @@ describe('background scanner scheduling', () => {
   it('notifies and logs server reporting details when a site is reserved', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-26T18:10:00-07:00'))
-    mocks.sendTripResult.mockResolvedValue({ ok: true, emailSent: true })
+    mocks.notifyUserResult.mockResolvedValue({ ok: true, emailSent: true })
     const trip = makeTrip({
       mode: 'hold',
       status: 'reserving',
@@ -534,6 +562,106 @@ describe('background scanner scheduling', () => {
       bookingDate: expect.any(String),
       metadata: expect.objectContaining({ confirmationNumber: 'ABC123' }),
     }))
+  })
+
+  it('reports confirmed paid bookings to the booking payment event endpoint', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-06-05T12:00:00.000Z'))
+    const trip = makeTrip({
+      mode: 'autopay',
+      status: 'reserving',
+      lastMatch: {
+        parkName: 'Park 1',
+        sectionName: 'Main',
+        siteName: 'A1',
+        checkIn: '2026-07-04',
+        checkOut: '2026-07-05',
+        bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+        resourceId: 'site-1',
+        foundAt: '2026-06-05T11:00:00.000Z',
+        reservedAt: '2026-06-05T11:10:00.000Z',
+      },
+    })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({
+      type: 'BOOKING_CONFIRMED',
+      tripId: trip.id,
+      confirmationNumber: 'ABC123',
+      bookingUrl: 'https://camping.bcparks.ca/create-booking/confirmation/cart/transaction',
+      paidAt: '2026-06-05T12:00:00.000Z',
+    })
+
+    await vi.waitFor(() => expect(mocks.sendBookingPaymentEvent).toHaveBeenCalledWith(expect.objectContaining({
+      tripId: trip.id,
+      provider: 'bc_parks',
+      confirmationNumber: 'ABC123',
+      idempotencyKey: 'bc_parks:confirmation:ABC123',
+      parkName: 'Park 1',
+      sectionName: 'Main',
+      siteName: 'A1',
+      resourceId: 'site-1',
+      checkIn: '2026-07-04',
+      checkOut: '2026-07-05',
+      paidAt: '2026-06-05T12:00:00.000Z',
+      bookingUrl: 'https://camping.bcparks.ca/create-booking/confirmation/cart/transaction',
+    })))
+    expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'info',
+      event: 'booking_payment_event_reported',
+      tripId: trip.id,
+      status: 'paid',
+      metadata: expect.objectContaining({
+        confirmationNumber: 'ABC123',
+        chargeStatus: 'charged',
+        balanceAfter: 600,
+        idempotencyKey: 'bc_parks:confirmation:ABC123',
+      }),
+    }))
+    vi.useRealTimers()
+  })
+
+  it('keeps confirmed paid booking payment events queued when the server call fails', async () => {
+    mocks.sendBookingPaymentEvent.mockRejectedValue(new Error('network down'))
+    const trip = makeTrip({
+      mode: 'autopay',
+      status: 'reserving',
+      lastMatch: {
+        parkName: 'Park 1',
+        sectionName: 'Main',
+        siteName: 'A1',
+        checkIn: '2026-07-04',
+        checkOut: '2026-07-05',
+        bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+        resourceId: 'site-1',
+      },
+    })
+    mocks.getStorage.mockResolvedValue(makeStorage([trip]))
+
+    await import('../../src/background/index')
+    const listener = chrome.runtime.onMessage.addListener.mock.calls[0][0]
+    listener({ type: 'BOOKING_CONFIRMED', tripId: trip.id, confirmationNumber: 'ABC123' })
+
+    await vi.waitFor(() => expect(mocks.addDebugLog).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'error',
+      event: 'booking_payment_event_report_failed',
+      tripId: trip.id,
+      error: 'network down',
+      metadata: expect.objectContaining({
+        idempotencyKey: 'bc_parks:confirmation:ABC123',
+        attempts: 1,
+      }),
+    })))
+    expect(chrome.storage.local.set).toHaveBeenCalledWith(expect.objectContaining({
+      pendingBookingPaymentEvents: expect.objectContaining({
+        'bc_parks:confirmation:ABC123': expect.objectContaining({
+          attempts: 1,
+          lastError: 'network down',
+        }),
+      }),
+    }), expect.any(Function))
   })
 
   it('marks booking failure as failed', async () => {
