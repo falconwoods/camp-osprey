@@ -109,7 +109,7 @@ export function OptionsApp() {
           <div><strong>{state.auth?.user ? state.auth.user.email : 'Not signed in'}</strong><span>{state.auth?.user ? 'Campsoon account' : 'Sign in to get started'}</span></div>
         </div>
       </aside>
-      <main className="options-main">
+      <main className={`options-main ${editing === undefined && tab === 'trips' ? 'options-main-trips' : ''}`}>
         <header className="page-header">
           <div>
             <h1>{editing !== undefined ? (editing ? 'Edit Trip' : 'New Trip') : tabTitle(tab)}</h1>

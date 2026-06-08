@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { LoadingButton } from '../components/ui/loading-button'
+import { Skeleton } from '../components/ui/skeleton'
 import type { AuthState } from '../types'
 
 const RESEND_COOLDOWN_SECONDS = 60
@@ -181,9 +182,14 @@ export function AccountPanel({
   const [points, setPoints] = useState<PointsSummary | null>(null)
   const [pointsError, setPointsError] = useState('')
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
+  const userKey = auth?.user ? auth.user.id || auth.user.email : null
 
   useEffect(() => {
-    if (!auth?.user) return
+    if (!userKey) {
+      setPoints(null)
+      setPointsError('')
+      return
+    }
     let cancelled = false
     setPoints(null)
     setPointsError('')
@@ -191,7 +197,7 @@ export function AccountPanel({
       .then(summary => { if (!cancelled) setPoints(summary) })
       .catch(err => { if (!cancelled) setPointsError(err instanceof Error ? err.message : 'server_error') })
     return () => { cancelled = true }
-  }, [auth?.user])
+  }, [userKey])
 
   useEffect(() => {
     let cancelled = false
@@ -199,7 +205,7 @@ export function AccountPanel({
       if (!cancelled) setPendingTripId(tripId)
     })
     return () => { cancelled = true }
-  }, [auth?.user])
+  }, [userKey])
 
   async function logOut() {
     setLoading('signout')
@@ -312,14 +318,7 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
   }
 
   if (!points) {
-    return (
-      <PointsStatusCard
-        icon={<Clock size={24} />}
-        kicker="Campsoon Points"
-        title="Loading points..."
-        copy="Fetching your balance and available point packages."
-      />
-    )
+    return <PointsSkeleton />
   }
 
   return (
@@ -380,6 +379,56 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
               ))}
             </div>
           ) : <div className="account-empty-state">No point activity yet.</div>}
+      </section>
+    </>
+  )
+}
+
+function PointsSkeleton() {
+  return (
+    <>
+      <section className="account-points-card account-buy-points" aria-label="Loading point packages">
+        <div className="buy-points-header">
+          <div className="buy-points-title-group">
+            <Skeleton className="h-6 w-28" />
+            <Skeleton className="mt-3 h-4 w-80 max-w-full" />
+          </div>
+          <Skeleton className="h-9 w-40 rounded-full" />
+        </div>
+        <div className="point-package-grid">
+          {Array.from({ length: 3 }, (_, index) => (
+            <article className="point-package-card" key={index}>
+              <div className="point-package-header">
+                <Skeleton className="h-5 w-28" />
+                {index === 1 ? <Skeleton className="h-5 w-16 rounded-full" /> : null}
+              </div>
+              <Skeleton className="h-8 w-32" />
+              <Skeleton className="mt-3 h-5 w-20" />
+              <Skeleton className="mt-3 h-4 w-36" />
+              <Skeleton className="mt-auto h-9 w-full" />
+            </article>
+          ))}
+        </div>
+        <Skeleton className="mt-4 h-8 w-full" />
+      </section>
+      <section className="account-points-card account-point-activity" aria-label="Loading point activity">
+        <div className="account-card-heading">
+          <div>
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="mt-3 h-4 w-96 max-w-full" />
+          </div>
+        </div>
+        <div className="point-activity-statement">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div className="point-activity-row" key={index}>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-14 justify-self-end" />
+              <Skeleton className="h-4 w-16 justify-self-end" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ))}
+        </div>
       </section>
     </>
   )

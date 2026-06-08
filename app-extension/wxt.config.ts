@@ -1,7 +1,16 @@
 import { defineConfig } from 'wxt'
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  vite: () => ({
+    plugins: [tailwindcss()],
+    resolve: {
+      alias: {
+        '@': new URL('./src', import.meta.url).pathname,
+      },
+    },
+  }),
   manifest: {
     name: 'campsoon',
     version: '0.1.0',

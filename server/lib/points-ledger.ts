@@ -187,16 +187,21 @@ export function pointTransactionDetails(tx: PointTransactionSummaryRow, bookingE
 
   const packageId = stringValue(metadata.packageId);
   const pointPackage = packageId ? getPointPackage(packageId) : null;
-  const packageName = pointPackage?.name ?? (packageId ? titleCase(packageId) : null);
+  const packageName = packageDisplayName(pointPackage?.name ?? (packageId ? titleCase(packageId) : null));
   if (tx.type === 'stripe_purchase') {
-    return packageName ? `${packageName} package purchase` : 'Point package purchase';
+    return packageName ? `${packageName} purchase` : 'Point package purchase';
   }
   if (tx.type === 'stripe_refund') {
-    return packageName ? `${packageName} package refund` : 'Point package refund';
+    return packageName ? `${packageName} refund` : 'Point package refund';
   }
   if (tx.type === 'stripe_dispute') return 'Payment dispute adjustment';
   if (tx.type === 'admin_adjustment') return tx.pointsDelta >= 0 ? 'Manual points credit' : 'Manual points deduction';
   return 'Account activity';
+}
+
+function packageDisplayName(name: string | null): string | null {
+  if (!name) return null;
+  return name.toLowerCase().includes('package') ? name : `${name} Package`;
 }
 
 function bookingDetails(source: BookingDetailsSource): string {

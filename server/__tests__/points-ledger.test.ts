@@ -75,7 +75,13 @@ describe('applyPointTransaction', () => {
       type: 'stripe_purchase',
       pointsDelta: 500,
       metadata: { packageId: 'starter' },
-    })).toBe('Starter package purchase');
+    })).toBe('Starter Package purchase');
+
+    expect(pointTransactionDetails({
+      type: 'stripe_purchase',
+      pointsDelta: 1000,
+      metadata: { packageId: 'standard' },
+    })).toBe('Standard Package purchase');
 
     expect(pointTransactionDetails({
       type: 'booking_charge',
