@@ -2,6 +2,14 @@ import { getAuth, getClientId } from './storage'
 import { ServerApiError, serverFetch, syncTripToServer, softDeleteTripOnServer } from './serverApi'
 import type { Trip } from './types'
 
+const TRIPS_CACHE_KEY = 'campsoonTripsCache'
+
+interface TripsCache {
+  authToken: string
+  trips: Trip[]
+  fetchedAt: number
+}
+
 function notifyTripsChanged(): void {
   try {
     chrome.runtime.sendMessage({ type: 'TRIPS_CHANGED' })
@@ -31,6 +39,18 @@ function normalizeMode(value: unknown): Trip['mode'] {
   return 'hold'
 }
 
+function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
+  return new Promise(resolve => chrome.storage.local.get(keys, result => resolve(result as Record<string, unknown>)))
+}
+
+function storageSet(items: Record<string, unknown>): Promise<void> {
+  return new Promise(resolve => chrome.storage.local.set(items, () => resolve()))
+}
+
+function storageRemove(keys: string | string[]): Promise<void> {
+  return new Promise(resolve => chrome.storage.local.remove(keys, () => resolve()))
+}
+
 export function normalizeTrip(value: unknown): Trip {
   const source = value as Partial<Trip> & { createdAt?: unknown; updatedAt?: unknown; deletedAt?: unknown }
   const createdAt = toTime(source.createdAt)
@@ -52,11 +72,46 @@ export function normalizeTrip(value: unknown): Trip {
   } as Trip
 }
 
-export async function getTrips(): Promise<Trip[]> {
+async function readTripsCache(authToken: string): Promise<Trip[] | null> {
+  const result = await storageGet([TRIPS_CACHE_KEY])
+  const cache = result[TRIPS_CACHE_KEY] as Partial<TripsCache> | undefined
+  if (!cache || cache.authToken !== authToken || !Array.isArray(cache.trips)) return null
+  return cache.trips.map(normalizeTrip).filter(trip => !trip.deletedAt)
+}
+
+async function writeTripsCache(authToken: string, trips: Trip[]): Promise<void> {
+  await storageSet({
+    [TRIPS_CACHE_KEY]: {
+      authToken,
+      trips,
+      fetchedAt: Date.now(),
+    } satisfies TripsCache,
+  })
+}
+
+async function updateTripsCache(authToken: string, update: (trips: Trip[]) => Trip[]): Promise<void> {
+  const trips = await readTripsCache(authToken)
+  if (!trips) return
+  await writeTripsCache(authToken, update(trips))
+}
+
+export async function getTrips(options: { refresh?: boolean } = {}): Promise<Trip[]> {
   const auth = await getAuth()
-  if (!auth.token) return []
+  if (!auth.token) {
+    await storageRemove(TRIPS_CACHE_KEY)
+    return []
+  }
+
+  if (!options.refresh) {
+    const cached = await readTripsCache(auth.token)
+    if (cached) return cached
+  }
+
   const rows = await serverFetch<unknown[]>('/api/trips', { method: 'GET', auth: true })
-  return rows.map(normalizeTrip).filter(trip => !trip.deletedAt)
+  const trips = rows.map(normalizeTrip).filter(trip => !trip.deletedAt)
+  const refreshedAuth = await getAuth()
+  await writeTripsCache(refreshedAuth.token ?? auth.token, trips)
+  return trips
 }
 
 export async function saveTrip(trip: Trip): Promise<Trip> {
@@ -65,6 +120,11 @@ export async function saveTrip(trip: Trip): Promise<Trip> {
   const clientId = await getClientId()
   const saved = await syncTripToServer({ ...trip, clientId: trip.clientId ?? clientId })
   const normalized = normalizeTrip(saved)
+  const refreshedAuth = await getAuth()
+  await updateTripsCache(refreshedAuth.token ?? auth.token, trips => {
+    const next = trips.filter(item => item.id !== normalized.id)
+    return normalized.deletedAt ? next : [...next, normalized]
+  })
   notifyTripsChanged()
   return normalized
 }
@@ -81,5 +141,7 @@ export async function deleteTrip(trip: Trip): Promise<void> {
   if (!auth.token) throw new ServerApiError(401, 'auth_required')
   const deletedAt = Date.now()
   await softDeleteTripOnServer({ ...trip, deletedAt, updatedAt: deletedAt })
+  const refreshedAuth = await getAuth()
+  await updateTripsCache(refreshedAuth.token ?? auth.token, trips => trips.filter(item => item.id !== trip.id))
   notifyTripsChanged()
 }

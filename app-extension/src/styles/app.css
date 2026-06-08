@@ -704,6 +704,32 @@ a {
   margin: 0;
 }
 
+.account-loading-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 24px;
+  color: var(--co-text);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.account-loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--co-border-strong);
+  border-top-color: var(--co-brand);
+  border-radius: 999px;
+  animation: account-loading-spin .7s linear infinite;
+}
+
+@keyframes account-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .buy-points-header {
   display: flex;
   align-items: flex-start;
@@ -1457,6 +1483,26 @@ a {
   gap: 14px;
   width: min(100%, 1180px);
   margin: 0;
+}
+
+.trip-list-loading {
+  pointer-events: none;
+}
+
+.trips-loading-nav {
+  align-items: flex-start;
+}
+
+.trip-card-skeleton {
+  background: var(--co-card);
+}
+
+.trip-card-skeleton .trip-meta-row {
+  margin-top: 11px;
+}
+
+.trip-card-skeleton .trip-actions-row {
+  min-width: 160px;
 }
 
 .connection-grid {

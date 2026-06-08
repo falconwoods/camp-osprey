@@ -387,10 +387,13 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
 function PointsSkeleton() {
   return (
     <>
-      <section className="account-points-card account-buy-points" aria-label="Loading point packages">
+      <section className="account-points-card account-buy-points" aria-busy="true" aria-live="polite" aria-label="Loading point packages">
         <div className="buy-points-header">
           <div className="buy-points-title-group">
-            <Skeleton className="h-6 w-28" />
+            <div className="account-loading-status" role="status">
+              <span className="account-loading-spinner" aria-hidden="true" />
+              <span>Loading point packages...</span>
+            </div>
             <Skeleton className="mt-3 h-4 w-80 max-w-full" />
           </div>
           <Skeleton className="h-9 w-40 rounded-full" />
@@ -411,10 +414,13 @@ function PointsSkeleton() {
         </div>
         <Skeleton className="mt-4 h-8 w-full" />
       </section>
-      <section className="account-points-card account-point-activity" aria-label="Loading point activity">
+      <section className="account-points-card account-point-activity" aria-busy="true" aria-live="polite" aria-label="Loading point activity">
         <div className="account-card-heading">
           <div>
-            <Skeleton className="h-6 w-32" />
+            <div className="account-loading-status" role="status">
+              <span className="account-loading-spinner" aria-hidden="true" />
+              <span>Loading point activity...</span>
+            </div>
             <Skeleton className="mt-3 h-4 w-96 max-w-full" />
           </div>
         </div>

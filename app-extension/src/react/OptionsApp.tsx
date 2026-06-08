@@ -23,6 +23,7 @@ import { LogsPanel } from './LogsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
 import { getGlobalWarnings, type Warning } from '../warnings'
 import { Button } from '../components/ui/button'
+import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
 import type { Trip } from '../types'
 
@@ -88,7 +89,7 @@ export function OptionsApp() {
 
   const paymentValid = useMemo(() => isValidParkPayment(state.storage?.payment ?? null), [state.storage?.payment])
 
-  if (state.loading || !state.storage) return <div className="options-shell loading-view">Loading campsoon...</div>
+  if (state.loading || !state.storage) return <TripsLoadingShell />
 
   return (
     <div className="options-shell">
@@ -178,6 +179,77 @@ export function OptionsApp() {
           </div>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function TripsLoadingShell() {
+  return (
+    <div className="options-shell">
+      <aside className="sidebar" aria-hidden="true">
+        <div className="brand-row">
+          <img src="/icons/icon48.png" alt="" />
+          <div><strong>Campsoon</strong><span>Extension</span></div>
+        </div>
+        <div className="nav-list trips-loading-nav">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton className={`h-10 ${index === 0 ? 'w-full' : 'w-4/5'}`} key={index} />
+          ))}
+        </div>
+        <div className="sidebar-account">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div>
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+      </aside>
+      <main className="options-main options-main-trips">
+        <header className="page-header">
+          <div>
+            <h1>Trips</h1>
+          </div>
+          <Skeleton className="h-10 w-28 rounded-md" />
+        </header>
+        <section className="trips-dashboard trip-list-loading" aria-busy="true" aria-live="polite" aria-label="Loading trips">
+          <div className="account-loading-status" role="status">
+            <span className="account-loading-spinner" aria-hidden="true" />
+            <span>Loading trips...</span>
+          </div>
+          {Array.from({ length: 3 }, (_, index) => (
+            <div className="ui-card trip-card trip-card-skeleton" key={index}>
+              <div className="trip-card-main">
+                <div className="trip-summary">
+                  <Skeleton className="h-5 w-44 max-w-full" />
+                  <div className="trip-meta-row">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                  <div className="trip-meta-row">
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </div>
+                </div>
+                <div className="trip-mode-slot">
+                  <Skeleton className="h-9 w-32 rounded-md" />
+                </div>
+                <div className="trip-status-panel">
+                  <div className="trip-status-copy">
+                    <Skeleton className="h-5 w-36" />
+                    <Skeleton className="mt-3 h-4 w-52 max-w-full" />
+                    <Skeleton className="mt-3 h-4 w-40 max-w-full" />
+                  </div>
+                  <div className="trip-actions-row">
+                    <Skeleton className="h-10 w-20 rounded-md" />
+                    <Skeleton className="h-10 w-10 rounded-md" />
+                    <Skeleton className="h-10 w-10 rounded-md" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+      </main>
     </div>
   )
 }

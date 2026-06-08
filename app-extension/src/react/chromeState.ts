@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuth, getDebugLog, getStorage } from '../storage'
 import { isLoggedIn } from '../background/login'
 import { getTrips } from '../tripStore'
@@ -15,6 +15,7 @@ export interface ExtensionState {
 }
 
 export function useExtensionState(): ExtensionState & { refresh: () => Promise<void> } {
+  const hasLoadedRef = useRef(false)
   const [state, setState] = useState<ExtensionState>({
     storage: null,
     auth: null,
@@ -24,23 +25,25 @@ export function useExtensionState(): ExtensionState & { refresh: () => Promise<v
     loading: true,
   })
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options: { syncTrips?: boolean } = {}) => {
+    const syncTrips = options.syncTrips ?? !hasLoadedRef.current
     const [storage, auth, trips, debugLog, bcParksLoggedIn] = await Promise.all([
       getStorage(),
       getAuth(),
-      getTrips().catch(() => []),
+      getTrips({ refresh: syncTrips }).catch(() => []),
       getDebugLog().catch(() => []),
       isLoggedIn().catch(() => false),
     ])
     applyTheme(storage.settings.theme ?? 'auto')
     setState({ storage, auth, trips, debugLog, bcParksLoggedIn, loading: false })
+    hasLoadedRef.current = true
   }, [])
 
   useEffect(() => {
-    void refresh()
-    const storageListener = () => void refresh()
+    void refresh({ syncTrips: true })
+    const storageListener = () => void refresh({ syncTrips: false })
     const messageListener = (msg: { type?: string }) => {
-      if (msg.type === 'TRIPS_CHANGED') void refresh()
+      if (msg.type === 'TRIPS_CHANGED') void refresh({ syncTrips: false })
     }
     chrome.storage.onChanged.addListener(storageListener)
     chrome.runtime.onMessage.addListener(messageListener)
