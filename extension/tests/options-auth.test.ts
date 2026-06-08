@@ -95,6 +95,7 @@ function logEntry(overrides: Partial<DebugLogEntry> = {}): DebugLogEntry {
 }
 
 function renderFixture(): void {
+  document.body.className = ''
   document.body.innerHTML = `
     <div id="trips-view">
       <div id="header-account"></div>
@@ -290,6 +291,40 @@ describe('options auth gate', () => {
     expect(document.body.classList.contains('auth-dialog-open')).toBe(true)
     expect(document.querySelector('#auth-dialog-root .auth-card-brand')!.textContent).toContain('campsoon')
     expect(document.querySelector('#auth-dialog-root #auth-email')).not.toBeNull()
+  })
+
+  it('requires auth before opening a new trip', async () => {
+    vi.mocked(validateAuth).mockResolvedValue(false)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.getElementById('new-trip-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.getElementById('trip-editor')!.classList.contains('hidden')).toBe(true)
+    expect(document.body.classList.contains('auth-dialog-open')).toBe(true)
+    expect(document.querySelector('#auth-dialog-root #auth-email')).not.toBeNull()
+    expect(chrome.tabs.create).not.toHaveBeenCalled()
+  })
+
+  it('opens the new trip editor when signed in', async () => {
+    await saveAuth({
+      token: 'tok',
+      user: { id: 'u1', email: 'user@example.com', role: 'user' },
+      lastEmail: null,
+      pointsBalance: 700,
+    })
+    vi.mocked(validateAuth).mockResolvedValue(true)
+    await import('../src/options/index')
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    document.getElementById('new-trip-btn')!.click()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(document.body.classList.contains('auth-dialog-open')).toBe(false)
+    expect(document.getElementById('trips-view')!.classList.contains('hidden')).toBe(true)
+    expect(document.getElementById('trip-editor')!.classList.contains('hidden')).toBe(false)
+    expect((document.getElementById('trip-name') as HTMLInputElement).value).toBe('Trip 2')
   })
 
   it('hides Logs tab while debug mode is disabled', async () => {

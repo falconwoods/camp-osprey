@@ -1,6 +1,7 @@
 import { BCParksProvider } from '../../providers/bcparks'
+import { validateAuth } from '../../auth'
 import { bindAsyncButton } from '../../shared/components/button'
-import { requireServerAuthForStart } from '../../startAuthGate'
+import { openAuthGateForTrip, requireServerAuthForStart } from '../../startAuthGate'
 import type { DateRange, Park, Trip } from '../../types'
 import { escapeHtml } from '../settings/shared'
 import { describeRange, matchSummaryHTML, recurringPreviewText, statusTextHTML } from './tripDisplay'
@@ -39,8 +40,8 @@ export class TripEditor {
       void this.options.renderTripList()
     })
 
-    document.getElementById('new-trip-btn')!.addEventListener('click', () => void this.open())
-    document.getElementById('new-trip-header-btn')?.addEventListener('click', () => void this.open())
+    document.getElementById('new-trip-btn')!.addEventListener('click', () => void this.openNewTrip())
+    document.getElementById('new-trip-header-btn')?.addEventListener('click', () => void this.openNewTrip())
     this.bindParkSearch()
     this.bindDateControls()
     bindTripNameErrorReset()
@@ -93,6 +94,15 @@ export class TripEditor {
     document.getElementById('trips-view')!.classList.add('hidden')
     document.getElementById('trip-editor')!.classList.remove('hidden')
     document.body.classList.add('trip-editor-open')
+  }
+
+  private async openNewTrip(): Promise<void> {
+    if (!(await validateAuth())) {
+      await openAuthGateForTrip(null, false)
+      await this.options.openAuthDialog()
+      return
+    }
+    await this.open()
   }
 
   clearEditingTripIf(tripId: string): void {

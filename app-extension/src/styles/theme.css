@@ -1,0 +1,170 @@
+/*
+  campsoon theme tokens. Update these values to reskin the extension UI.
+  Legacy aliases keep existing popup and options components aligned.
+*/
+:root,
+[data-theme="light"] {
+  --co-page: #f6fbef;
+  --co-page-soft: #eaf7df;
+  --co-surface: rgba(255,255,255,0.94);
+  --co-surface-solid: #ffffff;
+  --co-surface-muted: #f2faec;
+  --co-border: #dbead5;
+  --co-border-strong: #6fb37f;
+  --co-text: #122016;
+  --co-text-muted: #3e5543;
+  --co-text-soft: #667768;
+  --co-brand: #176f3a;
+  --co-brand-dark: #0f542c;
+  --co-brand-soft: rgba(23,111,58,0.1);
+  --co-blue: #347f8c;
+  --co-amber: #f2b544;
+  --co-red: #d94848;
+  --co-bottom-image: url("/images/bg-bottom.jpg");
+  --co-page-gradient: linear-gradient(180deg, transparent 0, transparent 100%);
+  --co-bottom-gradient: linear-gradient(180deg, rgba(246,251,239,0) 0, rgba(246,251,239,0.08) 34%, rgba(246,251,239,0.34) 58%, rgba(246,251,239,0.48) 78%, rgba(246,251,239,0.64) 100%);
+  --co-header-glass: rgba(255,255,255,0.88);
+  --co-control: rgba(255,255,255,0.9);
+  --co-control-soft: rgba(255,255,255,0.76);
+  --co-control-hover: rgba(250,255,247,0.96);
+  --co-card: rgba(255,255,255,0.9);
+  --co-on-brand: #ffffff;
+  --co-shadow: 0 18px 42px rgba(31,62,39,0.1);
+  --co-shadow-soft: 0 8px 24px rgba(31,62,39,0.08);
+  --co-radius: 10px;
+  --co-radius-lg: 20px;
+
+  --bg: var(--co-page);
+  --bg-card: var(--co-surface-solid);
+  --bg-input: #f1f8ec;
+  --bg-blue: #edf8fa;
+  --bg-soft: var(--co-page);
+  --border: var(--co-border);
+  --text: var(--co-text);
+  --text-muted: var(--co-text-soft);
+  --text-subtle: var(--co-text-muted);
+  --text-dim: #4d5f51;
+  --green: var(--co-brand);
+  --green-subtle: var(--co-brand-soft);
+  --green-border: rgba(23,111,58,0.25);
+  --blue: var(--co-blue);
+  --amber: var(--co-amber);
+  --amber-subtle: rgba(242,181,68,0.16);
+  --amber-border: rgba(242,181,68,0.34);
+  --red: var(--co-red);
+  --red-subtle: rgba(217,72,72,0.08);
+  --red-border: rgba(217,72,72,0.24);
+  --surface-glass: rgba(255,255,255,0.94);
+  --on-green: var(--co-on-brand);
+  --shadow: 0 1px 2px rgba(15,23,42,0.07);
+}
+
+[data-theme="dark"] {
+  --co-page: #102239;
+  --co-page-soft: #142c47;
+  --co-surface: rgba(18,37,58,0.92);
+  --co-surface-solid: #152a42;
+  --co-surface-muted: #1b3652;
+  --co-border: #27435e;
+  --co-border-strong: #2f8a75;
+  --co-text: #edf5ff;
+  --co-text-muted: #bfd0df;
+  --co-text-soft: #91a9bb;
+  --co-brand: #7ddc9c;
+  --co-brand-dark: #22c55e;
+  --co-brand-soft: rgba(125,220,156,0.14);
+  --co-blue: #7db7d7;
+  --co-amber: #f6c568;
+  --co-red: #fb7185;
+  --co-bottom-image: url("/images/bg-bottom-dark.jpg");
+  --co-page-gradient: linear-gradient(180deg, transparent 0, transparent 100%);
+  --co-bottom-gradient: linear-gradient(180deg, rgba(16,34,57,0) 0, rgba(16,34,57,0) 46%, rgba(16,34,57,0.08) 66%, rgba(16,34,57,0.02) 82%, rgba(16,34,57,0.24) 100%);
+  --co-header-glass: rgba(18,37,58,0.84);
+  --co-control: rgba(24,49,75,0.82);
+  --co-control-soft: rgba(18,37,58,0.62);
+  --co-control-hover: rgba(28,59,88,0.86);
+  --co-card: rgba(18,37,58,0.78);
+  --co-on-brand: #06130b;
+  --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
+  --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
+
+  --bg: var(--co-page);
+  --bg-card: var(--co-surface-solid);
+  --bg-input: #102239;
+  --bg-blue: rgba(125,183,215,0.13);
+  --bg-soft: rgba(74,222,128,0.08);
+  --border: var(--co-border);
+  --text: var(--co-text);
+  --text-muted: var(--co-text-soft);
+  --text-subtle: var(--co-text-muted);
+  --text-dim: var(--co-text-soft);
+  --green: var(--co-brand);
+  --green-subtle: var(--co-brand-soft);
+  --green-border: rgba(125,220,156,0.3);
+  --blue: var(--co-blue);
+  --amber: var(--co-amber);
+  --amber-subtle: rgba(246,197,104,0.12);
+  --amber-border: rgba(246,197,104,0.26);
+  --red: var(--co-red);
+  --red-subtle: rgba(251,113,133,0.12);
+  --red-border: rgba(251,113,133,0.28);
+  --surface-glass: rgba(18,37,58,0.94);
+  --on-green: var(--co-on-brand);
+  --shadow: 0 10px 24px rgba(0,0,0,0.26);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --co-page: #102239;
+    --co-page-soft: #142c47;
+    --co-surface: rgba(18,37,58,0.92);
+    --co-surface-solid: #152a42;
+    --co-surface-muted: #1b3652;
+    --co-border: #27435e;
+    --co-border-strong: #2f8a75;
+    --co-text: #edf5ff;
+    --co-text-muted: #bfd0df;
+    --co-text-soft: #91a9bb;
+    --co-brand: #7ddc9c;
+    --co-brand-dark: #22c55e;
+    --co-brand-soft: rgba(125,220,156,0.14);
+    --co-blue: #7db7d7;
+    --co-amber: #f6c568;
+    --co-red: #fb7185;
+    --co-bottom-image: url("/images/bg-bottom-dark.jpg");
+    --co-page-gradient: linear-gradient(180deg, transparent 0, transparent 100%);
+    --co-bottom-gradient: linear-gradient(180deg, rgba(16,34,57,0) 0, rgba(16,34,57,0) 46%, rgba(16,34,57,0.08) 66%, rgba(16,34,57,0.02) 82%, rgba(16,34,57,0.24) 100%);
+    --co-header-glass: rgba(18,37,58,0.84);
+    --co-control: rgba(24,49,75,0.82);
+    --co-control-soft: rgba(18,37,58,0.62);
+    --co-control-hover: rgba(28,59,88,0.86);
+    --co-card: rgba(18,37,58,0.78);
+    --co-on-brand: #06130b;
+    --co-shadow: 0 18px 42px rgba(0,0,0,0.36);
+    --co-shadow-soft: 0 10px 26px rgba(0,0,0,0.24);
+
+    --bg: var(--co-page);
+    --bg-card: var(--co-surface-solid);
+    --bg-input: #102239;
+    --bg-blue: rgba(125,183,215,0.13);
+    --bg-soft: rgba(74,222,128,0.08);
+    --border: var(--co-border);
+    --text: var(--co-text);
+    --text-muted: var(--co-text-soft);
+    --text-subtle: var(--co-text-muted);
+    --text-dim: var(--co-text-soft);
+    --green: var(--co-brand);
+    --green-subtle: var(--co-brand-soft);
+    --green-border: rgba(125,220,156,0.3);
+    --blue: var(--co-blue);
+    --amber: var(--co-amber);
+    --amber-subtle: rgba(246,197,104,0.12);
+    --amber-border: rgba(246,197,104,0.26);
+    --red: var(--co-red);
+    --red-subtle: rgba(251,113,133,0.12);
+    --red-border: rgba(251,113,133,0.28);
+    --surface-glass: rgba(18,37,58,0.94);
+    --on-green: var(--co-on-brand);
+    --shadow: 0 10px 24px rgba(0,0,0,0.26);
+  }
+}
