@@ -2,10 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   CalendarCheck,
-  CircleAlert,
   ChevronRight,
   CreditCard,
-  ArrowRight,
   FileText,
   LockKeyhole,
   Plus,
@@ -25,6 +23,7 @@ import { LogsPanel } from './LogsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
 import { getGlobalWarnings, type Warning } from '../warnings'
 import { Button } from '../components/ui/button'
+import { AppAlert } from '../components/AppAlert'
 import type { Trip } from '../types'
 
 type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs'
@@ -215,18 +214,20 @@ function TripsView({
   return (
     <div className="trips-dashboard">
       {needsCampsoonReconnect ? (
-        <div className="alert-inline error">
-          <CircleAlert className="alert-icon" size={18} aria-hidden="true" />
-          <div><strong>Campsoon session expired</strong><span>Sign in again to continue.</span></div>
-          <button className="alert-action-link" type="button" onClick={onSignIn}>Sign in <ArrowRight size={14} /></button>
-        </div>
+        <AppAlert
+          variant="error"
+          title="Campsoon session expired"
+          message="Sign in again to continue."
+          action={{ label: 'Sign in', onClick: onSignIn }}
+        />
       ) : null}
       {needsBcParksReconnect ? (
-        <div className="alert-inline error">
-          <CircleAlert className="alert-icon" size={18} aria-hidden="true" />
-          <div><strong>BC Parks connection needed</strong><span>Connect your BC Parks account to continue.</span></div>
-          <button className="alert-action-link" type="button" onClick={connectBcParks}>Open BC Parks <ArrowRight size={14} /></button>
-        </div>
+        <AppAlert
+          variant="error"
+          title="BC Parks connection needed"
+          message="Connect your BC Parks account to continue."
+          action={{ label: 'Open BC Parks', onClick: connectBcParks }}
+        />
       ) : null}
       {signedIn && bcParksLoggedIn ? (
         <div className="connection-grid setup-complete-grid">
@@ -282,11 +283,18 @@ function TripsView({
         </>
       ) : null}
       {visibleWarnings.map((warning, index) => (
-        <div className={`alert-inline ${warning.level}`} key={index}>
-          <div><strong>{warning.title ?? 'Heads up'}</strong><span>{warning.message}</span></div>
-          {warning.action?.url === '#payment' ? <Button size="sm" variant="secondary" onClick={() => onWarningRoute('payment')}>{warning.action.label}</Button> : null}
-          {warning.action?.url && !warning.action.url.startsWith('#') ? <Button size="sm" variant="secondary" onClick={() => chrome.tabs.create({ url: warning.action!.url })}>{warning.action.label}</Button> : null}
-        </div>
+        <AppAlert
+          key={index}
+          variant={warning.level === 'error' ? 'error' : 'warning'}
+          title={warning.title ?? 'Heads up'}
+          message={warning.message}
+          action={warning.action ? {
+            label: warning.action.label,
+            onClick: () => warning.action?.url === '#payment'
+              ? onWarningRoute('payment')
+              : chrome.tabs.create({ url: warning.action!.url }),
+          } : undefined}
+        />
       ))}
       {trips.length ? trips.map(trip => (
         <TripCard key={trip.id} trip={trip} onEdit={onEdit} onStart={onStart} onPause={onPause} onDelete={onDelete} />

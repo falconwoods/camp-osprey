@@ -37,15 +37,15 @@ export function getGlobalWarnings(trips: Trip[], loggedIn: boolean, payment: Pay
       level: 'warn',
       title: 'BC Parks sign-in needed',
       message: 'Not logged in to BC Parks. Auto-reserve and Auto-pay modes require a BC Parks account.',
-      action: { label: 'Log in BC Parks →', url: 'https://camping.bcparks.ca/login' },
+      action: { label: 'Log in BC Parks', url: 'https://camping.bcparks.ca/login' },
     })
   }
 
   if (trips.some(trip => trip.mode === 'autopay') && !isValidParkPayment(payment)) {
     warnings.push({
       level: 'warn',
-      title: 'Park Payment required',
-      message: 'Add valid Park Payment info before using auto-pay trips.',
+      title: 'Park Payment setup required',
+      message: 'Add your Park Payment details to enable auto-pay trips.',
       action: { label: 'Set up Park Payment', url: '#payment' },
     })
   }

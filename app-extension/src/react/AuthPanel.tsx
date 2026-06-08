@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Clock, Lock, Send, ShieldCheck } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { CircleAlert, Clock, Lock, Send, ShieldCheck } from 'lucide-react'
 import { requestCode, signOut, verifyCode } from '../auth'
 import { createPointCheckout, getPointsSummary, type PointsSummary } from '../serverApi'
 import { consumePendingStartTripId, getPendingStartTripId } from '../startAuthGate'
@@ -180,6 +180,7 @@ export function AccountPanel({
   const [loading, setLoading] = useState<string | null>(null)
   const [points, setPoints] = useState<PointsSummary | null>(null)
   const [pointsError, setPointsError] = useState('')
+  const [pendingTripId, setPendingTripId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!auth?.user) return
@@ -192,6 +193,14 @@ export function AccountPanel({
     return () => { cancelled = true }
   }, [auth?.user])
 
+  useEffect(() => {
+    let cancelled = false
+    void getPendingStartTripId().then(tripId => {
+      if (!cancelled) setPendingTripId(tripId)
+    })
+    return () => { cancelled = true }
+  }, [auth?.user])
+
   async function logOut() {
     setLoading('signout')
     await signOut()
@@ -201,44 +210,37 @@ export function AccountPanel({
 
   if (!auth?.user) {
     return (
-      <div className="stack">
-        <Card>
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-          </CardHeader>
-          <CardContent className="account-summary-row">
+      <div className="account-points-page">
+        <section className="section account-summary account-management account-management-empty">
+          <div className="account-management-row">
             <div>
-              <div className="eyebrow">Not signed in</div>
-              <p className="muted compact-copy">Sign in to start trips and receive booking updates.</p>
+              <div className="account-management-label">Not signed in</div>
+              <p className="account-management-copy">
+                {pendingTripId ? 'Sign in to continue starting this trip.' : 'Sign in to start trips and receive booking updates.'}
+              </p>
             </div>
             <Button onClick={onSignIn}>Sign in</Button>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
         <LockedPointsSection onSignIn={onSignIn} />
       </div>
     )
   }
 
   return (
-    <div className="stack">
-      <Card>
-        <CardHeader>
-          <CardTitle>Account</CardTitle>
-        </CardHeader>
-        <CardContent className="account-summary-row">
+    <div className="account-points-page">
+      <section className="section account-summary account-management">
+        <div className="account-management-row">
           <div>
-            <div className="eyebrow">Signed in as</div>
-            <div className="strong-text">{auth.user.email}</div>
-            {auth.user.role && auth.user.role !== 'user' ? <div className="muted">Role: {auth.user.role}</div> : null}
-            {typeof auth.pointsBalance === 'number' ? (
-              <div className="muted">{auth.pointsBalance.toLocaleString()} points</div>
-            ) : null}
+            <div className="account-management-label">Signed in as</div>
+            <div className="account-email">{auth.user.email}</div>
+            {auth.user.role && auth.user.role !== 'user' ? <div className="hint">Role: {auth.user.role}</div> : null}
           </div>
           <LoadingButton variant="secondary" onClick={logOut} loading={loading === 'signout'} loadingText="Signing out...">
             Sign out
           </LoadingButton>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
       <PointsSection points={points} error={pointsError} />
     </div>
   )
@@ -246,19 +248,40 @@ export function AccountPanel({
 
 function LockedPointsSection({ onSignIn }: { onSignIn: () => void }) {
   return (
-    <Card>
-      <CardContent className="locked-points-card">
-        <div className="locked-panel">
-          <Lock size={18} />
-          <div>
-            <div className="eyebrow">Campsoon Points</div>
-            <strong>Sign in to buy points</strong>
-            <p>Use points to pay for successful auto-bookings. Points are charged only after a campsite is successfully paid.</p>
-          </div>
-        </div>
-        <Button onClick={onSignIn}>Sign in first</Button>
-      </CardContent>
-    </Card>
+    <section className="account-points-card account-points-card-locked">
+      <div className="account-section-icon"><Lock size={24} /></div>
+      <div className="account-points-card-copy">
+        <div className="account-card-kicker">Campsoon Points</div>
+        <h2>Sign in to buy points</h2>
+        <p>Use points to pay for successful auto-bookings. Points are charged only after a campsite is successfully paid.</p>
+      </div>
+      <Button className="account-points-sign-in" onClick={onSignIn}>Sign in first</Button>
+    </section>
+  )
+}
+
+function PointsStatusCard({
+  icon,
+  kicker,
+  title,
+  copy,
+  warning,
+}: {
+  icon: ReactNode
+  kicker: string
+  title: string
+  copy: string
+  warning?: boolean
+}) {
+  return (
+    <section className="account-points-card account-points-card-locked">
+      <div className={`account-section-icon ${warning ? 'account-section-icon-warning' : ''}`}>{icon}</div>
+      <div className="account-points-card-copy">
+        <div className="account-card-kicker">{kicker}</div>
+        <h2>{title}</h2>
+        <p>{copy}</p>
+      </div>
+    </section>
   )
 }
 
@@ -278,76 +301,87 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="locked-panel">
-          <Lock size={18} />
-          <div><strong>Could not load points</strong><p>{error}</p></div>
-        </CardContent>
-      </Card>
+      <PointsStatusCard
+        icon={<CircleAlert size={24} />}
+        kicker="Campsoon Points"
+        title="Could not load points"
+        copy={error}
+        warning
+      />
     )
   }
 
   if (!points) {
     return (
-      <Card>
-        <CardContent className="locked-panel">
-          <Clock size={18} />
-          <div><strong>Loading points...</strong><p>Fetching your balance and available point packages.</p></div>
-        </CardContent>
-      </Card>
+      <PointsStatusCard
+        icon={<Clock size={24} />}
+        kicker="Campsoon Points"
+        title="Loading points..."
+        copy="Fetching your balance and available point packages."
+      />
     )
   }
 
   return (
-    <div className="stack">
-      <Card>
-        <CardHeader>
-          <CardTitle>Buy Points</CardTitle>
-        </CardHeader>
-        <CardContent className="stack">
-          <div className="points-balance">{points.balance.toLocaleString()} points available</div>
+    <>
+      <section className="account-points-card account-buy-points">
+        <div className="buy-points-header">
+          <div className="buy-points-title-group">
+            <h2>Buy points</h2>
+            <p>Choose a package and complete payment securely with Stripe.</p>
+          </div>
+          <div className="points-balance-badge" aria-label="Current points balance">{points.balance.toLocaleString()} points available</div>
+        </div>
           <div className="point-package-grid">
             {points.packages.length ? points.packages.map(pkg => {
               const bookingCount = Math.floor(pkg.points / points.successfulBookingPointCost)
               return (
-                <article className={`point-package-card ${pkg.recommended ? 'featured' : ''}`} key={pkg.id}>
+                <article className={`point-package-card ${pkg.recommended ? 'point-package-featured' : ''}`} key={pkg.id}>
                   <div className="point-package-header">
                     <h3>{packageName(pkg.name)}</h3>
-                    {pkg.recommended ? <span>Best value</span> : null}
+                    {pkg.recommended ? <span className="point-package-badge">Best value</span> : null}
                   </div>
                   <div className="point-package-points">{pkg.points.toLocaleString()} <span>points</span></div>
                   <div className="point-package-price">{formatPriceLabel(pkg.priceLabel)}</div>
                   <p>{bookingEstimate(bookingCount)}</p>
-                  <LoadingButton variant={pkg.recommended ? 'default' : 'secondary'} onClick={() => buy(pkg.id)} loading={opening === pkg.id} loadingText="Opening Stripe...">
+                  <LoadingButton className="point-package-btn" variant={pkg.recommended ? 'default' : 'secondary'} onClick={() => buy(pkg.id)} loading={opening === pkg.id} loadingText="Opening Stripe...">
                     Buy now
                   </LoadingButton>
                 </article>
               )
-            }) : <p className="muted">No point packages are available.</p>}
+            }) : <div className="account-empty-state">No point packages are available.</div>}
           </div>
-          <div className="local-note"><Lock size={16} /> Secure checkout with Stripe.</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Point Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
+          <div className="account-stripe-note"><Lock size={15} /> <strong>Secure checkout with Stripe.</strong> A Stripe payment page will open to complete your purchase.</div>
+      </section>
+      <section className="account-points-card account-point-activity">
+        <div className="account-card-heading">
+          <div>
+            <h2>Point activity</h2>
+            <p>A statement of every points purchase, deduction, and balance change.</p>
+          </div>
+        </div>
           {points.recentTransactions.length ? (
-            <div className="point-activity">
+            <div className="point-activity-statement" role="table" aria-label="Point activity statement">
+              <div className="point-activity-row point-activity-header" role="row">
+                <div role="columnheader">Activity Type</div>
+                <div role="columnheader">Points</div>
+                <div role="columnheader">Points After</div>
+                <div role="columnheader">Date</div>
+                <div role="columnheader">Details</div>
+              </div>
               {[...points.recentTransactions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(tx => (
                 <div className="point-activity-row" key={tx.id}>
-                  <div><strong>{transactionLabel(tx.type)}</strong><span>{formatTransactionDateTime(tx.createdAt)}</span></div>
-                  <div className={tx.pointsDelta >= 0 ? 'points-earned' : 'points-spent'}>{tx.pointsDelta > 0 ? '+' : ''}{tx.pointsDelta.toLocaleString()}</div>
-                  <div>{tx.balanceAfter.toLocaleString()} after</div>
-                  <div>{tx.details?.trim() || transactionDetails(tx.type)}</div>
+                  <div role="cell" data-label="Activity Type">{transactionLabel(tx.type)}</div>
+                  <div role="cell" data-label="Points" className={tx.pointsDelta >= 0 ? 'point-activity-earned' : 'point-activity-spent'}>{tx.pointsDelta > 0 ? '+' : ''}{tx.pointsDelta.toLocaleString()}</div>
+                  <div role="cell" data-label="Points After">{tx.balanceAfter.toLocaleString()}</div>
+                  <div role="cell" data-label="Date">{formatTransactionDateTime(tx.createdAt)}</div>
+                  <div role="cell" data-label="Details">{transactionDetails(tx)}</div>
                 </div>
               ))}
             </div>
-          ) : <p className="muted">No point activity yet.</p>}
-        </CardContent>
-      </Card>
-    </div>
+          ) : <div className="account-empty-state">No point activity yet.</div>}
+      </section>
+    </>
   )
 }
 
@@ -375,10 +409,11 @@ function transactionLabel(type: string): string {
   return type.replace(/[_-]+/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
 }
 
-function transactionDetails(type: string): string {
-  if (type === 'booking_charge') return 'Successful booking deduction'
-  if (type === 'stripe_purchase') return 'Point package purchase'
-  if (type === 'stripe_refund') return 'Point package refund'
+function transactionDetails(tx: PointsSummary['recentTransactions'][number]): string {
+  if (tx.details?.trim()) return tx.details.trim()
+  if (tx.type === 'booking_charge') return 'Successful booking deduction'
+  if (tx.type === 'stripe_purchase') return 'Point package purchase'
+  if (tx.type === 'stripe_refund') return 'Point package refund'
   return 'Account activity'
 }
 

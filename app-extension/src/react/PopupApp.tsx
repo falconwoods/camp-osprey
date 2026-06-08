@@ -4,6 +4,7 @@ import { TripCard } from './TripCard'
 import { pauseTrip, startTripNow } from './tripActions'
 import { getGlobalWarnings } from '../warnings'
 import { Button } from '../components/ui/button'
+import { AppAlert } from '../components/AppAlert'
 import type { Trip } from '../types'
 
 export function PopupApp() {
@@ -35,14 +36,16 @@ export function PopupApp() {
       </header>
       <main className="popup-content stack">
         {warnings.map((warning, index) => (
-          <div className={`alert-inline ${warning.level}`} key={index}>
-            <div><strong>{warning.title ?? 'Heads up'}</strong><span>{warning.message}</span></div>
-            {warning.action ? (
-              <Button size="sm" variant="secondary" onClick={() => warning.action!.url.startsWith('#') ? chrome.runtime.openOptionsPage() : chrome.tabs.create({ url: warning.action!.url })}>
-                {warning.action.label}
-              </Button>
-            ) : null}
-          </div>
+          <AppAlert
+            key={index}
+            variant={warning.level === 'error' ? 'error' : 'warning'}
+            title={warning.title ?? 'Heads up'}
+            message={warning.message}
+            action={warning.action ? {
+              label: warning.action.label,
+              onClick: () => warning.action!.url.startsWith('#') ? chrome.runtime.openOptionsPage() : chrome.tabs.create({ url: warning.action!.url }),
+            } : undefined}
+          />
         ))}
         {state.trips.length ? state.trips.map(trip => (
           <TripCard key={trip.id} trip={trip} compact onStart={start} onPause={pause} />

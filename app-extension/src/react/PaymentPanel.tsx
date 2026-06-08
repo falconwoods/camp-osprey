@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Lock } from 'lucide-react'
+import { CircleAlert, Lock, ShieldCheck } from 'lucide-react'
 import { savePayment } from '../storage'
 import { getTrips, updateTrip } from '../tripStore'
 import { Button } from '../components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { LoadingButton } from '../components/ui/loading-button'
@@ -41,22 +40,36 @@ export function PaymentPanel({
 }) {
   const [form, setForm] = useState<PaymentForm>(payment ?? emptyPayment)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof PaymentForm, string>>>({})
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState<'save' | 'delete' | null>(null)
 
   useEffect(() => setForm(payment ?? emptyPayment), [payment])
 
   const signedIn = Boolean(auth?.user)
-  const update = (key: keyof PaymentForm, value: string) => setForm({ ...form, [key]: value })
+  const update = (key: keyof PaymentForm, value: string) => {
+    setForm({ ...form, [key]: value })
+    setFieldErrors(errors => ({ ...errors, [key]: undefined }))
+    setError('')
+    setSaved(false)
+  }
 
   function validPayment(): PaymentConfig | null {
     const normalized = { ...form, cardNumber: form.cardNumber.replace(/\D/g, ''), cardExpiry: form.cardExpiry.replace(/\s/g, ''), billingPostal: form.billingPostal.toUpperCase() }
-    if (!/^\d{13,19}$/.test(normalized.cardNumber) || !passesLuhn(normalized.cardNumber)) return setErrorAndNull('Enter a valid card number.')
-    if (!/^[A-Za-z][A-Za-z .'-]{1,79}$/.test(normalized.cardHolder)) return setErrorAndNull('Enter the name on the card.')
-    if (!isValidExpiry(normalized.cardExpiry)) return setErrorAndNull('Enter a future expiry date as MM/YY.')
-    if (!/^\d{3,4}$/.test(normalized.cardCvv)) return setErrorAndNull('Enter a 3 or 4 digit CVV.')
-    if (normalized.billingAddress.trim().length < 5) return setErrorAndNull('Enter a billing address.')
-    if (!/^[A-Za-z0-9][A-Za-z0-9 -]{2,11}$/.test(normalized.billingPostal)) return setErrorAndNull('Enter a valid postal or zip code.')
+    const errors: Partial<Record<keyof PaymentForm, string>> = {}
+    if (!/^\d{13,19}$/.test(normalized.cardNumber) || !passesLuhn(normalized.cardNumber)) errors.cardNumber = 'Enter a valid card number.'
+    if (!/^[A-Za-z][A-Za-z .'-]{1,79}$/.test(normalized.cardHolder)) errors.cardHolder = 'Enter the name on the card.'
+    if (!isValidExpiry(normalized.cardExpiry)) errors.cardExpiry = 'Enter a future expiry date as MM/YY.'
+    if (!/^\d{3,4}$/.test(normalized.cardCvv)) errors.cardCvv = 'Enter a 3 or 4 digit CVV.'
+    if (normalized.billingAddress.trim().length < 5) errors.billingAddress = 'Enter a billing address.'
+    if (!/^[A-Za-z0-9][A-Za-z0-9 -]{2,11}$/.test(normalized.billingPostal)) errors.billingPostal = 'Enter a valid postal or zip code.'
+
+    const firstError = Object.values(errors)[0]
+    if (firstError) {
+      setFieldErrors(errors)
+      return setErrorAndNull(firstError)
+    }
+    setFieldErrors({})
     setError('')
     return normalized
   }
@@ -72,6 +85,7 @@ export function PaymentPanel({
     setLoading('save')
     try {
       await savePayment(next)
+      setForm(next)
       setSaved(true)
       await onChanged()
     } finally {
@@ -90,6 +104,7 @@ export function PaymentPanel({
       activeAutoPayTrips.forEach(trip => chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: trip.id }))
       chrome.storage.local.remove('campOspreyTarget')
       setForm(emptyPayment)
+      setSaved(false)
       await onChanged()
     } finally {
       setLoading(null)
@@ -97,40 +112,67 @@ export function PaymentPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Park Payment</CardTitle>
-      </CardHeader>
-      <CardContent className="stack">
-        <div className="local-note"><Lock size={16} /> Stored locally on this device only. Used only for BC Parks auto-pay checkout.</div>
+    <div className={`payment-card ${signedIn ? '' : 'locked'}`}>
+      <div className="payment-card-header">
+        <div>
+          <div className="payment-title-row">
+            <h2>Park Payment</h2>
+            <span className="payment-pill"><ShieldCheck size={14} /> Only stored locally on this device.</span>
+          </div>
+          <p className="payment-copy">Used only in auto-pay mode to complete park booking checkout, not for campsoon app payments.</p>
+        </div>
+      </div>
+      <div className="payment-form">
         {!signedIn ? (
-          <div className="alert-inline warn">
-            Sign in to add or edit payment information.
-            <Button size="sm" onClick={onSignIn}>Sign in</Button>
+          <div className="payment-info">
+            <CircleAlert size={18} />
+            <div><strong>Sign in to add or edit payment information.</strong><br />Your payment details are stored locally on this device only.</div>
           </div>
         ) : null}
-        <div className="form-grid">
-          <Field label="Card number"><Input disabled={!signedIn} value={form.cardNumber} onChange={e => update('cardNumber', e.target.value)} inputMode="numeric" autoComplete="cc-number" /></Field>
-          <Field label="Name on card"><Input disabled={!signedIn} value={form.cardHolder} onChange={e => update('cardHolder', e.target.value)} autoComplete="cc-name" /></Field>
-          <Field label="Expiry date"><Input disabled={!signedIn} value={form.cardExpiry} onChange={e => update('cardExpiry', e.target.value)} placeholder="MM/YY" autoComplete="cc-exp" /></Field>
-          <Field label="CVV"><Input disabled={!signedIn} value={form.cardCvv} onChange={e => update('cardCvv', e.target.value)} type="password" inputMode="numeric" autoComplete="cc-csc" /></Field>
-          <Field label="Billing address" className="span-2"><Input disabled={!signedIn} value={form.billingAddress} onChange={e => update('billingAddress', e.target.value)} /></Field>
-          <Field label="Postal / Zip code" className="span-2"><Input disabled={!signedIn} value={form.billingPostal} onChange={e => update('billingPostal', e.target.value)} /></Field>
+        <div className="payment-grid">
+          <Field id="card-number" label="Card number" error={fieldErrors.cardNumber}>
+            <Input id="card-number" className={fieldErrors.cardNumber ? 'invalid' : ''} disabled={!signedIn} value={form.cardNumber} onChange={e => update('cardNumber', e.target.value)} inputMode="numeric" autoComplete="cc-number" maxLength={23} placeholder="Card number" aria-invalid={Boolean(fieldErrors.cardNumber)} aria-describedby="error-card-number" />
+          </Field>
+          <Field id="card-holder" label="Name on card" error={fieldErrors.cardHolder}>
+            <Input id="card-holder" className={fieldErrors.cardHolder ? 'invalid' : ''} disabled={!signedIn} value={form.cardHolder} onChange={e => update('cardHolder', e.target.value)} autoComplete="cc-name" maxLength={80} placeholder="Full name as shown on card" aria-invalid={Boolean(fieldErrors.cardHolder)} aria-describedby="error-card-holder" />
+          </Field>
+          <Field id="card-expiry" label="Expiry date" error={fieldErrors.cardExpiry}>
+            <Input id="card-expiry" className={fieldErrors.cardExpiry ? 'invalid' : ''} disabled={!signedIn} value={form.cardExpiry} onChange={e => update('cardExpiry', e.target.value)} placeholder="MM/YY" inputMode="numeric" autoComplete="cc-exp" maxLength={5} aria-invalid={Boolean(fieldErrors.cardExpiry)} aria-describedby="error-card-expiry" />
+          </Field>
+          <Field id="card-cvv" label="CVV" error={fieldErrors.cardCvv}>
+            <Input id="card-cvv" className={fieldErrors.cardCvv ? 'invalid' : ''} disabled={!signedIn} value={form.cardCvv} onChange={e => update('cardCvv', e.target.value)} type="password" inputMode="numeric" autoComplete="cc-csc" maxLength={4} placeholder="CVV" aria-invalid={Boolean(fieldErrors.cardCvv)} aria-describedby="error-card-cvv" />
+          </Field>
+          <Field id="billing-address" label="Billing address" className="payment-field-full" error={fieldErrors.billingAddress}>
+            <Input id="billing-address" className={fieldErrors.billingAddress ? 'invalid' : ''} disabled={!signedIn} value={form.billingAddress} onChange={e => update('billingAddress', e.target.value)} autoComplete="billing street-address" maxLength={160} placeholder="Street address" aria-invalid={Boolean(fieldErrors.billingAddress)} aria-describedby="error-billing-address" />
+          </Field>
+          <Field id="billing-postal" label="Postal / Zip code" className="payment-field-full" error={fieldErrors.billingPostal}>
+            <Input id="billing-postal" className={fieldErrors.billingPostal ? 'invalid' : ''} disabled={!signedIn} value={form.billingPostal} onChange={e => update('billingPostal', e.target.value)} autoComplete="billing postal-code" maxLength={12} placeholder="Postal / Zip code" aria-invalid={Boolean(fieldErrors.billingPostal)} aria-describedby="error-billing-postal" />
+          </Field>
         </div>
         {error ? <div className="alert-inline error">{error}</div> : null}
         {saved && isValidParkPayment(form) ? <div className="alert-inline success">Payment info saved.</div> : null}
-        <div className="button-row">
-          <Button variant="secondary" onClick={() => setForm(payment ?? emptyPayment)}>Cancel</Button>
-          {payment ? <LoadingButton variant="destructive" onClick={remove} loading={loading === 'delete'} loadingText="Deleting...">Delete Payment Info</LoadingButton> : null}
-          <LoadingButton onClick={save} disabled={!signedIn} loading={loading === 'save'} loadingText="Saving...">Save Payment Info</LoadingButton>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="payment-local-note"><Lock size={14} /> Your payment details are stored locally on this device only.</div>
+      <div className="payment-actions">
+        {signedIn ? <LoadingButton variant="secondary" onClick={remove} loading={loading === 'delete'} loadingText="Deleting...">Delete Payment Info</LoadingButton> : null}
+        {signedIn ? (
+          <LoadingButton onClick={save} loading={loading === 'save'} loadingText="Saving...">Save Payment Info</LoadingButton>
+        ) : (
+          <Button onClick={onSignIn}>Sign in to save payment info</Button>
+        )}
+      </div>
+    </div>
   )
 }
 
-function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
-  return <div className={`field ${className ?? ''}`}><Label>{label}</Label>{children}</div>
+function Field({ id, label, className, error, children }: { id: string; label: string; className?: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div className={`payment-field ${className ?? ''}`}>
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+      <div className={`field-error ${error ? 'show' : ''}`} id={`error-${id}`}>{error ?? ''}</div>
+    </div>
+  )
 }
 
 function isActiveAutoPayTrip(trip: Trip): boolean {

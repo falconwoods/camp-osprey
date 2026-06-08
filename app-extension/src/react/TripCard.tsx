@@ -130,10 +130,16 @@ export function TripCard({
                   {trip.status === 'reserved' || trip.status === 'paid' ? 'Scan Again' : 'Start'}
                 </LoadingButton>
               ) : null}
-              {onEdit ? <Button className="trip-action-button" variant="secondary" onClick={() => onEdit(trip)}><Edit3 size={18} /> Edit</Button> : null}
+              {onEdit ? (
+                <Button className="trip-action-button trip-action-icon-on-tight" variant="secondary" onClick={() => onEdit(trip)} aria-label="Edit trip" title="Edit trip">
+                  <Edit3 size={18} />
+                  <span className="trip-action-label">Edit</span>
+                </Button>
+              ) : null}
               {onDelete ? (
-                <LoadingButton className="trip-action-button trip-action-danger" variant="destructive" onClick={deleteTrip} loading={deleting} loadingText="Deleting...">
-                  <Trash2 size={18} /> Delete
+                <LoadingButton className="trip-action-button trip-action-icon-on-tight" variant="secondary" onClick={deleteTrip} loading={deleting} loadingText="Deleting..." aria-label="Delete trip" title="Delete trip">
+                  <Trash2 size={18} />
+                  <span className="trip-action-label">Delete</span>
                 </LoadingButton>
               ) : null}
             </div>
@@ -217,7 +223,7 @@ function statusDisplay(trip: Trip): { title: string; detail: string; time: strin
   const time = checkedAt ? `Last checked ${relativeTime(checkedAt)}` : 'Not checked yet'
 
   if (trip.status === 'scanning') return { title: 'Monitoring', detail: 'Checking availability', time }
-  if (trip.status === 'paused') return { title: 'Paused', detail: 'Will notify you when a site becomes available', time }
+  if (trip.status === 'idle' || trip.status === 'paused') return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
   if (trip.status === 'reserved' || trip.status === 'paid') {
     const confirmedAt = lastActivity ? formatDateTime(lastActivity) : ''
     return {
@@ -228,7 +234,7 @@ function statusDisplay(trip: Trip): { title: string; detail: string; time: strin
   }
   if (trip.status === 'reserving') return { title: 'Reserving', detail: 'Completing reservation', time }
   if (trip.status === 'failed') return { title: 'Failed', detail: 'Needs attention before scanning', time }
-  return { title: 'Ready', detail: `Ready to start ${modeLabel(trip.mode)}`, time }
+  return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
 }
 
 function relativeTime(value: string): string {
