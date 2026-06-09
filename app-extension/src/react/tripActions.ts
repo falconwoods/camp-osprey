@@ -5,6 +5,7 @@ import { getClientId, getStorage } from '../storage'
 import { deleteTrip, getTrips, saveTrip, updateTrip } from '../tripStore'
 import type { DateRange, Park, PaymentConfig, Trip } from '../types'
 import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig } from '../extensionConfig'
+import { requestScanLease } from '../serverApi'
 
 export function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
   if (!payment) return false
@@ -31,9 +32,10 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<{ o
   if (trip?.mode === 'autopay' && !isValidParkPayment((await getStorage()).payment)) {
     return { ok: false, reason: 'payment' }
   }
+  const scanLease = await requestScanLease(tripId)
   chrome.storage.local.remove('campOspreyTarget')
   await updateTrip(tripId, { status: 'scanning', lastMatch: null, attempted: [] })
-  chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId, resetActiveMatch: true })
+  chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId, resetActiveMatch: true, scanLease })
   return { ok: true }
 }
 

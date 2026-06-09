@@ -1,6 +1,6 @@
 import { getAuth, getClientId, saveAuth } from './storage'
 import { BACKEND_BASE_URL, EXTENSION_CHANNEL } from './config'
-import type { ClientInfo, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, Trip } from './types'
+import type { ClientInfo, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, ScanLease, Trip } from './types'
 
 export class ServerApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -72,6 +72,7 @@ export interface NotifyUserResultPayload {
   matchedSite?: MatchedSite
   error?: string
   sendEmail?: boolean
+  scanLease?: string
   tripSnapshot?: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>
 }
 
@@ -143,6 +144,15 @@ export async function notifyUserResult(
     method: 'POST',
     auth: true,
     body: JSON.stringify({ ...payload, clientId, clientInfo }),
+  })
+}
+
+export async function requestScanLease(tripId: string): Promise<ScanLease> {
+  const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
+  return serverFetch<ScanLease>(`/api/trips/${encodeURIComponent(tripId)}/scan-lease`, {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({ clientId, clientInfo }),
   })
 }
 
@@ -224,6 +234,7 @@ export interface BookingPaymentEventPayload {
   tripId?: string
   clientEventId?: string
   idempotencyKey?: string
+  scanLease?: string
   provider: 'bc_parks'
   confirmationNumber?: string
   providerReservationId?: string

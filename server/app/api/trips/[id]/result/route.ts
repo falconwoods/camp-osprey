@@ -7,6 +7,7 @@ import { sendEmail, buildResultEmail } from '@/lib/email';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 import { logger } from '../../../../../lib/loki';
 import { buildRequestContext, normalizeRequestClientInfo } from '../../../../../lib/request-context';
+import { verifyScanLease } from '../../../../../lib/scan-lease';
 
 type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
 
@@ -64,6 +65,7 @@ export async function POST(
     error?: string;
     sendEmail?: boolean;
     tripSnapshot?: TripSnapshot;
+    scanLease?: unknown;
   };
 
   const { outcome, clientId, matchedSite, error: bookingError, sendEmail: shouldSendEmail = true, tripSnapshot } = body;
@@ -72,11 +74,39 @@ export async function POST(
     .select()
     .from(trips)
     .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)));
+  let leaseVerified = false;
 
   if (!trip && tripSnapshot) {
     const createdAt = parseDate(tripSnapshot.createdAt) ?? new Date();
     const updatedAt = parseDate(tripSnapshot.updatedAt) ?? createdAt;
     const deletedAt = tripSnapshot.deletedAt === null ? null : parseDate(tripSnapshot.deletedAt);
+    const leaseTrip = {
+      id,
+      userId: session.user.id,
+      clientId,
+      name: tripSnapshot.name,
+      parks: tripSnapshot.parks,
+      dateRanges: tripSnapshot.dateRanges,
+      filters: tripSnapshot.filters,
+      mode: tripSnapshot.mode,
+      status: tripSnapshot.status ?? 'idle',
+      updatedAt,
+    };
+    try {
+      verifyScanLease({
+        lease: body.scanLease,
+        userId: session.user.id,
+        trip: leaseTrip,
+        clientId,
+      });
+      leaseVerified = true;
+    } catch (err) {
+      return withExtensionCors(
+        request,
+        NextResponse.json({ error: err instanceof Error ? err.message : 'invalid_scan_lease' }, { status: 403 }),
+      );
+    }
+
     [trip] = await db.insert(trips).values({
       id,
       userId:     session.user.id,
@@ -107,6 +137,23 @@ export async function POST(
       NextResponse.json({ error: 'Not found' }, { status: 404 }),
     );
   }
+
+  if (!leaseVerified) {
+    try {
+      verifyScanLease({
+        lease: body.scanLease,
+        userId: session.user.id,
+        trip,
+        clientId,
+      });
+    } catch (err) {
+      return withExtensionCors(
+        request,
+        NextResponse.json({ error: err instanceof Error ? err.message : 'invalid_scan_lease' }, { status: 403 }),
+      );
+    }
+  }
+
   const resultContext = {
     tripId: id,
     userId: session.user.id,

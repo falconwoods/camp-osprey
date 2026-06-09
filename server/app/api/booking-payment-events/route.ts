@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
+import { and, eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { trips } from '@/db/schema';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 import { normalizeBookingPaymentEventBody, recordBookingPaymentEventInDb } from '@/lib/booking-payment-events';
 import { getSuccessfulBookingPointCost } from '@/lib/points-config';
 import { buildRequestContext, normalizeRequestClientInfo } from '@/lib/request-context';
 import { getSession } from '@/lib/session';
 import { logger } from '../../../lib/loki';
+import { verifyScanLease } from '../../../lib/scan-lease';
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -44,6 +48,36 @@ export async function POST(request: Request) {
     typeof (body as { clientId?: unknown }).clientId === 'string' ? (body as { clientId: string }).clientId : undefined,
     normalizeRequestClientInfo(body),
   );
+  const clientId = typeof (body as { clientId?: unknown }).clientId === 'string'
+    ? (body as { clientId: string }).clientId
+    : undefined;
+
+  if (!event.tripId) {
+    return withExtensionCors(request, NextResponse.json({ error: 'tripId_required' }, { status: 400 }));
+  }
+
+  const [trip] = await db
+    .select()
+    .from(trips)
+    .where(and(eq(trips.id, event.tripId), eq(trips.userId, session.user.id)));
+
+  if (!trip) {
+    return withExtensionCors(request, NextResponse.json({ error: 'Trip not found' }, { status: 404 }));
+  }
+
+  try {
+    verifyScanLease({
+      lease: (body as { scanLease?: unknown }).scanLease,
+      userId: session.user.id,
+      trip,
+      clientId,
+    });
+  } catch (err) {
+    return withExtensionCors(
+      request,
+      NextResponse.json({ error: err instanceof Error ? err.message : 'invalid_scan_lease' }, { status: 403 }),
+    );
+  }
 
   const result = await recordBookingPaymentEventInDb({
     userId: session.user.id,

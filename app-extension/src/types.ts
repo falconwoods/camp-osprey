@@ -106,6 +106,13 @@ export interface ClientInfo {
   platformNaclArch?: string
 }
 
+export interface ScanLease {
+  lease: string
+  leaseId: string
+  expiresAt: string
+  tripHash: string
+}
+
 export type ExtensionChannel = 'chrome_store' | 'website'
 export type RolloutState = 'hidden' | 'available' | 'paused'
 

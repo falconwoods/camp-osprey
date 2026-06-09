@@ -54,6 +54,7 @@ interface TargetSite {
   checkIn: string   // ISO date — needed to build the attempted key on failure
   checkOut: string
   availableCount?: number
+  scanLease?: string
   setAt: number
 }
 
@@ -702,7 +703,7 @@ async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay')
       // For hold: site is now locked in cart with 15-min timer — user pays manually
       setStatus('Site reserved for 15 min — complete payment now!')
       dbg('reserved complete — site in cart')
-      chrome.runtime.sendMessage({ type: 'BOOKING_RESERVED', tripId })
+      chrome.runtime.sendMessage({ type: 'BOOKING_RESERVED', tripId, scanLease: activeTargetSite?.scanLease })
       chrome.storage.local.remove('campOspreyTarget')
       return
     }
@@ -788,6 +789,7 @@ async function runCheckout(tripId: string): Promise<void> {
     chrome.runtime.sendMessage({
       type: 'BOOKING_CONFIRMED',
       tripId,
+      scanLease: activeTargetSite?.scanLease,
       provider: 'bc_parks',
       confirmationNumber,
       bookingUrl: window.location.href,
@@ -917,6 +919,6 @@ async function runCheckout(tripId: string): Promise<void> {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
     dbg('runCheckout error', errorMessage)
-    chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: errorMessage })
+    chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: errorMessage, scanLease: activeTargetSite?.scanLease })
   }
 }

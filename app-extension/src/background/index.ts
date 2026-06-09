@@ -2,9 +2,9 @@ import { BCParksProvider } from '../providers/bcparks'
 import { getStorage, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
-import type { AvailableSite, DebugLogEntry, MatchedSite, Trip } from '../types'
+import type { AvailableSite, DebugLogEntry, MatchedSite, ScanLease, Trip } from '../types'
 import { validateAuth } from '../auth'
-import { notifyUserResult, sendBookingPaymentEvent } from '../serverApi'
+import { notifyUserResult, requestScanLease, sendBookingPaymentEvent } from '../serverApi'
 import type { BookingPaymentEventPayload } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
 import { getTrips, updateTrip } from '../tripStore'
@@ -27,6 +27,7 @@ const pendingScanTripIds = new Set<string>()
 const stoppedTripIds = new Set<string>()
 const activeTripControllers = new Map<string, AbortController>()
 const activeMatchKeys = new Set<string>()
+const activeScanLeases = new Map<string, ScanLease>()
 const authNotificationKeys = new Set<string>()
 const AUTH_NOTIFICATION_SUPPRESSIONS_KEY = 'campOspreyAuthNotificationSuppressions'
 type AuthNotificationKind = 'server' | 'bcparks'
@@ -58,6 +59,37 @@ function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
 
 function storageSet(values: Record<string, unknown>): Promise<void> {
   return new Promise(resolve => chrome.storage.local.set(values, () => resolve()))
+}
+
+function isScanLease(value: unknown): value is ScanLease {
+  if (!value || typeof value !== 'object') return false
+  const lease = value as Partial<ScanLease>
+  return typeof lease.lease === 'string'
+    && typeof lease.leaseId === 'string'
+    && typeof lease.expiresAt === 'string'
+    && typeof lease.tripHash === 'string'
+}
+
+function scanLeaseExpiresSoon(scanLease: ScanLease): boolean {
+  const expiresAt = new Date(scanLease.expiresAt).getTime()
+  return !Number.isFinite(expiresAt) || expiresAt - Date.now() < 90_000
+}
+
+async function getScanLeaseForTrip(trip: Trip): Promise<ScanLease> {
+  const cached = activeScanLeases.get(trip.id)
+  if (cached && !scanLeaseExpiresSoon(cached)) return cached
+
+  const scanLease = await requestScanLease(trip.id)
+  activeScanLeases.set(trip.id, scanLease)
+  await logEntry({
+    level: 'debug',
+    event: 'scan_lease_acquired',
+    message: 'Scan lease acquired',
+    tripId: trip.id,
+    tripName: trip.name,
+    metadata: { leaseId: scanLease.leaseId, expiresAt: scanLease.expiresAt },
+  })
+  return scanLease
 }
 
 function isConfirmedBookingPaymentPayload(value: unknown): value is ConfirmedBookingPaymentPayload {
@@ -133,6 +165,7 @@ function buildBookingPaymentEvent(
   match: MatchedSite,
   confirmationNumber: string | undefined,
   paidAt: string,
+  scanLease: string | undefined,
   bookingUrl?: string,
 ): ConfirmedBookingPaymentPayload {
   const normalizedConfirmation = confirmationNumber?.trim() || undefined
@@ -140,6 +173,7 @@ function buildBookingPaymentEvent(
     tripId: trip.id,
     clientEventId: `booking-confirmed:${trip.id}:${paidAt}`,
     idempotencyKey: bookingPaymentIdempotencyKey(trip, match, normalizedConfirmation, paidAt),
+    scanLease,
     provider: 'bc_parks',
     confirmationNumber: normalizedConfirmation,
     parkName: match.parkName,
@@ -431,6 +465,20 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         continue
       }
       await clearAuthIssue('server', trip.id)
+      let scanLease: ScanLease
+      try {
+        scanLease = await getScanLeaseForTrip(trip)
+      } catch (err) {
+        await logEntry({
+          level: 'error',
+          event: 'scan_lease_failed',
+          message: 'Could not acquire scan lease; skipping trip',
+          tripId: trip.id,
+          tripName: trip.name,
+          error: err instanceof Error ? err.message : String(err),
+        }, { forceServerSync: true })
+        continue
+      }
 
       const loggedIn = await isLoggedIn()
       const needsLogin = trip.mode !== 'alert' && !loggedIn
@@ -522,7 +570,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           return results
         }, () => !stoppedTripIds.has(trip.id) && !controller.signal.aborted)
         if (site) {
-          await handleMatch(trip, site, settings.emailOnSiteFound ?? false)
+          await handleMatch(trip, site, scanLease.lease, settings.emailOnSiteFound ?? false)
         } else if (stoppedTripIds.has(trip.id) || controller.signal.aborted) {
           if (debug) await logEntry({
             level: 'debug',
@@ -602,7 +650,12 @@ function isSameMatch(match: MatchedSite | null, site: AvailableSite): boolean {
     match.checkOut === site.checkOut
 }
 
-async function reportFoundResult(trip: Trip, matchedSite: MatchedSite, sendEmail: boolean): Promise<void> {
+async function reportFoundResult(
+  trip: Trip,
+  matchedSite: MatchedSite,
+  scanLease: string,
+  sendEmail: boolean,
+): Promise<void> {
   try {
     await logEntry({
       level: 'info',
@@ -620,6 +673,7 @@ async function reportFoundResult(trip: Trip, matchedSite: MatchedSite, sendEmail
       outcome: 'found',
       matchedSite,
       sendEmail,
+      scanLease,
       tripSnapshot: {
         name: trip.name,
         parks: trip.parks,
@@ -656,7 +710,12 @@ async function reportFoundResult(trip: Trip, matchedSite: MatchedSite, sendEmail
   }
 }
 
-async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: boolean): Promise<void> {
+async function handleMatch(
+  trip: Trip,
+  site: AvailableSite,
+  scanLease: string,
+  emailOnSiteFound: boolean,
+): Promise<void> {
   const key = activeMatchKey(trip.id, site)
   if (activeMatchKeys.has(key) || isSameMatch(trip.lastMatch, site)) {
     await logEntry({
@@ -713,7 +772,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
     metadata: { availableCount },
   })
 
-  await reportFoundResult(trip, matchedSite, emailOnSiteFound)
+  await reportFoundResult(trip, matchedSite, scanLease, emailOnSiteFound)
 
   if (trip.mode === 'alert') {
     await notify(
@@ -745,6 +804,7 @@ async function handleMatch(trip: Trip, site: AvailableSite, emailOnSiteFound: bo
         checkOut: site.checkOut,
         availableCount,
         foundAt,
+        scanLease,
         setAt: Date.now(),
       },
     }, resolve)
@@ -842,14 +902,15 @@ chrome.runtime.onMessage.addListener((msg: {
   siteName?: string
   checkIn?: string
   checkOut?: string
-	  metadata?: Record<string, unknown>
-	  confirmationNumber?: string
-	  bookingUrl?: string
-	  paidAt?: string
-	  error?: string
-	  attemptKey?: string
-	  resetActiveMatch?: boolean
-	}) => {
+  metadata?: Record<string, unknown>
+  confirmationNumber?: string
+  bookingUrl?: string
+  paidAt?: string
+  error?: string
+  attemptKey?: string
+  resetActiveMatch?: boolean
+  scanLease?: unknown
+}) => {
   if (msg.type === 'CONTENT_DEBUG_LOG') {
     void addDebugLog({
       level: msg.level ?? 'info',
@@ -865,6 +926,7 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.type === 'SCAN_NOW') {
+    if (msg.tripId && isScanLease(msg.scanLease)) activeScanLeases.set(msg.tripId, msg.scanLease)
     if (msg.tripId) stoppedTripIds.delete(msg.tripId)
     if (msg.tripId && msg.resetActiveMatch) clearActiveMatchesForTrip(msg.tripId)
     chrome.storage.local.remove('campOspreyTarget')
@@ -948,6 +1010,7 @@ chrome.runtime.onMessage.addListener((msg: {
             const result = await notifyUserResult(msg.tripId!, {
               outcome: 'hold_placed',
               matchedSite: match,
+              scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
               tripSnapshot: {
                 name: trip.name,
                 parks: trip.parks,
@@ -998,7 +1061,14 @@ chrome.runtime.onMessage.addListener((msg: {
         : ''
       const match = m ? { ...m, paidAt } : undefined
       const paymentEvent = trip && match
-        ? buildBookingPaymentEvent(trip, match, msg.confirmationNumber, paidAt, msg.bookingUrl)
+        ? buildBookingPaymentEvent(
+          trip,
+          match,
+          msg.confirmationNumber,
+          paidAt,
+          typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
+          msg.bookingUrl,
+        )
         : null
       void logEntry({
         level: 'info',
@@ -1041,6 +1111,7 @@ chrome.runtime.onMessage.addListener((msg: {
             outcome: 'booked',
             matchedSite: match,
             sendEmail: true,
+            scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
             tripSnapshot: {
               name: trip.name,
               parks: trip.parks,
@@ -1112,6 +1183,7 @@ chrome.runtime.onMessage.addListener((msg: {
             matchedSite: m ?? undefined,
             error: msg.error ?? 'Unknown error',
             sendEmail: true,
+            scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
             tripSnapshot: {
               name: trip.name,
               parks: trip.parks,

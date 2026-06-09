@@ -10,6 +10,7 @@
     "build": "wxt build",
     "build:development": "wxt build --mode development",
     "build:production": "wxt build --mode production",
+    "build:website:secure": "node scripts/clean-output.mjs && VITE_EXTENSION_CHANNEL=website wxt build --mode production && node scripts/obfuscate-output.mjs",
     "zip": "wxt zip",
     "compile": "wxt prepare && tsc --noEmit"
   },
@@ -33,6 +34,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "1.1.3",
+    "javascript-obfuscator": "^5.4.3",
     "shadcn": "^4.11.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.4.0",
