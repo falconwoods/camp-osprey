@@ -9,17 +9,17 @@ const details = {
   small_package: {
     note: "Fixed one-time purchase",
     savings: "",
-    features: ["1,000 points included", "Enough for 1 successful booking", "Charged only after a campsite is successfully booked"],
+    features: ["1,000 points included", "Enough for 1 successful booking", "Points are deducted only after a successful booking"],
   },
   standard_package: {
     note: "Save CAD $5",
     savings: "text-green-600 font-medium",
-    features: ["3,000 points included", "Enough for 3 successful bookings", "Charged only after a campsite is successfully booked"],
+    features: ["3,000 points included", "Enough for 3 successful bookings", "Points are deducted only after a successful booking"],
   },
   value_package: {
     note: "Save CAD $10",
     savings: "text-green-600 font-medium",
-    features: ["5,000 points included", "Enough for 5 successful bookings", "Charged only after a campsite is successfully booked"],
+    features: ["5,000 points included", "Enough for 5 successful bookings", "Points are deducted only after a successful booking"],
   },
 };
 ---
@@ -28,7 +28,7 @@ const details = {
   <div class="mx-auto max-w-7xl px-6 lg:px-8">
     <div class="mx-auto max-w-2xl text-center">
       <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Performance-Based Packages</h2>
-      <p class="mt-4 text-lg text-slate-600">Point packages are used for successful campsite bookings. Creating monitors is free, and unused points stay in your balance.</p>
+      <p class="mt-4 text-lg text-slate-600">Point packages are one-time digital purchases used for successful campsite bookings. Creating monitors is free, and unused points stay in your balance.</p>
     </div>
 
     <div class="mx-auto mt-16 grid max-w-sm grid-cols-1 gap-y-10 sm:mt-20 lg:max-w-none lg:grid-cols-3 lg:gap-x-8">
@@ -54,7 +54,7 @@ const details = {
                 </ul>
               </div>
               <p class="mt-8 rounded-md bg-slate-50 px-4 py-3 text-sm font-medium leading-6 text-slate-600">
-                Purchase and account management are available inside the CampSoon Chrome extension.
+                Purchases are completed through Stripe Checkout inside the CampSoon Chrome extension.
               </p>
             </div>
           );

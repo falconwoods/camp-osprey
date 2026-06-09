@@ -4,10 +4,10 @@ import Meta from "@/components/fundations/head/Meta.astro";
 import Fonts from "@/components/fundations/head/Fonts.astro";
 import Favicons from "@/components/fundations/head/Favicons.astro";
 
+const { robots = "index, follow" } = Astro.props;
 ---
 <Seo />
-<Meta />
+<Meta robots={robots} />
 <Fonts />
 <Favicons />
-
 

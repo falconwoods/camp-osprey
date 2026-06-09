@@ -7,12 +7,12 @@ import Footer from "@/components/global/Footer.astro";
 import Navbar from "@/components/global/Navbar.astro";
 // Hides the  navigation, or footer on selected screens by passing props:
 // <BaseLayout hideNavigation={true} hideFooter={true}>
-const { hideNavigation = false, hideFooter = false } = Astro.props;
+const { hideNavigation = false, hideFooter = false, robots = "index, follow" } = Astro.props;
 ---
 
 <html lang="en" class="scroll-smooth">
   <head>
-    <BaseHead />
+    <BaseHead robots={robots} />
   </head>
   <body class="flex flex-col bg-white min-h-dvh">
     {!hideNavigation && <Navbar />}
