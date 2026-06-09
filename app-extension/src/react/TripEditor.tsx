@@ -5,12 +5,14 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { LoadingButton } from '../components/ui/loading-button'
 import { Select } from '../components/ui/select'
+import { APP_CONFIG } from '../config'
 import type { DateRange, Park, Trip } from '../types'
 import { describeRange } from './format'
 import { isValidParkPayment, saveTripDraft, startTripNow } from './tripActions'
 
 const provider = new BCParksProvider()
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const successfulBookingPointCostLabel = APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
 
 export function TripEditor({
   trip,
@@ -276,8 +278,8 @@ export function TripEditor({
               <strong>{modeLabel(mode)}</strong>
               <ul>
                 {mode === 'alert' ? <><li>Sends an alert when a matching site is found.</li><li>Free: no points are deducted.</li></> : null}
-                {mode === 'hold' ? <><li>Holds a matching reservation for you to complete payment manually.</li><li>500 points are deducted only after you successfully pay the held reservation.</li></> : null}
-                {mode === 'autopay' ? <><li>Holds the reservation and completes payment automatically.</li><li>500 points are deducted only after reservation and payment both succeed.</li></> : null}
+                {mode === 'hold' ? <><li>Holds a matching reservation for you to complete payment manually.</li><li>{successfulBookingPointCostLabel} points are deducted only after you successfully pay the held reservation.</li></> : null}
+                {mode === 'autopay' ? <><li>Holds the reservation and completes payment automatically.</li><li>{successfulBookingPointCostLabel} points are deducted only after reservation and payment both succeed.</li></> : null}
               </ul>
               {mode === 'autopay' ? <div className="mode-help-action"><span>Auto-pay requires payment info in Settings &gt; Park Payment.</span><button type="button" onClick={onNeedsPayment}>Set up Park Payment</button></div> : null}
             </div>

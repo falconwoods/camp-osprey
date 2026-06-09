@@ -39,8 +39,8 @@ function tabFromHash(): Tab {
 }
 
 export function OptionsApp() {
-  const state = useExtensionState()
   const [tab, setTab] = useState<Tab>(() => location.hash.replace('#', '') === 'auth' ? 'account' : tabFromHash())
+  const state = useExtensionState({ syncTripsOnLoad: tab === 'trips' })
   const [editing, setEditing] = useState<Trip | null | undefined>(undefined)
   const [authDialogOpen, setAuthDialogOpen] = useState(() => location.hash.replace('#', '') === 'auth')
 
@@ -56,6 +56,12 @@ export function OptionsApp() {
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [tab])
+
+  useEffect(() => {
+    if (tab === 'trips' && !state.loading && !state.tripsLoaded) {
+      void state.refresh({ syncTrips: true, includeTrips: true })
+    }
+  }, [state.loading, state.refresh, state.tripsLoaded, tab])
 
   function navigate(next: Tab) {
     location.hash = next === 'trips' ? '' : next
@@ -89,7 +95,8 @@ export function OptionsApp() {
 
   const paymentValid = useMemo(() => isValidParkPayment(state.storage?.payment ?? null), [state.storage?.payment])
 
-  if (state.loading || !state.storage) return <TripsLoadingShell />
+  if (state.loading || !state.storage) return <PageLoadingShell tab={tab} />
+  if (editing === undefined && tab === 'trips' && !state.tripsLoaded) return <PageLoadingShell tab={tab} />
 
   return (
     <div className="options-shell">
@@ -151,10 +158,10 @@ export function OptionsApp() {
             onWarningRoute={route => navigate(route)}
           />
         ) : null}
-        {tab === 'account' ? <AccountPanel auth={state.auth} onChanged={state.refresh} onSignIn={openAuthDialog} /> : null}
-        {tab === 'payment' ? <PaymentPanel auth={state.auth} payment={state.storage.payment} onChanged={state.refresh} onSignIn={openAuthDialog} /> : null}
-        {tab === 'settings' ? <SettingsPanel settings={state.storage.settings} onChanged={state.refresh} /> : null}
-        {tab === 'logs' ? <LogsPanel logs={state.debugLog} onChanged={state.refresh} /> : null}
+        {tab === 'account' ? <AccountPanel auth={state.auth} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
+        {tab === 'payment' ? <PaymentPanel auth={state.auth} payment={state.storage.payment} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
+        {tab === 'settings' ? <SettingsPanel settings={state.storage.settings} onChanged={() => state.refresh({ includeTrips: false })} /> : null}
+        {tab === 'logs' ? <LogsPanel logs={state.debugLog} onChanged={() => state.refresh({ includeTrips: false })} /> : null}
       </main>
       {authDialogOpen ? (
         <div className="auth-modal-backdrop" role="presentation" onMouseDown={event => {
@@ -183,7 +190,10 @@ export function OptionsApp() {
   )
 }
 
-function TripsLoadingShell() {
+function PageLoadingShell({ tab }: { tab: Tab }) {
+  const title = tabTitle(tab)
+  const isTrips = tab === 'trips'
+
   return (
     <div className="options-shell">
       <aside className="sidebar" aria-hidden="true">
@@ -204,19 +214,19 @@ function TripsLoadingShell() {
           </div>
         </div>
       </aside>
-      <main className="options-main options-main-trips">
+      <main className={`options-main ${isTrips ? 'options-main-trips' : ''}`}>
         <header className="page-header">
           <div>
-            <h1>Trips</h1>
+            <h1>{title}</h1>
           </div>
-          <Skeleton className="h-10 w-28 rounded-md" />
+          {isTrips ? <Skeleton className="h-10 w-28 rounded-md" /> : null}
         </header>
-        <section className="trips-dashboard trip-list-loading" aria-busy="true" aria-live="polite" aria-label="Loading trips">
+        <section className={isTrips ? 'trips-dashboard trip-list-loading' : 'section'} aria-busy="true" aria-live="polite" aria-label={`Loading ${title.toLowerCase()}`}>
           <div className="account-loading-status" role="status">
             <span className="account-loading-spinner" aria-hidden="true" />
-            <span>Loading trips...</span>
+            <span>Loading {title.toLowerCase()}...</span>
           </div>
-          {Array.from({ length: 3 }, (_, index) => (
+          {isTrips ? Array.from({ length: 3 }, (_, index) => (
             <div className="ui-card trip-card trip-card-skeleton" key={index}>
               <div className="trip-card-main">
                 <div className="trip-summary">
@@ -247,7 +257,7 @@ function TripsLoadingShell() {
                 </div>
               </div>
             </div>
-          ))}
+          )) : null}
         </section>
       </main>
     </div>

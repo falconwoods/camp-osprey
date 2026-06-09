@@ -9,6 +9,7 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { LoadingButton } from '../components/ui/loading-button'
 import { Skeleton } from '../components/ui/skeleton'
+import { APP_CONFIG } from '../config'
 import type { AuthState } from '../types'
 
 const RESEND_COOLDOWN_SECONDS = 60
@@ -333,7 +334,8 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
         </div>
           <div className="point-package-grid">
             {points.packages.length ? points.packages.map(pkg => {
-              const bookingCount = Math.floor(pkg.points / points.successfulBookingPointCost)
+              const successfulBookingPointCost = points.successfulBookingPointCost || APP_CONFIG.points.successfulBookingPointCost
+              const bookingCount = Math.floor(pkg.points / successfulBookingPointCost)
               return (
                 <article className={`point-package-card ${pkg.recommended ? 'point-package-featured' : ''}`} key={pkg.id}>
                   <div className="point-package-header">

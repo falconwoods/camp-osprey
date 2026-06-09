@@ -5,3 +5,9 @@ function normalizeBaseUrl(value: string | undefined): string {
 }
 
 export const BACKEND_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL)
+
+export const APP_CONFIG = {
+  points: {
+    successfulBookingPointCost: 1000,
+  },
+} as const

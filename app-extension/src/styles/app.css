@@ -836,9 +836,10 @@ a {
 
 .point-package-card p {
   flex: 0 0 auto;
-  margin-top: 10px;
+  margin: 10px 0 18px;
   color: var(--co-text-muted);
   font-size: 13px;
+  line-height: 1.35;
 }
 
 .point-package-btn {

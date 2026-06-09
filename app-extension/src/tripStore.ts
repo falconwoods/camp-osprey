@@ -2,7 +2,7 @@ import { getAuth, getClientId } from './storage'
 import { ServerApiError, serverFetch, syncTripToServer, softDeleteTripOnServer } from './serverApi'
 import type { Trip } from './types'
 
-const TRIPS_CACHE_KEY = 'campsoonTripsCache'
+export const TRIPS_CACHE_KEY = 'campsoonTripsCache'
 
 interface TripsCache {
   authToken: string
