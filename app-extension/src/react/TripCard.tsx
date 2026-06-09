@@ -21,6 +21,9 @@ import { getTripWarnings } from '../warnings'
 import type { DateRange, Trip } from '../types'
 import { describeRange, formatDateTime, matchLine, statusDisplay } from './format'
 
+const BC_PARKS_CART_URL = 'https://camping.bcparks.ca/cart'
+const BC_PARKS_RESERVATIONS_URL = 'https://camping.bcparks.ca/account/all-bookings'
+
 export function TripCard({
   trip,
   compact = false,
@@ -47,6 +50,8 @@ export function TripCard({
   const mode = modeDisplay(trip.mode)
   const canPause = trip.status === 'scanning'
   const canStart = ['idle', 'paused', 'failed', 'reserved', 'paid'].includes(trip.status)
+  const shouldShowMatchPanel = shouldShowResultPanel(trip)
+  const matchActionUrl = resultPanelActionUrl(trip)
 
   async function startTrip() {
     if (starting) return
@@ -141,11 +146,6 @@ export function TripCard({
             </div>
 
             <div className="trip-actions-row">
-              {trip.lastMatch?.bookingUrl && trip.status !== 'paid' ? (
-                <Button className="trip-action-button trip-action-primary" variant="secondary" onClick={() => chrome.tabs.create({ url: trip.lastMatch!.bookingUrl })} data-trip-card-action>
-                  {trip.status === 'reserved' ? 'Finish Checkout' : 'Reserve Now'} <ExternalLink size={18} />
-                </Button>
-              ) : null}
               {canPause ? (
                 <LoadingButton className="trip-action-button trip-action-success" variant="secondary" onClick={pauseTrip} loading={pausing} loadingText="Pausing..." data-trip-card-action>
                   <Pause size={18} /> Pause
@@ -183,20 +183,46 @@ export function TripCard({
             ))}
           </div>
         ) : null}
-        {trip.lastMatch ? (
+        {shouldShowMatchPanel && trip.lastMatch ? (
           <div className="match-panel">
-            <div className="strong-text">{matchLine(trip.lastMatch)}</div>
-            <div className="muted">
-              {trip.lastMatch.checkIn} to {trip.lastMatch.checkOut}
-              {trip.lastMatch.paidAt ? ` / Paid ${formatDateTime(trip.lastMatch.paidAt)}` : ''}
-              {trip.lastMatch.reservedAt ? ` / Reserved ${formatDateTime(trip.lastMatch.reservedAt)}` : ''}
-              {trip.lastMatch.foundAt ? ` / Found ${formatDateTime(trip.lastMatch.foundAt)}` : ''}
+            <div className="match-panel-copy">
+              <div className="strong-text">{matchLine(trip.lastMatch)}</div>
+              <div className="muted">
+                {trip.lastMatch.checkIn} to {trip.lastMatch.checkOut}
+                {trip.lastMatch.paidAt ? ` / Paid ${formatDateTime(trip.lastMatch.paidAt)}` : ''}
+                {trip.lastMatch.reservedAt ? ` / Reserved ${formatDateTime(trip.lastMatch.reservedAt)}` : ''}
+                {trip.lastMatch.foundAt ? ` / Found ${formatDateTime(trip.lastMatch.foundAt)}` : ''}
+              </div>
             </div>
+            {matchActionUrl ? (
+              <Button className="trip-action-button match-reserve-button" variant="secondary" onClick={() => chrome.tabs.create({ url: matchActionUrl })} data-trip-card-action>
+                {resultPanelActionLabel(trip)} <ExternalLink size={17} />
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </CardContent>
     </Card>
   )
+}
+
+function shouldShowResultPanel(trip: Trip): boolean {
+  if (!trip.lastMatch) return false
+  if (trip.mode === 'alert') return true
+  return Boolean(trip.lastMatch.reservedAt || trip.lastMatch.paidAt)
+}
+
+function resultPanelActionUrl(trip: Trip): string | null {
+  if (!trip.lastMatch) return null
+  if (trip.status === 'paid') return BC_PARKS_RESERVATIONS_URL
+  if (trip.mode !== 'alert' && (trip.status === 'reserved' || trip.lastMatch.reservedAt)) return BC_PARKS_CART_URL
+  return trip.lastMatch.bookingUrl
+}
+
+function resultPanelActionLabel(trip: Trip): string {
+  if (trip.status === 'paid') return 'View Reservations'
+  if (trip.mode !== 'alert' && (trip.status === 'reserved' || trip.lastMatch?.reservedAt)) return 'Go to BC Parks to Pay'
+  return 'Reserve Now'
 }
 
 function conciseDateSummary(ranges: DateRange[]): string {

@@ -532,6 +532,14 @@ function clearActiveMatchesForTrip(tripId: string): void {
   }
 }
 
+function clearFailedActiveMatch(tripId: string, attemptKey?: string | null): void {
+  if (attemptKey) {
+    activeMatchKeys.delete(`${tripId}|${attemptKey}`)
+    return
+  }
+  clearActiveMatchesForTrip(tripId)
+}
+
 function isSameMatch(match: MatchedSite | null, site: AvailableSite): boolean {
   return !!match &&
     match.resourceId === site.resourceId &&
@@ -815,6 +823,7 @@ chrome.runtime.onMessage.addListener((msg: {
   }
   if (msg.type === 'MATCH_FAILED' && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
+    clearFailedActiveMatch(msg.tripId, msg.attemptKey)
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       if (!trip) return

@@ -33,6 +33,7 @@ export function statusDisplay(trip: Trip): { title: string; detail: string; time
     }
   }
   if (trip.status === 'reserving') return { title: 'Reserving', detail: 'Completing reservation', time }
+  if (trip.status === 'failed' && trip.mode === 'autopay') return { title: 'Payment failed', detail: 'Check the BC Parks checkout page for details', time }
   if (trip.status === 'failed') return { title: 'Failed', detail: 'Needs attention before scanning', time }
   return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
 }

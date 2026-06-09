@@ -1982,8 +1982,41 @@ a {
   border: 1px solid var(--co-border);
   border-radius: 8px;
   background: var(--co-surface-muted);
-  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
   font-size: 12px;
+}
+
+.match-panel-copy {
+  min-width: 0;
+}
+
+.match-panel .strong-text,
+.match-panel .muted {
+  overflow-wrap: anywhere;
+}
+
+.match-panel .strong-text {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.match-panel .muted {
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.match-reserve-button.ui-button-md {
+  min-width: 128px;
+  min-height: 36px;
+  border-color: rgba(37,99,235,.3);
+  background: rgba(37,99,235,.08);
+  color: #1952b8;
+  padding: 0 12px;
+  white-space: nowrap;
 }
 
 .warning-list {
@@ -2971,6 +3004,16 @@ a {
   display: none;
 }
 
+.trip-card-compact .match-panel {
+  grid-template-columns: 1fr;
+  margin: 0 12px 12px;
+  padding: 10px;
+}
+
+.trip-card-compact .match-reserve-button.ui-button-md {
+  width: 100%;
+}
+
 @media (max-width: 760px) {
   .options-shell {
     grid-template-columns: 1fr;
@@ -3094,6 +3137,16 @@ a {
 
   .trip-action-button.ui-button-md {
     flex: 1 1 120px;
+  }
+
+  .match-panel {
+    grid-template-columns: 1fr;
+    margin: 0 12px 12px;
+    padding: 10px;
+  }
+
+  .match-reserve-button.ui-button-md {
+    width: 100%;
   }
 
   .trip-editor-shell {
