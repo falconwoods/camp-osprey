@@ -1,8 +1,8 @@
 ---
 const POINT_PACKAGES = [
-  { id: "small_package", name: "Small Package", points: 1000, priceLabel: "CAD 10", stripePriceId: "price_1TgDNJDqzvH6lDJeeGBcPzZk" },
-  { id: "standard_package", name: "Standard Package", points: 3000, priceLabel: "CAD 25", stripePriceId: "price_1TgDNfDqzvH6lDJeXkSUbu0s" },
-  { id: "value_package", name: "Value Package", points: 5000, priceLabel: "CAD 40", stripePriceId: "price_1TgDRADqzvH6lDJezThN1UAs" },
+  { id: "small_package", name: "Small Package", points: 1000, priceLabel: "CAD 10" },
+  { id: "standard_package", name: "Standard Package", points: 3000, priceLabel: "CAD 25" },
+  { id: "value_package", name: "Value Package", points: 5000, priceLabel: "CAD 40" },
 ];
 
 const details = {
@@ -28,7 +28,7 @@ const details = {
   <div class="mx-auto max-w-7xl px-6 lg:px-8">
     <div class="mx-auto max-w-2xl text-center">
       <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Performance-Based Packages</h2>
-      <p class="mt-4 text-lg text-slate-600">Buy points for successful campsite bookings. Creating monitors is free, and unused points stay in your balance.</p>
+      <p class="mt-4 text-lg text-slate-600">Point packages are used for successful campsite bookings. Creating monitors is free, and unused points stay in your balance.</p>
     </div>
 
     <div class="mx-auto mt-16 grid max-w-sm grid-cols-1 gap-y-10 sm:mt-20 lg:max-w-none lg:grid-cols-3 lg:gap-x-8">
@@ -53,13 +53,9 @@ const details = {
                   ))}
                 </ul>
               </div>
-              <a
-                href="#"
-                data-stripe-price-id={pkg.stripePriceId}
-                class={`mt-8 block rounded-md px-3 py-2 text-center text-sm font-semibold leading-6 ${isRecommended ? "bg-blue-600 text-white shadow-sm hover:bg-blue-500" : "bg-slate-50 text-slate-900 hover:bg-slate-100"}`}
-              >
-                Buy Points
-              </a>
+              <p class="mt-8 rounded-md bg-slate-50 px-4 py-3 text-sm font-medium leading-6 text-slate-600">
+                Purchase and account management are available inside the CampSoon Chrome extension.
+              </p>
             </div>
           );
         })
