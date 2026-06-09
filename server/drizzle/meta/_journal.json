@@ -43,6 +43,13 @@
       "when": 1780522245267,
       "tag": "0005_curious_dormammu",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781078400000,
+      "tag": "0006_extension_version_management",
+      "breakpoints": true
     }
   ]
 }

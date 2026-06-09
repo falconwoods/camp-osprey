@@ -6,12 +6,14 @@ import { getGlobalWarnings } from '../warnings'
 import { Button } from '../components/ui/button'
 import { AppAlert } from '../components/AppAlert'
 import type { Trip } from '../types'
+import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
 
 export function PopupApp() {
   const state = useExtensionState()
 
   async function start(trip: Trip) {
     const result = await startTripNow(trip.id)
+    if (!result.ok && result.reason === 'extension_update_required') return
     if (!result.ok && result.reason === 'payment') chrome.runtime.openOptionsPage()
     await state.refresh()
   }
@@ -35,6 +37,7 @@ export function PopupApp() {
         <Button variant="ghost" size="icon" onClick={() => chrome.runtime.openOptionsPage()} title="Settings"><Settings size={17} /></Button>
       </header>
       <main className="popup-content stack">
+        <ExtensionUpdateAlert config={state.storage.extensionConfig} />
         {warnings.map((warning, index) => (
           <AppAlert
             key={index}

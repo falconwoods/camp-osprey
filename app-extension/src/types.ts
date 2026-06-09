@@ -106,6 +106,38 @@ export interface ClientInfo {
   platformNaclArch?: string
 }
 
+export type ExtensionChannel = 'chrome_store' | 'website'
+export type RolloutState = 'hidden' | 'available' | 'paused'
+
+export interface ExtensionReleaseNote {
+  version: string
+  title: string
+  summary?: string | null
+  notes: string[]
+  changelogUrl?: string | null
+  publishedAt?: string | null
+}
+
+export interface ExtensionRemoteConfig {
+  serverTime: string
+  channel: ExtensionChannel
+  latestVersion: string
+  minSupportedVersion: string
+  rolloutState: RolloutState
+  pollIntervalSeconds: number
+  downloadUrl?: string | null
+  forceUpdateMessage?: string | null
+  maintenance: {
+    enabled: boolean
+    message?: string | null
+  }
+  featureFlags: Record<string, unknown>
+  extraConfig: Record<string, unknown>
+  releaseNote: ExtensionReleaseNote | null
+  updatedAt: string
+  fetchedAt?: string
+}
+
 export interface DebugLogEntry {
   ts: string
   level: LogLevel
@@ -132,4 +164,5 @@ export interface StorageData {
   settings: Settings
   debugLog: DebugLogEntry[]
   auth: AuthState
+  extensionConfig: ExtensionRemoteConfig | null
 }

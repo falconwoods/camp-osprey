@@ -1,6 +1,6 @@
 import { getAuth, getClientId, saveAuth } from './storage'
-import { BACKEND_BASE_URL } from './config'
-import type { ClientInfo, DebugLogEntry, MatchedSite, Trip } from './types'
+import { BACKEND_BASE_URL, EXTENSION_CHANNEL } from './config'
+import type { ClientInfo, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, Trip } from './types'
 
 export class ServerApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -116,6 +116,22 @@ export async function getClientInfo(): Promise<ClientInfo> {
     platformArch: platform?.arch,
     platformNaclArch: platform?.nacl_arch,
   }
+}
+
+export async function getExtensionRemoteConfig(clientId: string): Promise<ExtensionRemoteConfig> {
+  const clientInfo = await getClientInfo()
+  return serverFetch<ExtensionRemoteConfig>('/api/extension/config', {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({
+      channel: EXTENSION_CHANNEL,
+      clientId,
+      extensionId: chrome.runtime.id,
+      browser: 'chrome',
+      locale: chrome.i18n?.getUILanguage?.() ?? navigator.language,
+      clientInfo,
+    }),
+  })
 }
 
 export async function notifyUserResult(

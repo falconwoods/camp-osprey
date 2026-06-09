@@ -4,6 +4,7 @@ import { isLoggedIn } from '../background/login'
 import { getTrips, TRIPS_CACHE_KEY } from '../tripStore'
 import { applyTheme } from '../theme'
 import type { AuthState, DebugLogEntry, StorageData, Trip } from '../types'
+import { refreshExtensionConfig } from '../extensionConfig'
 
 export interface ExtensionState {
   storage: StorageData | null
@@ -56,6 +57,7 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
 
   useEffect(() => {
     void refresh({ syncTrips: options.syncTripsOnLoad ?? true, includeTrips: options.syncTripsOnLoad ?? true })
+    void refreshExtensionConfig().catch(() => undefined)
     const storageListener = (changes: Record<string, chrome.storage.StorageChange>) => {
       if (Object.keys(changes).every(key => key === TRIPS_CACHE_KEY)) return
       void refresh({ syncTrips: false, includeTrips: false })

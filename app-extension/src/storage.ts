@@ -11,6 +11,7 @@ const DEFAULTS: StorageData = {
   settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info' },
   debugLog: [],
   auth: { token: null, user: null, lastEmail: null, pointsBalance: null },
+  extensionConfig: null,
 }
 
 const LOG_LEVEL_RANK = { debug: 10, info: 20, warning: 30, error: 40 } as const

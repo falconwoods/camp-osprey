@@ -224,3 +224,60 @@ export const bookingPointCharges = pgTable('booking_point_charges', {
   index('booking_point_charges_user_idx').on(t.userId),
   uniqueIndex('booking_point_charges_idempotency_idx').on(t.idempotencyKey),
 ]);
+
+export const extensionConfigs = pgTable('extension_configs', {
+  channel:             text('channel').primaryKey(),
+  latestVersion:       text('latestVersion').notNull(),
+  minSupportedVersion: text('minSupportedVersion').notNull(),
+  rolloutState:        text('rolloutState').notNull().default('hidden'),
+  pollIntervalSeconds: integer('pollIntervalSeconds').notNull().default(600),
+  downloadUrl:         text('downloadUrl'),
+  forceUpdateMessage:  text('forceUpdateMessage'),
+  maintenanceEnabled:  boolean('maintenanceEnabled').notNull().default(false),
+  maintenanceMessage:  text('maintenanceMessage'),
+  featureFlags:        jsonb('featureFlags').notNull().default({}),
+  extraConfig:         jsonb('extraConfig').notNull().default({}),
+  createdAt:           timestamp('createdAt').notNull().defaultNow(),
+  updatedAt:           timestamp('updatedAt').notNull().defaultNow(),
+  updatedBy:           text('updatedBy').references(() => user.id, { onDelete: 'set null' }),
+});
+
+export const extensionReleases = pgTable('extension_releases', {
+  id:           serial('id').primaryKey(),
+  channel:      text('channel').notNull().references(() => extensionConfigs.channel, { onDelete: 'cascade' }),
+  version:      text('version').notNull(),
+  state:        text('state').notNull().default('hidden'),
+  title:        text('title').notNull(),
+  summary:      text('summary'),
+  notes:        jsonb('notes').notNull().default([]),
+  changelogUrl: text('changelogUrl'),
+  publishedAt:  timestamp('publishedAt'),
+  createdAt:    timestamp('createdAt').notNull().defaultNow(),
+  updatedAt:    timestamp('updatedAt').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('extension_releases_channel_version_idx').on(t.channel, t.version),
+  index('extension_releases_channel_idx').on(t.channel),
+]);
+
+export const extensionHeartbeats = pgTable('extension_heartbeats', {
+  clientId:         text('clientId').primaryKey(),
+  userId:           text('userId').references(() => user.id, { onDelete: 'set null' }),
+  channel:          text('channel').notNull(),
+  extensionVersion: text('extensionVersion'),
+  extensionId:      text('extensionId'),
+  browser:          text('browser'),
+  locale:           text('locale'),
+  userAgent:        text('userAgent'),
+  platformOs:       text('platformOs'),
+  platformArch:     text('platformArch'),
+  ipAddress:        text('ipAddress'),
+  country:          text('country'),
+  region:           text('region'),
+  city:             text('city'),
+  firstSeenAt:      timestamp('firstSeenAt').notNull().defaultNow(),
+  lastSeenAt:       timestamp('lastSeenAt').notNull().defaultNow(),
+}, (t) => [
+  index('extension_heartbeats_user_idx').on(t.userId),
+  index('extension_heartbeats_channel_idx').on(t.channel),
+  index('extension_heartbeats_last_seen_idx').on(t.lastSeenAt),
+]);

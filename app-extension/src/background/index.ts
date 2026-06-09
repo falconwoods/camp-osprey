@@ -8,9 +8,16 @@ import { notifyUserResult, sendBookingPaymentEvent } from '../serverApi'
 import type { BookingPaymentEventPayload } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
 import { getTrips, updateTrip } from '../tripStore'
+import {
+  getCachedExtensionConfig,
+  getExtensionUpdateUrl,
+  isForceUpdateRequired,
+  refreshExtensionConfig,
+} from '../extensionConfig'
 
 const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
+const EXTENSION_CONFIG_ALARM_NAME = 'extension-config'
 const PENDING_BOOKING_PAYMENT_EVENTS_KEY = 'pendingBookingPaymentEvents'
 const provider = new BCParksProvider()
 let scanInProgress = false
@@ -282,6 +289,8 @@ provider.onAvailabilityRaw = (siteId, siteName, daily) => {
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm(60)
   setupLogSyncAlarm()
+  setupExtensionConfigAlarm(10 * 60)
+  void refreshAndScheduleExtensionConfig()
 })
 
 // Restore alarm on service worker restart
@@ -289,7 +298,9 @@ chrome.storage.local.get('settings', result => {
   const interval = (result as Record<string, { pollIntervalSeconds?: number }>)['settings']?.pollIntervalSeconds ?? 60
   setupAlarm(interval)
   setupLogSyncAlarm()
+  setupExtensionConfigAlarm(10 * 60)
   void flushPendingBookingPaymentEvents()
+  void refreshAndScheduleExtensionConfig()
 })
 
 async function setupAlarm(intervalSeconds: number): Promise<void> {
@@ -302,12 +313,33 @@ async function setupLogSyncAlarm(): Promise<void> {
   chrome.alarms.create(LOG_SYNC_ALARM_NAME, { periodInMinutes: 1 })
 }
 
+async function setupExtensionConfigAlarm(intervalSeconds: number): Promise<void> {
+  await new Promise<void>(resolve => chrome.alarms.clear(EXTENSION_CONFIG_ALARM_NAME, () => resolve()))
+  chrome.alarms.create(EXTENSION_CONFIG_ALARM_NAME, { periodInMinutes: Math.max(1, intervalSeconds / 60) })
+}
+
+async function refreshAndScheduleExtensionConfig(): Promise<void> {
+  try {
+    const config = await refreshExtensionConfig()
+    if (config) await setupExtensionConfigAlarm(config.pollIntervalSeconds)
+  } catch (err) {
+    await logEntry({
+      level: 'warning',
+      event: 'extension_config_refresh_failed',
+      message: 'Extension config refresh failed',
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
 chrome.alarms.onAlarm.addListener(async (alarm: chrome.alarms.Alarm) => {
   if (alarm.name === ALARM_NAME) {
     await runScanCycle()
   } else if (alarm.name === LOG_SYNC_ALARM_NAME) {
     await flushPendingBookingPaymentEvents()
     await flushPendingServerLogs()
+  } else if (alarm.name === EXTENSION_CONFIG_ALARM_NAME) {
+    await refreshAndScheduleExtensionConfig()
   }
 })
 
@@ -338,6 +370,29 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
 
   scanInProgress = true
   try {
+    let extensionConfig = await getCachedExtensionConfig()
+    if (!extensionConfig) extensionConfig = await refreshExtensionConfig().catch(() => null)
+    if (isForceUpdateRequired(extensionConfig)) {
+      await logEntry({
+        level: 'warning',
+        event: 'extension_update_required',
+        message: 'Scan skipped because this extension version is no longer supported',
+        metadata: {
+          minSupportedVersion: extensionConfig?.minSupportedVersion,
+          latestVersion: extensionConfig?.latestVersion,
+          channel: extensionConfig?.channel,
+        },
+      }, { forceServerSync: true })
+      await notify(
+        'campsoon update required',
+        extensionConfig?.forceUpdateMessage ?? 'Update campsoon to continue scanning.',
+      )
+      if (extensionConfig?.downloadUrl) {
+        chrome.tabs.create({ url: getExtensionUpdateUrl(extensionConfig) })
+      }
+      return
+    }
+
     const { settings } = await getStorage()
     const trips = await getTrips()
     await setupAlarm(settings.pollIntervalSeconds)

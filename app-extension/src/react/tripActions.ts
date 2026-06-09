@@ -4,6 +4,7 @@ import { openAuthGateForTrip, requireServerAuthForStart } from '../startAuthGate
 import { getClientId, getStorage } from '../storage'
 import { deleteTrip, getTrips, saveTrip, updateTrip } from '../tripStore'
 import type { DateRange, Park, PaymentConfig, Trip } from '../types'
+import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig } from '../extensionConfig'
 
 export function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
   if (!payment) return false
@@ -18,6 +19,8 @@ export function isValidParkPayment(payment: PaymentConfig | null): payment is Pa
 }
 
 export async function startTripNow(tripId: string, openAuth = true): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const extensionConfig = await getCachedExtensionConfig() ?? await refreshExtensionConfig().catch(() => null)
+  if (isForceUpdateRequired(extensionConfig)) return { ok: false, reason: 'extension_update_required' }
   if (!(await requireServerAuthForStart(tripId, openAuth))) return { ok: false, reason: 'server_auth' }
   const trips = await getTrips()
   const trip = trips.find(item => item.id === tripId)

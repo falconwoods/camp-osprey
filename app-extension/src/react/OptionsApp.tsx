@@ -26,7 +26,8 @@ import { getGlobalWarnings, type Warning } from '../warnings'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
-import type { Trip } from '../types'
+import type { ExtensionRemoteConfig, Trip } from '../types'
+import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
 
 type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs'
 
@@ -188,6 +189,7 @@ export function OptionsApp() {
             trips={state.trips}
             signedIn={Boolean(state.auth?.user)}
             bcParksLoggedIn={state.bcParksLoggedIn}
+            extensionConfig={state.storage.extensionConfig}
             warnings={getGlobalWarnings(state.trips, state.bcParksLoggedIn, state.storage.payment)}
             onSignIn={openAuthDialog}
             onEdit={trip => setEditing(trip)}
@@ -311,6 +313,7 @@ function TripsView({
   trips,
   signedIn,
   bcParksLoggedIn,
+  extensionConfig,
   warnings,
   onSignIn,
   onEdit,
@@ -322,6 +325,7 @@ function TripsView({
   trips: Trip[]
   signedIn: boolean
   bcParksLoggedIn: boolean
+  extensionConfig: ExtensionRemoteConfig | null
   warnings: Warning[]
   onSignIn: () => void
   onEdit: (trip: Trip) => void
@@ -338,6 +342,7 @@ function TripsView({
 
   return (
     <div className="trips-dashboard">
+      <ExtensionUpdateAlert config={extensionConfig} />
       {needsCampsoonReconnect ? (
         <AppAlert
           variant="error"

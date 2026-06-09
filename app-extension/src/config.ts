@@ -5,6 +5,9 @@ function normalizeBaseUrl(value: string | undefined): string {
 }
 
 export const BACKEND_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL)
+export const EXTENSION_CHANNEL = (
+  import.meta.env.VITE_EXTENSION_CHANNEL === 'website' ? 'website' : 'chrome_store'
+) as 'chrome_store' | 'website'
 
 export const APP_CONFIG = {
   points: {
