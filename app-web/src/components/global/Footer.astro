@@ -1,0 +1,77 @@
+---
+import Logo from "@/components/assets/Logo.astro";
+import Text from "@/components/fundations/elements/Text.astro";
+import Wrapper from "@/components/fundations/containers/Wrapper.astro";
+
+const sections = [
+  {
+    title: "CampSoon",
+    links: [
+      { name: "Home", href: "/" },
+      { name: "Features", href: "/#features" },
+      { name: "Pricing", href: "/#pricing" },
+      { name: "FAQ", href: "/#faq" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { name: "Privacy Policy", href: "/privacy" },
+      { name: "Terms of Service", href: "/terms" },
+      { name: "Refund Policy", href: "/refund" },
+    ],
+  },
+  {
+    title: "Support",
+    links: [
+      {
+        name: "support@campsoon.com",
+        href: "mailto:support@campsoon.com",
+      },
+    ],
+  },
+];
+
+const currentYear = new Date().getFullYear();
+---
+
+<footer>
+  <Wrapper variant="standard" class="py-12">
+    <div class="grid grid-cols-1 items-start gap-x-8 gap-y-12 md:grid-cols-4">
+      <a href="/">
+        <Logo class="textBase font-medium" />
+      </a>
+      <div class="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-3 md:col-span-3">
+        {
+          sections.map(({ title, links }) => (
+            <div>
+              <Text tag="h3" variant="textSM" class="font-medium uppercase text-base-900">
+                {title}
+              </Text>
+              <ul role="list" class="mt-4 space-y-1">
+                {links.map(({ name, href }) => (
+                  <li>
+                    <a href={href} class="text-sm font-medium text-base-500 hover:text-blue-600">
+                      {name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+    <div class="mt-8 border-t border-base-200 pt-6">
+      <p class="text-xs text-base-500">
+        Contact Us: <a class="font-medium text-base-700 hover:text-blue-600" href="mailto:support@campsoon.com">support@campsoon.com</a>
+      </p>
+      <p class="mt-2 text-xs text-base-500">
+        Accepted Payments: Visa, Mastercard, American Express
+      </p>
+      <p class="mt-2 text-xs text-base-500">
+        © {currentYear} CampSoon. All rights reserved. CampSoon is an independent availability monitoring and notification assistant and is not affiliated with BC Parks.
+      </p>
+    </div>
+  </Wrapper>
+</footer>

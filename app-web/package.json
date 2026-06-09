@@ -1,0 +1,20 @@
+{
+  "name": "campsoon-web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "3.6.0",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/vite": "4.1.17",
+    "astro": "5.15.4",
+    "tailwindcss": "4.1.17"
+  }
+}
