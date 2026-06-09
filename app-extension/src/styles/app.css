@@ -1462,7 +1462,7 @@ a {
 
 .options-main-trips > .page-header,
 .options-main-trips > .trips-dashboard {
-  width: min(100%, 1060px);
+  width: min(100%, 900px);
   zoom: .9;
 }
 
@@ -1476,6 +1476,49 @@ a {
 .page-header p {
   margin: 7px 0 0;
   font-size: 14px;
+}
+
+.trips-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.credits-summary-pill {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px 8px 16px;
+  border: 1px solid var(--co-border);
+  border-radius: 8px;
+  background: var(--co-card);
+  box-shadow: var(--co-shadow-soft);
+  color: var(--co-text);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.credits-summary-value {
+  min-width: 0;
+  font-weight: 600;
+}
+
+.credits-summary-topup {
+  min-height: 28px;
+  padding: 0 4px 0 14px;
+  border: 0;
+  border-left: 1px solid var(--co-border);
+  background: transparent;
+  color: var(--co-brand);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.credits-summary-topup:hover {
+  color: var(--co-brand-dark);
 }
 
 .trips-dashboard {
@@ -1682,6 +1725,24 @@ a {
 
 .trip-card {
   overflow: hidden;
+  width: 100%;
+}
+
+.trip-card-clickable {
+  cursor: pointer;
+}
+
+.trip-card-clickable:focus-visible {
+  outline: 3px solid var(--co-focus);
+  outline-offset: 3px;
+}
+
+.trip-card-clickable:hover {
+  border-color: var(--co-border-strong);
+}
+
+.trip-card-clickable .trip-actions-row {
+  cursor: default;
 }
 
 .trip-card .ui-card-content {
@@ -1695,8 +1756,8 @@ a {
 
 .trip-card-main {
   display: grid;
-  grid-template-columns: 200px 148px minmax(420px, 1fr);
-  gap: 16px;
+  grid-template-columns: minmax(150px, 180px) 150px minmax(0, 1fr);
+  gap: 14px;
   align-items: center;
   min-height: 106px;
   padding: 14px 16px;
@@ -1798,11 +1859,12 @@ a {
 .trip-status-panel {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(190px, 1fr) auto;
-  gap: 18px;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  justify-content: start;
+  gap: 12px;
   align-items: center;
   min-height: 70px;
-  padding-left: 18px;
+  padding-left: 14px;
   border-left: 1px solid var(--co-border);
 }
 
@@ -1883,14 +1945,14 @@ a {
 
 .trip-actions-row {
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: nowrap;
 }
 
 .trip-action-button.ui-button-md {
-  min-width: 82px;
+  min-width: 78px;
   min-height: 38px;
-  padding: 0 13px;
+  padding: 0 11px;
   border-radius: 8px;
   font-size: 14px;
 }
@@ -2068,6 +2130,7 @@ a {
 .trip-editor-shell {
   width: min(100%, 1180px);
   margin: 0;
+  zoom: .9;
 }
 
 .editor-page-header {
@@ -2079,7 +2142,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 0 18px;
+  margin: 10px 0 0;
   border: 0;
   background: transparent;
   color: var(--co-brand);
@@ -2104,8 +2167,40 @@ a {
   line-height: 1.1;
 }
 
+.editor-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--co-border);
+  border-radius: 999px;
+  background: var(--co-surface-muted);
+  color: var(--co-text-muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.editor-status-badge.status-scanning,
+.editor-status-badge.status-reserved,
+.editor-status-badge.status-paid {
+  border-color: var(--green-border);
+  background: var(--green-subtle);
+  color: var(--co-brand-dark);
+}
+
+.editor-status-badge.status-reserving {
+  color: var(--co-amber);
+}
+
+.editor-status-badge.status-failed {
+  border-color: rgba(220,38,38,.3);
+  background: var(--red-subtle);
+  color: var(--co-red);
+}
+
 .editor-subtitle {
-  margin-top: 8px;
+  margin-top: 10px;
   color: var(--co-text-soft);
   font-size: 15px;
   line-height: 1.4;
@@ -2473,6 +2568,7 @@ a {
 #trip-editor .mode-help ul {
   display: grid;
   gap: 5px;
+  list-style: disc;
   margin: 0;
   padding-left: 18px;
 }
@@ -2760,7 +2856,7 @@ a {
     grid-column: 2;
     grid-row: 1 / span 2;
     grid-template-columns: minmax(150px, 1fr) auto;
-    gap: 14px;
+    gap: 12px;
   }
 
   .trip-actions-row {
@@ -2916,11 +3012,22 @@ a {
 
   .page-header {
     align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .page-header h1,
   .editor-header h1 {
     font-size: 26px;
+  }
+
+  .trips-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .credits-summary-pill {
+    flex: 1 1 220px;
   }
 
   .connection-grid,

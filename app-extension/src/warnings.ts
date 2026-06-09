@@ -36,8 +36,8 @@ export function getGlobalWarnings(trips: Trip[], loggedIn: boolean, payment: Pay
     warnings.push({
       level: 'warn',
       title: 'BC Parks sign-in needed',
-      message: 'Not logged in to BC Parks. Auto-reserve and Auto-pay modes require a BC Parks account.',
-      action: { label: 'Log in BC Parks', url: 'https://camping.bcparks.ca/login' },
+      message: 'Sign in to BC Parks to continue using auto-reserve and auto-pay.',
+      action: { label: 'Open BC Parks', url: 'https://camping.bcparks.ca/login' },
     })
   }
 

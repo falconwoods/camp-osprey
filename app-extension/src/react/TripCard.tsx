@@ -19,7 +19,7 @@ import { Card, CardContent } from '../components/ui/card'
 import { LoadingButton } from '../components/ui/loading-button'
 import { getTripWarnings } from '../warnings'
 import type { DateRange, Trip } from '../types'
-import { describeRange, formatDateTime, matchLine, modeLabel } from './format'
+import { describeRange, formatDateTime, matchLine, statusDisplay } from './format'
 
 export function TripCard({
   trip,
@@ -78,8 +78,35 @@ export function TripCard({
     }
   }
 
+  function editTrip() {
+    onEdit?.(trip)
+  }
+
+  function shouldIgnoreCardActivation(target: EventTarget | null): boolean {
+    return target instanceof Element && Boolean(target.closest('button, a, input, select, textarea, [data-trip-card-action]'))
+  }
+
+  function handleCardClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!onEdit || shouldIgnoreCardActivation(event.target)) return
+    editTrip()
+  }
+
+  function handleCardKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!onEdit || shouldIgnoreCardActivation(event.target)) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    editTrip()
+  }
+
   return (
-    <Card className={`trip-card trip-${trip.status}${compact ? ' trip-card-compact' : ''}`}>
+    <Card
+      className={`trip-card trip-${trip.status}${compact ? ' trip-card-compact' : ''}${onEdit ? ' trip-card-clickable' : ''}`}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role={onEdit ? 'button' : undefined}
+      tabIndex={onEdit ? 0 : undefined}
+      aria-label={onEdit ? `Edit ${trip.name}` : undefined}
+    >
       <CardContent className="trip-card-content">
         <div className="trip-card-main">
           {/* Park image intentionally hidden until per-park imagery is available. */}
@@ -115,29 +142,29 @@ export function TripCard({
 
             <div className="trip-actions-row">
               {trip.lastMatch?.bookingUrl && trip.status !== 'paid' ? (
-                <Button className="trip-action-button trip-action-primary" variant="secondary" onClick={() => chrome.tabs.create({ url: trip.lastMatch!.bookingUrl })}>
+                <Button className="trip-action-button trip-action-primary" variant="secondary" onClick={() => chrome.tabs.create({ url: trip.lastMatch!.bookingUrl })} data-trip-card-action>
                   {trip.status === 'reserved' ? 'Finish Checkout' : 'Reserve Now'} <ExternalLink size={18} />
                 </Button>
               ) : null}
               {canPause ? (
-                <LoadingButton className="trip-action-button trip-action-success" variant="secondary" onClick={pauseTrip} loading={pausing} loadingText="Pausing...">
+                <LoadingButton className="trip-action-button trip-action-success" variant="secondary" onClick={pauseTrip} loading={pausing} loadingText="Pausing..." data-trip-card-action>
                   <Pause size={18} /> Pause
                 </LoadingButton>
               ) : null}
               {canStart ? (
-                <LoadingButton className="trip-action-button trip-action-success" variant="secondary" onClick={startTrip} loading={starting} loadingText="Starting...">
+                <LoadingButton className="trip-action-button trip-action-success" variant="secondary" onClick={startTrip} loading={starting} loadingText="Starting..." data-trip-card-action>
                   {trip.status === 'reserved' || trip.status === 'paid' ? <RefreshCw size={18} /> : <Play size={18} />}
                   {trip.status === 'reserved' || trip.status === 'paid' ? 'Scan Again' : 'Start'}
                 </LoadingButton>
               ) : null}
               {onEdit ? (
-                <Button className="trip-action-button trip-action-icon-on-tight" variant="secondary" onClick={() => onEdit(trip)} aria-label="Edit trip" title="Edit trip">
+                <Button className="trip-action-button trip-action-icon-on-tight" variant="secondary" onClick={editTrip} aria-label="Edit trip" title="Edit trip" data-trip-card-action>
                   <Edit3 size={18} />
                   <span className="trip-action-label">Edit</span>
                 </Button>
               ) : null}
               {onDelete ? (
-                <LoadingButton className="trip-action-button trip-action-icon-on-tight" variant="secondary" onClick={deleteTrip} loading={deleting} loadingText="Deleting..." aria-label="Delete trip" title="Delete trip">
+                <LoadingButton className="trip-action-button trip-action-icon-on-tight" variant="secondary" onClick={deleteTrip} loading={deleting} loadingText="Deleting..." aria-label="Delete trip" title="Delete trip" data-trip-card-action>
                   <Trash2 size={18} />
                   <span className="trip-action-label">Delete</span>
                 </LoadingButton>
@@ -214,42 +241,4 @@ function modeDisplay(mode: Trip['mode']): { label: string; icon: React.ReactNode
     hold: { label: 'Auto-reserve', icon: <Gauge size={17} /> },
     autopay: { label: 'Auto-pay', icon: <CreditCard size={17} /> },
   }[mode]
-}
-
-function statusDisplay(trip: Trip): { title: string; detail: string; time: string } {
-  const lastActivity = trip.lastMatch?.paidAt ?? trip.lastMatch?.reservedAt ?? trip.lastMatch?.foundAt
-  const checkedAt = lastActivity ?? (trip.updatedAt ? new Date(trip.updatedAt).toISOString() : '')
-  const updated = checkedAt ? formatDateTime(checkedAt) : ''
-  const time = checkedAt ? `Last checked ${relativeTime(checkedAt)}` : 'Not checked yet'
-
-  if (trip.status === 'scanning') return { title: 'Monitoring', detail: 'Checking availability', time }
-  if (trip.status === 'idle' || trip.status === 'paused') return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
-  if (trip.status === 'reserved' || trip.status === 'paid') {
-    const confirmedAt = lastActivity ? formatDateTime(lastActivity) : ''
-    return {
-      title: trip.status === 'paid' ? 'Paid' : 'Booked',
-      detail: trip.status === 'paid' ? 'Payment confirmed' : 'Booking confirmed',
-      time: confirmedAt || updated || 'Reservation confirmed',
-    }
-  }
-  if (trip.status === 'reserving') return { title: 'Reserving', detail: 'Completing reservation', time }
-  if (trip.status === 'failed') return { title: 'Failed', detail: 'Needs attention before scanning', time }
-  return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
-}
-
-function relativeTime(value: string): string {
-  const diffMs = Date.now() - new Date(value).getTime()
-  if (!Number.isFinite(diffMs)) return formatDateTime(value)
-  if (diffMs < 30_000) return 'just now'
-
-  const minutes = Math.round(diffMs / 60_000)
-  if (minutes < 60) return `${minutes} min ago`
-
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-
-  const days = Math.round(hours / 24)
-  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
-
-  return formatDateTime(value)
 }

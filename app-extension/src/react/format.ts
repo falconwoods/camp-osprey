@@ -16,6 +16,27 @@ export function modeLabel(mode: Trip['mode']): string {
   return { alert: 'Alert Only', hold: 'Auto-reserve', autopay: 'Auto-pay' }[mode]
 }
 
+export function statusDisplay(trip: Trip): { title: string; detail: string; time: string } {
+  const lastActivity = trip.lastMatch?.paidAt ?? trip.lastMatch?.reservedAt ?? trip.lastMatch?.foundAt
+  const checkedAt = lastActivity ?? (trip.updatedAt ? new Date(trip.updatedAt).toISOString() : '')
+  const updated = checkedAt ? formatDateTime(checkedAt) : ''
+  const time = checkedAt ? `Last checked ${relativeTime(checkedAt)}` : 'Not checked yet'
+
+  if (trip.status === 'scanning') return { title: 'Monitoring', detail: 'Checking availability', time }
+  if (trip.status === 'idle' || trip.status === 'paused') return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
+  if (trip.status === 'reserved' || trip.status === 'paid') {
+    const confirmedAt = lastActivity ? formatDateTime(lastActivity) : ''
+    return {
+      title: trip.status === 'paid' ? 'Paid' : 'Booked',
+      detail: trip.status === 'paid' ? 'Payment confirmed' : 'Booking confirmed',
+      time: confirmedAt || updated || 'Reservation confirmed',
+    }
+  }
+  if (trip.status === 'reserving') return { title: 'Reserving', detail: 'Completing reservation', time }
+  if (trip.status === 'failed') return { title: 'Failed', detail: 'Needs attention before scanning', time }
+  return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
+}
+
 export function describeRange(range: DateRange): string {
   if (range.type === 'specific') return `${formatShortDate(range.checkIn)} to ${formatShortDate(range.checkOut)}`
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -34,4 +55,21 @@ export function formatDateTime(value?: string): string {
 
 export function matchLine(match: MatchedSite): string {
   return `${match.parkName} / ${match.sectionName || 'Section'} / Site ${match.siteName}`
+}
+
+function relativeTime(value: string): string {
+  const diffMs = Date.now() - new Date(value).getTime()
+  if (!Number.isFinite(diffMs)) return formatDateTime(value)
+  if (diffMs < 30_000) return 'just now'
+
+  const minutes = Math.round(diffMs / 60_000)
+  if (minutes < 60) return `${minutes} min ago`
+
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+
+  const days = Math.round(hours / 24)
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`
+
+  return formatDateTime(value)
 }

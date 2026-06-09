@@ -7,7 +7,7 @@ import { LoadingButton } from '../components/ui/loading-button'
 import { Select } from '../components/ui/select'
 import { APP_CONFIG } from '../config'
 import type { DateRange, Park, Trip } from '../types'
-import { describeRange } from './format'
+import { describeRange, statusDisplay } from './format'
 import { isValidParkPayment, saveTripDraft, startTripNow } from './tripActions'
 
 const provider = new BCParksProvider()
@@ -74,6 +74,7 @@ export function TripEditor({
     startDay: recStart,
     endDay: recEnd,
   }), [recYear, recMonth, recStart, recEnd])
+  const modeHelpItems = useMemo(() => getModeHelpItems(mode), [mode])
 
   useEffect(() => {
     if (recEnd <= recStart) setRecEnd(Math.min(recStart + 1, 6))
@@ -163,16 +164,14 @@ export function TripEditor({
   return (
     <div id="trip-editor" className="trip-editor-shell">
       <div className="editor-page-header">
-        <button className="back-link" id="back-btn" type="button" onClick={onClose}>← All Trips</button>
-        <div className="trip-heading">
-          <div className="editor-title-row">
-            <h1 id="editor-trip-title">{name || 'Trip'}</h1>
-            <div id="editor-status-bar" className={trip ? '' : 'hidden'}>
-              <span id="editor-status-badge">{trip ? trip.status : null}</span>
-            </div>
-          </div>
-          <div className="editor-subtitle">Edit trip details and campsite search preferences.</div>
+        <div className="editor-title-row">
+          <h1 id="editor-trip-title">{trip ? 'Edit Trip' : 'New Trip'}</h1>
+          {trip ? (
+            <span id="editor-status-badge" className={`editor-status-badge status-${trip.status}`}>{statusDisplay(trip).title}</span>
+          ) : null}
         </div>
+        <button className="back-link" id="back-btn" type="button" onClick={onClose}>← All Trips</button>
+        <div className="editor-subtitle">Edit trip details and campsite search preferences.</div>
       </div>
 
       <div className="editor-layout">
@@ -277,9 +276,7 @@ export function TripEditor({
             <div className="mode-help" id="trip-mode-help" aria-live="polite">
               <strong>{modeLabel(mode)}</strong>
               <ul>
-                {mode === 'alert' ? <><li>Sends an alert when a matching site is found.</li><li>Free: no points are deducted.</li></> : null}
-                {mode === 'hold' ? <><li>Holds a matching reservation for you to complete payment manually.</li><li>{successfulBookingPointCostLabel} points are deducted only after you successfully pay the held reservation.</li></> : null}
-                {mode === 'autopay' ? <><li>Holds the reservation and completes payment automatically.</li><li>{successfulBookingPointCostLabel} points are deducted only after reservation and payment both succeed.</li></> : null}
+                {modeHelpItems.map(item => <li key={item}>{item}</li>)}
               </ul>
               {mode === 'autopay' ? <div className="mode-help-action"><span>Auto-pay requires payment info in Settings &gt; Park Payment.</span><button type="button" onClick={onNeedsPayment}>Set up Park Payment</button></div> : null}
             </div>
@@ -319,4 +316,25 @@ function dateRangesEqual(a: DateRange, b: DateRange): boolean {
 
 function modeLabel(mode: Trip['mode']): string {
   return { alert: 'Alert Only', hold: 'Auto-reserve', autopay: 'Auto-pay' }[mode]
+}
+
+function getModeHelpItems(mode: Trip['mode']): string[] {
+  if (mode === 'alert') {
+    return [
+      'Sends an alert when a matching site is found.',
+      'Free: no points are deducted.',
+    ]
+  }
+
+  if (mode === 'hold') {
+    return [
+      'Holds a matching reservation for you to complete payment manually.',
+      `${successfulBookingPointCostLabel} points are deducted only after you successfully pay the held reservation.`,
+    ]
+  }
+
+  return [
+    'Holds the reservation and completes payment automatically.',
+    `${successfulBookingPointCostLabel} points are deducted only after reservation and payment both succeed.`,
+  ]
 }

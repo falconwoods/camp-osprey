@@ -21,6 +21,7 @@ import { PaymentPanel } from './PaymentPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { LogsPanel } from './LogsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
+import { getPointsSummary, type PointsSummary } from '../serverApi'
 import { getGlobalWarnings, type Warning } from '../warnings'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
@@ -43,6 +44,10 @@ export function OptionsApp() {
   const state = useExtensionState({ syncTripsOnLoad: tab === 'trips' })
   const [editing, setEditing] = useState<Trip | null | undefined>(undefined)
   const [authDialogOpen, setAuthDialogOpen] = useState(() => location.hash.replace('#', '') === 'auth')
+  const [points, setPoints] = useState<PointsSummary | null>(null)
+  const [pointsLoading, setPointsLoading] = useState(false)
+  const [pointsError, setPointsError] = useState('')
+  const userKey = state.auth?.user ? state.auth.user.id || state.auth.user.email : null
 
   useEffect(() => {
     const onHash = () => {
@@ -63,7 +68,33 @@ export function OptionsApp() {
     }
   }, [state.loading, state.refresh, state.tripsLoaded, tab])
 
+  useEffect(() => {
+    if (tab !== 'trips' || !userKey) {
+      setPoints(null)
+      setPointsLoading(false)
+      setPointsError('')
+      return
+    }
+    let cancelled = false
+    setPointsLoading(true)
+    setPointsError('')
+    void getPointsSummary()
+      .then(summary => {
+        if (cancelled) return
+        setPoints(summary)
+      })
+      .catch(err => {
+        if (cancelled) return
+        setPointsError(err instanceof Error ? err.message : 'server_error')
+      })
+      .finally(() => {
+        if (!cancelled) setPointsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [tab, userKey])
+
   function navigate(next: Tab) {
+    if (editing !== undefined) setEditing(undefined)
     location.hash = next === 'trips' ? '' : next
     setTab(next)
   }
@@ -118,12 +149,24 @@ export function OptionsApp() {
         </div>
       </aside>
       <main className={`options-main ${editing === undefined && tab === 'trips' ? 'options-main-trips' : ''}`}>
-        <header className="page-header">
-          <div>
-            <h1>{editing !== undefined ? (editing ? 'Edit Trip' : 'New Trip') : tabTitle(tab)}</h1>
-          </div>
-          {editing === undefined && tab === 'trips' ? <Button onClick={handleNewTrip}><Plus size={16} /> New Trip</Button> : null}
-        </header>
+        {editing === undefined ? (
+          <header className="page-header">
+            <div>
+              <h1>{tabTitle(tab)}</h1>
+            </div>
+            {tab === 'trips' ? (
+              <div className="trips-header-actions">
+                <div className={`credits-summary-pill ${pointsError ? 'credits-summary-unavailable' : ''}`} aria-label="Current points balance">
+                  <span className="credits-summary-value">
+                    {pointsLoading ? 'Loading points' : points ? `${points.balance.toLocaleString()} points` : 'Points unavailable'}
+                  </span>
+                  <button type="button" className="credits-summary-topup" onClick={() => navigate('account')}>Top up</button>
+                </div>
+                <Button onClick={handleNewTrip}><Plus size={16} /> New Trip</Button>
+              </div>
+            ) : null}
+          </header>
+        ) : null}
         {editing !== undefined ? (
           <TripEditor
             trip={editing}
@@ -306,8 +349,8 @@ function TripsView({
       {needsBcParksReconnect ? (
         <AppAlert
           variant="error"
-          title="BC Parks connection needed"
-          message="Connect your BC Parks account to continue."
+          title="BC Parks sign-in needed"
+          message="Sign in to BC Parks to continue using auto-reserve and auto-pay."
           action={{ label: 'Open BC Parks', onClick: connectBcParks }}
         />
       ) : null}
@@ -324,7 +367,7 @@ function TripsView({
             <div className="connection-icon"><TreePine size={32} /></div>
             <div className="connection-copy">
               <h2>BC Parks</h2>
-              <p><span className="mini-dot online" /> Connected</p>
+              <p><span className="mini-dot online" /> Signed in</p>
             </div>
           </section>
         </div>
@@ -349,7 +392,7 @@ function TripsView({
                   <div className="connection-icon"><TreePine size={31} /></div>
                   <div>
                     <strong>Step 2</strong>
-                    <h3>Connect your BC Parks account</h3>
+                    <h3>Sign in to BC Parks</h3>
                     <p>Required for Auto-reserve and Auto-pay to make bookings and payments.</p>
                   </div>
                 </div>
