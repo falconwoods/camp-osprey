@@ -8,6 +8,7 @@ export const BACKEND_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_BACKEND_BA
 export const EXTENSION_CHANNEL = (
   import.meta.env.VITE_EXTENSION_CHANNEL === 'website' ? 'website' : 'chrome_store'
 ) as 'chrome_store' | 'website'
+export const IS_LOCAL_BUILD = import.meta.env.MODE === 'development'
 
 export const APP_CONFIG = {
   points: {

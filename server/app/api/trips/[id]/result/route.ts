@@ -15,7 +15,7 @@ import {
   decodeTripStatus,
 } from '../../../../../lib/extension-protocol';
 
-type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
+type Outcome = 'found' | 'reserved' | 'booked' | 'failed';
 
 interface MatchedSite {
   parkName: string;
@@ -72,7 +72,6 @@ export async function POST(
     clientInfo?: unknown;
     matchedSite?: MatchedSite;
     error?: string;
-    sendEmail?: boolean;
     tripSnapshot?: TripSnapshot;
     scanLease?: unknown;
   };
@@ -87,7 +86,7 @@ export async function POST(
     );
   }
 
-  const { clientId, matchedSite, error: bookingError, sendEmail: shouldSendEmail = true, tripSnapshot } = body;
+  const { clientId, matchedSite, error: bookingError, tripSnapshot } = body;
   const requestContext = await buildRequestContext(request, clientId, normalizeRequestClientInfo(body));
   let [trip] = await db
     .select()
@@ -195,10 +194,10 @@ export async function POST(
   });
 
   const statusMap: Record<Outcome, string> = {
-    found:       trip.status as string,
-    hold_placed: 'paused',
-    booked:      'paid',
-    failed:      'idle',
+    found:    trip.status as string,
+    reserved: 'paused',
+    booked:   'paid',
+    failed:   'idle',
   };
 
   await db
@@ -223,6 +222,7 @@ export async function POST(
     })
     .returning();
 
+  const shouldSendEmail = shouldSendResultEmail(outcome, trip.mode as string);
   let emailSent = false;
   if (shouldSendEmail) {
     try {
@@ -259,4 +259,11 @@ export async function POST(
 
 export function OPTIONS(request: Request) {
   return extensionCorsPreflight(request);
+}
+
+function shouldSendResultEmail(outcome: Outcome, mode: string): boolean {
+  if (outcome === 'found') return false;
+  if (outcome === 'reserved') return mode === 'reserve';
+  if (outcome === 'booked' || outcome === 'failed') return mode === 'autopay';
+  return false;
 }

@@ -5,7 +5,7 @@ export interface Trip {
   parks: Park[]           // index 0 = highest priority
   dateRanges: DateRange[]
   filters: Filters
-  mode: 'alert' | 'hold' | 'autopay'
+  mode: 'alert' | 'reserve' | 'autopay'
   status: 'idle' | 'scanning' | 'reserving' | 'reserved' | 'paid' | 'paused' | 'failed'
   lastMatch: MatchedSite | null
   attempted: string[]     // "parkId|checkIn|checkOut" dedup keys
@@ -69,11 +69,8 @@ export interface PaymentConfig {
 export type Theme = 'auto' | 'light' | 'dark'
 
 export interface Settings {
-  pollIntervalSeconds: 10 | 30 | 60 | 120
-  debugMode: boolean
-  emailOnSiteFound: boolean
+  pollIntervalSeconds: number
   theme: Theme
-  logSyncMinLevel: LogLevel
 }
 
 export interface ServerUser {
@@ -138,11 +135,28 @@ export interface ExtensionRemoteConfig {
     enabled: boolean
     message?: string | null
   }
+  logSyncMinLevel: LogLevel
+  scanPolicy: ExtensionScanPolicy
   featureFlags: Record<string, unknown>
   extraConfig: Record<string, unknown>
   releaseNote: ExtensionReleaseNote | null
   updatedAt: string
   fetchedAt?: string
+}
+
+export interface ExtensionScanPolicy {
+  minIntervalSeconds: number
+  maxIntervalSeconds: number
+  defaultIntervalSeconds: number
+  allowedIntervalSeconds: number[]
+  requestSpacingMs: number
+  maxRequestsPerCycle: number
+  maxRequestsPerTripPerCycle: number
+  backoff: {
+    errorBaseSeconds: number
+    rateLimitBaseSeconds: number
+    maxSeconds: number
+  }
 }
 
 export interface DebugLogEntry {

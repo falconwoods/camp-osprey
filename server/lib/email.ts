@@ -91,7 +91,7 @@ export async function sendEmail({
   return result.data;
 }
 
-type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
+type Outcome = 'found' | 'reserved' | 'booked' | 'failed';
 
 interface MatchedSite {
   parkName: string;
@@ -174,10 +174,10 @@ export function buildResultEmail(
 ): { subject: string; html: string } {
   const greeting = greetingFor();
   const subjects: Record<Outcome, string> = {
-    found:        `Campsite found at ${site?.parkName ?? tripName}`,
-    hold_placed:  `Campsite held — complete your booking`,
-    booked:       `Campsite booked! You're going camping`,
-    failed:       `Booking failed at ${site?.parkName ?? tripName}`,
+    found:    `Campsite found at ${site?.parkName ?? tripName}`,
+    reserved: `Campsite reserved — complete your booking`,
+    booked:   `Campsite booked! You're going camping`,
+    failed:   `Booking failed at ${site?.parkName ?? tripName}`,
   };
 
   const bodies: Record<Outcome, string> = {
@@ -186,8 +186,8 @@ export function buildResultEmail(
       ${siteDetailsList(site, 'Found', site?.foundAt)}
       <p>Open campsoon to book it before it's gone.</p>
     `,
-    hold_placed: `
-      <p>Your campsite for <strong>${escapeHtml(tripName)}</strong> has been held in your cart:</p>
+    reserved: `
+      <p>Your campsite for <strong>${escapeHtml(tripName)}</strong> has been reserved in your cart:</p>
       ${siteDetailsList(site, 'Reserved', site?.reservedAt)}
       <p><a href="${escapeHtml(site?.bookingUrl ?? 'https://camping.bcparks.ca')}">Complete your booking on BC Parks →</a></p>
     `,

@@ -37,9 +37,9 @@ describe('buildResultEmail', () => {
     expect(subject).toBe('Campsite found at Alice Lake');
   });
 
-  it('hold_placed — subject is fixed string', () => {
-    const { subject } = buildResultEmail('hold_placed', site, 'My Trip');
-    expect(subject).toBe('Campsite held — complete your booking');
+  it('reserved — subject is fixed string', () => {
+    const { subject } = buildResultEmail('reserved', site, 'My Trip');
+    expect(subject).toBe('Campsite reserved — complete your booking');
   });
 
   it('booked — subject confirms booking', () => {
@@ -59,8 +59,8 @@ describe('buildResultEmail', () => {
     expect(html).toContain('2026-07-06');
   });
 
-  it('hold_placed html includes section, booking link, and reservation time', () => {
-    const { html } = buildResultEmail('hold_placed', site, 'My Trip');
+  it('reserved html includes section, booking link, and reservation time', () => {
+    const { html } = buildResultEmail('reserved', site, 'My Trip');
     expect(html).toContain('Main Loop');
     expect(html).toContain('Site:</strong> 67');
     expect(html).toContain('https://camping.bcparks.ca/create-booking/results');

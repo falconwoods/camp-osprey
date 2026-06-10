@@ -9,6 +9,21 @@ export type RolloutState = 'hidden' | 'available' | 'paused';
 
 const DEFAULT_POLL_INTERVAL_SECONDS = 600;
 const DEFAULT_VERSION = '0.1.0';
+const DEFAULT_SCAN_POLICY = {
+  minIntervalSeconds: 60,
+  maxIntervalSeconds: 300,
+  defaultIntervalSeconds: 120,
+  allowedIntervalSeconds: [60, 120, 180, 300],
+  requestSpacingMs: 2000,
+  maxRequestsPerCycle: 30,
+  maxRequestsPerTripPerCycle: 8,
+  backoff: {
+    errorBaseSeconds: 300,
+    rateLimitBaseSeconds: 600,
+    maxSeconds: 1800,
+  },
+};
+const LOG_LEVELS = ['debug', 'info', 'warning', 'error'] as const;
 
 export function normalizeExtensionChannel(value: unknown): ExtensionChannel {
   return value === 'website' ? 'website' : 'chrome_store';
@@ -22,6 +37,50 @@ function optionalRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function normalizeLogSyncMinLevel(extraConfig: Record<string, unknown>) {
+  return LOG_LEVELS.find(level => level === extraConfig.logSyncMinLevel) ?? 'info';
+}
+
+function normalizeScanPolicy(extraConfig: Record<string, unknown>) {
+  const raw = optionalRecord(extraConfig.scanPolicy);
+  const backoff = optionalRecord(raw.backoff);
+  const allowed = Array.isArray(raw.allowedIntervalSeconds)
+    ? raw.allowedIntervalSeconds.filter((item): item is number => Number.isInteger(item) && item > 0)
+    : DEFAULT_SCAN_POLICY.allowedIntervalSeconds;
+
+  const minIntervalSeconds = positiveInteger(raw.minIntervalSeconds, DEFAULT_SCAN_POLICY.minIntervalSeconds);
+  const maxIntervalSeconds = Math.max(
+    minIntervalSeconds,
+    positiveInteger(raw.maxIntervalSeconds, DEFAULT_SCAN_POLICY.maxIntervalSeconds),
+  );
+
+  const allowedIntervalSeconds = allowed
+    .filter(seconds => seconds >= minIntervalSeconds && seconds <= maxIntervalSeconds)
+    .sort((a, b) => a - b);
+
+  return {
+    minIntervalSeconds,
+    maxIntervalSeconds,
+    defaultIntervalSeconds: Math.min(
+      maxIntervalSeconds,
+      Math.max(minIntervalSeconds, positiveInteger(raw.defaultIntervalSeconds, DEFAULT_SCAN_POLICY.defaultIntervalSeconds)),
+    ),
+    allowedIntervalSeconds: allowedIntervalSeconds.length ? allowedIntervalSeconds : DEFAULT_SCAN_POLICY.allowedIntervalSeconds,
+    requestSpacingMs: positiveInteger(raw.requestSpacingMs, DEFAULT_SCAN_POLICY.requestSpacingMs),
+    maxRequestsPerCycle: positiveInteger(raw.maxRequestsPerCycle, DEFAULT_SCAN_POLICY.maxRequestsPerCycle),
+    maxRequestsPerTripPerCycle: positiveInteger(raw.maxRequestsPerTripPerCycle, DEFAULT_SCAN_POLICY.maxRequestsPerTripPerCycle),
+    backoff: {
+      errorBaseSeconds: positiveInteger(backoff.errorBaseSeconds, DEFAULT_SCAN_POLICY.backoff.errorBaseSeconds),
+      rateLimitBaseSeconds: positiveInteger(backoff.rateLimitBaseSeconds, DEFAULT_SCAN_POLICY.backoff.rateLimitBaseSeconds),
+      maxSeconds: positiveInteger(backoff.maxSeconds, DEFAULT_SCAN_POLICY.backoff.maxSeconds),
+    },
+  };
 }
 
 function optionalNotes(value: unknown): string[] {
@@ -83,6 +142,8 @@ export async function getExtensionConfigResponse(channel: ExtensionChannel) {
     .orderBy(desc(extensionReleases.publishedAt), desc(extensionReleases.createdAt))
     .limit(1);
 
+  const extraConfig = optionalRecord(effectiveConfig.extraConfig);
+
   return {
     serverTime: new Date().toISOString(),
     channel: effectiveConfig.channel,
@@ -96,8 +157,10 @@ export async function getExtensionConfigResponse(channel: ExtensionChannel) {
       enabled: effectiveConfig.maintenanceEnabled,
       message: effectiveConfig.maintenanceMessage,
     },
+    logSyncMinLevel: normalizeLogSyncMinLevel(extraConfig),
     featureFlags: optionalRecord(effectiveConfig.featureFlags),
-    extraConfig: optionalRecord(effectiveConfig.extraConfig),
+    extraConfig,
+    scanPolicy: normalizeScanPolicy(extraConfig),
     releaseNote: release ? {
       version: release.version,
       title: release.title,

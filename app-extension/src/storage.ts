@@ -8,7 +8,7 @@ let debugLogWriteQueue = Promise.resolve()
 const DEFAULTS: StorageData = {
   clientId: null,
   payment: null,
-  settings: { pollIntervalSeconds: 60, debugMode: false, emailOnSiteFound: false, theme: 'auto', logSyncMinLevel: 'info' },
+  settings: { pollIntervalSeconds: 120, theme: 'auto' },
   debugLog: [],
   auth: { token: null, user: null, lastEmail: null, pointsBalance: null },
   extensionConfig: null,
@@ -59,8 +59,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await promisify<void>(cb => chrome.storage.local.set({ settings }, cb))
 }
 
-function shouldSyncLog(entry: DebugLogEntry, settings: Settings): boolean {
-  return LOG_LEVEL_RANK[entry.level] >= LOG_LEVEL_RANK[settings.logSyncMinLevel ?? 'info']
+function shouldSyncLog(entry: DebugLogEntry, minLevel: keyof typeof LOG_LEVEL_RANK): boolean {
+  return LOG_LEVEL_RANK[entry.level] >= LOG_LEVEL_RANK[minLevel]
 }
 
 export function formatDateTime(date: Date | string | number = new Date()): string {
@@ -124,7 +124,7 @@ export async function addDebugLog(
   options: { forceServerSync?: boolean } = {},
 ): Promise<void> {
   const write = async () => {
-    const { debugLog, settings } = await getStorage()
+    const { debugLog, extensionConfig } = await getStorage()
     const pendingResult = await promisify<Record<string, unknown>>(cb =>
       chrome.storage.local.get([PENDING_SERVER_LOGS_KEY], cb)
     )
@@ -137,7 +137,7 @@ export async function addDebugLog(
       ts: entry.ts ?? new Date().toISOString(),
     }
     const newLog = [...existing, structuredEntry].slice(-MAX_DEBUG_LOG_ENTRIES)
-    const nextPending = options.forceServerSync || shouldSyncLog(structuredEntry, settings)
+    const nextPending = options.forceServerSync || shouldSyncLog(structuredEntry, extensionConfig?.logSyncMinLevel ?? 'info')
       ? [...pending, structuredEntry].slice(-MAX_PENDING_SERVER_LOG_ENTRIES)
       : pending
     await promisify<void>(cb => chrome.storage.local.set({

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   CalendarCheck,
@@ -19,10 +19,10 @@ import { TripCard } from './TripCard'
 import { TripEditor } from './TripEditor'
 import { PaymentPanel } from './PaymentPanel'
 import { SettingsPanel } from './SettingsPanel'
-import { LogsPanel } from './LogsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
 import { getPointsSummary, type PointsSummary } from '../serverApi'
 import { getGlobalWarnings, type Warning } from '../warnings'
+import { IS_LOCAL_BUILD } from '../config'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
@@ -30,13 +30,16 @@ import type { ExtensionRemoteConfig, Trip } from '../types'
 import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
 
 type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs'
+const LocalLogsPanel = IS_LOCAL_BUILD
+  ? lazy(() => import('./LogsPanel').then(module => ({ default: module.LogsPanel })))
+  : null
 
 function tabFromHash(): Tab {
   const hash = location.hash.replace('#', '')
   if (hash === 'account') return 'account'
   if (hash === 'payment') return 'payment'
   if (hash === 'settings') return 'settings'
-  if (hash === 'logs') return 'logs'
+  if (IS_LOCAL_BUILD && hash === 'logs') return 'logs'
   return 'trips'
 }
 
@@ -142,7 +145,7 @@ export function OptionsApp() {
           <NavButton active={tab === 'account'} onClick={() => navigate('account')} icon={<UserCircle size={17} />} label="Account" />
           <NavButton active={tab === 'payment'} onClick={() => navigate('payment')} icon={<CreditCard size={17} />} label="Park Payment" />
           <NavButton active={tab === 'settings'} onClick={() => navigate('settings')} icon={<Settings size={17} />} label="Settings" />
-          {state.storage.settings.debugMode ? <NavButton active={tab === 'logs'} onClick={() => navigate('logs')} icon={<FileText size={17} />} label="Logs" /> : null}
+          {IS_LOCAL_BUILD ? <NavButton active={tab === 'logs'} onClick={() => navigate('logs')} icon={<FileText size={17} />} label="Logs" /> : null}
         </nav>
         <div className="sidebar-account">
           <div className="sidebar-account-icon"><UserCircle size={25} /></div>
@@ -205,8 +208,12 @@ export function OptionsApp() {
         ) : null}
         {tab === 'account' ? <AccountPanel auth={state.auth} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
         {tab === 'payment' ? <PaymentPanel auth={state.auth} payment={state.storage.payment} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
-        {tab === 'settings' ? <SettingsPanel settings={state.storage.settings} onChanged={() => state.refresh({ includeTrips: false })} /> : null}
-        {tab === 'logs' ? <LogsPanel logs={state.debugLog} onChanged={() => state.refresh({ includeTrips: false })} /> : null}
+        {tab === 'settings' ? <SettingsPanel settings={state.storage.settings} extensionConfig={state.storage.extensionConfig} onChanged={() => state.refresh({ includeTrips: false })} /> : null}
+        {IS_LOCAL_BUILD && tab === 'logs' && LocalLogsPanel ? (
+          <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+            <LocalLogsPanel logs={state.debugLog} onChanged={() => state.refresh({ includeTrips: false })} />
+          </Suspense>
+        ) : null}
       </main>
       {authDialogOpen ? (
         <div className="auth-modal-backdrop" role="presentation" onMouseDown={event => {

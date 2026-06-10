@@ -5,6 +5,20 @@ import type { ExtensionRemoteConfig } from './types'
 
 const STORAGE_KEY = 'extensionConfig'
 const DEFAULT_POLL_INTERVAL_SECONDS = 600
+const DEFAULT_SCAN_POLICY = {
+  minIntervalSeconds: 60,
+  maxIntervalSeconds: 300,
+  defaultIntervalSeconds: 120,
+  allowedIntervalSeconds: [60, 120, 180, 300],
+  requestSpacingMs: 2000,
+  maxRequestsPerCycle: 30,
+  maxRequestsPerTripPerCycle: 8,
+  backoff: {
+    errorBaseSeconds: 300,
+    rateLimitBaseSeconds: 600,
+    maxSeconds: 1800,
+  },
+}
 
 function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
   return new Promise(resolve => chrome.storage.local.get(keys, result => resolve(result as Record<string, unknown>)))
@@ -20,6 +34,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function asLogLevel(value: unknown): ExtensionRemoteConfig['logSyncMinLevel'] {
+  return value === 'debug' || value === 'info' || value === 'warning' || value === 'error'
+    ? value
+    : 'info'
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : fallback
+}
+
+function normalizeScanPolicy(value: unknown): ExtensionRemoteConfig['scanPolicy'] {
+  const raw = isRecord(value) ? value : {}
+  const backoff = isRecord(raw.backoff) ? raw.backoff : {}
+  const minIntervalSeconds = positiveInteger(raw.minIntervalSeconds, DEFAULT_SCAN_POLICY.minIntervalSeconds)
+  const maxIntervalSeconds = Math.max(
+    minIntervalSeconds,
+    positiveInteger(raw.maxIntervalSeconds, DEFAULT_SCAN_POLICY.maxIntervalSeconds),
+  )
+  const allowed = Array.isArray(raw.allowedIntervalSeconds)
+    ? raw.allowedIntervalSeconds.filter((item): item is number => Number.isInteger(item) && item > 0)
+    : DEFAULT_SCAN_POLICY.allowedIntervalSeconds
+  const allowedIntervalSeconds = allowed
+    .filter(seconds => seconds >= minIntervalSeconds && seconds <= maxIntervalSeconds)
+    .sort((a, b) => a - b)
+
+  return {
+    minIntervalSeconds,
+    maxIntervalSeconds,
+    defaultIntervalSeconds: Math.min(
+      maxIntervalSeconds,
+      Math.max(minIntervalSeconds, positiveInteger(raw.defaultIntervalSeconds, DEFAULT_SCAN_POLICY.defaultIntervalSeconds)),
+    ),
+    allowedIntervalSeconds: allowedIntervalSeconds.length ? allowedIntervalSeconds : DEFAULT_SCAN_POLICY.allowedIntervalSeconds,
+    requestSpacingMs: positiveInteger(raw.requestSpacingMs, DEFAULT_SCAN_POLICY.requestSpacingMs),
+    maxRequestsPerCycle: positiveInteger(raw.maxRequestsPerCycle, DEFAULT_SCAN_POLICY.maxRequestsPerCycle),
+    maxRequestsPerTripPerCycle: positiveInteger(raw.maxRequestsPerTripPerCycle, DEFAULT_SCAN_POLICY.maxRequestsPerTripPerCycle),
+    backoff: {
+      errorBaseSeconds: positiveInteger(backoff.errorBaseSeconds, DEFAULT_SCAN_POLICY.backoff.errorBaseSeconds),
+      rateLimitBaseSeconds: positiveInteger(backoff.rateLimitBaseSeconds, DEFAULT_SCAN_POLICY.backoff.rateLimitBaseSeconds),
+      maxSeconds: positiveInteger(backoff.maxSeconds, DEFAULT_SCAN_POLICY.backoff.maxSeconds),
+    },
+  }
 }
 
 export function normalizeExtensionConfig(value: unknown): ExtensionRemoteConfig | null {
@@ -69,12 +127,31 @@ export function normalizeExtensionConfig(value: unknown): ExtensionRemoteConfig 
       enabled: maintenance.enabled === true,
       message: typeof maintenance.message === 'string' ? maintenance.message : null,
     },
+    logSyncMinLevel: asLogLevel(value.logSyncMinLevel),
+    scanPolicy: normalizeScanPolicy(value.scanPolicy),
     featureFlags: isRecord(value.featureFlags) ? value.featureFlags : {},
     extraConfig: isRecord(value.extraConfig) ? value.extraConfig : {},
     releaseNote,
     updatedAt: value.updatedAt,
     fetchedAt: typeof value.fetchedAt === 'string' ? value.fetchedAt : undefined,
   }
+}
+
+export function getDefaultScanPolicy(): ExtensionRemoteConfig['scanPolicy'] {
+  return DEFAULT_SCAN_POLICY
+}
+
+export function clampScanIntervalSeconds(intervalSeconds: number, policy: ExtensionRemoteConfig['scanPolicy']): number {
+  return Math.min(policy.maxIntervalSeconds, Math.max(policy.minIntervalSeconds, intervalSeconds))
+}
+
+export function resolveScanIntervalSeconds(intervalSeconds: number, policy: ExtensionRemoteConfig['scanPolicy']): number {
+  const clamped = clampScanIntervalSeconds(intervalSeconds, policy)
+  const allowed = policy.allowedIntervalSeconds
+    .filter(seconds => seconds >= policy.minIntervalSeconds && seconds <= policy.maxIntervalSeconds)
+    .sort((a, b) => a - b)
+  if (!allowed.length) return clamped
+  return allowed.find(seconds => seconds >= clamped) ?? allowed[allowed.length - 1]
 }
 
 export async function getCachedExtensionConfig(): Promise<ExtensionRemoteConfig | null> {

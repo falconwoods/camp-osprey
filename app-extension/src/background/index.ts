@@ -1,18 +1,22 @@
-import { BCParksProvider } from '../providers/bcparks'
+import { BCParksApiError, BCParksCooldownError, BCParksProvider } from '../providers/bcparks'
 import { getStorage, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
-import type { AvailableSite, DebugLogEntry, MatchedSite, ScanLease, Trip } from '../types'
+import type { ScanBudget, TripScanCursor } from './scanner'
+import type { AvailableSite, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, ScanLease, Trip } from '../types'
 import { validateAuth } from '../auth'
 import { notifyUserResult, requestScanLease, sendBookingPaymentEvent } from '../serverApi'
 import type { BookingPaymentEventPayload } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
 import { getTrips, updateTrip } from '../tripStore'
+import { IS_LOCAL_BUILD } from '../config'
 import {
   getCachedExtensionConfig,
   getExtensionUpdateUrl,
+  getDefaultScanPolicy,
   isForceUpdateRequired,
   refreshExtensionConfig,
+  resolveScanIntervalSeconds,
 } from '../extensionConfig'
 import { LogEventCode, ProviderCode, ProviderSnapshotSourceCode, ResultCode, RuntimeMessageCode, opaqueHash } from '../protocol'
 
@@ -20,9 +24,15 @@ const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
 const EXTENSION_CONFIG_ALARM_NAME = 'extension-config'
 const PENDING_BOOKING_PAYMENT_EVENTS_KEY = 'pendingBookingPaymentEvents'
+const SCAN_CURSORS_KEY = 'campsoonScanCursors'
+const SCAN_TRIP_CURSOR_KEY = 'campsoonScanTripCursor'
 const provider = new BCParksProvider()
 let scanInProgress = false
 let bookingPaymentFlushInProgress = false
+let lastAvailabilityRequestAt = 0
+let availabilityPacingQueue: Promise<void> = Promise.resolve()
+let availabilityBackoffUntil = 0
+let availabilityErrorCount = 0
 let pendingScanAll = false
 const pendingScanTripIds = new Set<string>()
 const stoppedTripIds = new Set<string>()
@@ -35,6 +45,7 @@ type AuthNotificationKind = 'server' | 'bcparks'
 let contentLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 
 type ConfirmedBookingPaymentPayload = BookingPaymentEventPayload & { idempotencyKey: string }
+type ScanCursorMap = Record<string, TripScanCursor>
 
 interface PendingBookingPaymentEvent {
   payload: ConfirmedBookingPaymentPayload
@@ -60,6 +71,104 @@ function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
 
 function storageSet(values: Record<string, unknown>): Promise<void> {
   return new Promise(resolve => chrome.storage.local.set(values, () => resolve()))
+}
+
+function getScanPolicy(config: ExtensionRemoteConfig | null | undefined): ExtensionRemoteConfig['scanPolicy'] {
+  return config?.scanPolicy ?? getDefaultScanPolicy()
+}
+
+function getEffectiveScanIntervalSeconds(settingsIntervalSeconds: number, config: ExtensionRemoteConfig | null | undefined): number {
+  return resolveScanIntervalSeconds(settingsIntervalSeconds, getScanPolicy(config))
+}
+
+function isTripScanCursor(value: unknown): value is TripScanCursor {
+  if (!value || typeof value !== 'object') return false
+  const cursor = value as Partial<TripScanCursor>
+  return Number.isInteger(cursor.parkIndex) && Number.isInteger(cursor.dateRangeIndex) && Number.isInteger(cursor.windowIndex)
+    && cursor.parkIndex! >= 0 && cursor.dateRangeIndex! >= 0 && cursor.windowIndex! >= 0
+}
+
+async function getScanCursors(): Promise<ScanCursorMap> {
+  const result = await storageGet([SCAN_CURSORS_KEY])
+  const value = result[SCAN_CURSORS_KEY]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter((entry): entry is [string, TripScanCursor] => typeof entry[0] === 'string' && isTripScanCursor(entry[1]))
+  )
+}
+
+async function saveScanCursor(tripId: string, cursor: TripScanCursor): Promise<void> {
+  const cursors = await getScanCursors()
+  cursors[tripId] = cursor
+  await storageSet({ [SCAN_CURSORS_KEY]: cursors })
+}
+
+async function getScanTripCursor(): Promise<string | null> {
+  const result = await storageGet([SCAN_TRIP_CURSOR_KEY])
+  return typeof result[SCAN_TRIP_CURSOR_KEY] === 'string' ? result[SCAN_TRIP_CURSOR_KEY] : null
+}
+
+async function saveScanTripCursor(tripId: string | null): Promise<void> {
+  await storageSet({ [SCAN_TRIP_CURSOR_KEY]: tripId })
+}
+
+function orderTripsForCycle(trips: Trip[], startTripId: string | null): Trip[] {
+  if (!startTripId || trips.length === 0) return trips
+  const startIndex = trips.findIndex(trip => trip.id === startTripId)
+  if (startIndex <= 0) return trips
+  return [...trips.slice(startIndex), ...trips.slice(0, startIndex)]
+}
+
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+async function waitForAvailabilitySlot(spacingMs: number, signal?: AbortSignal): Promise<void> {
+  const run = availabilityPacingQueue.catch(() => undefined).then(async () => {
+    const elapsed = Date.now() - lastAvailabilityRequestAt
+    await wait(Math.max(0, spacingMs - elapsed), signal)
+    lastAvailabilityRequestAt = Date.now()
+  })
+  availabilityPacingQueue = run.catch(() => undefined)
+  return run
+}
+
+function getAvailabilityBackoffDelayMs(err: unknown, policy: ExtensionRemoteConfig['scanPolicy']): number {
+  if (err instanceof BCParksCooldownError) return Math.max(0, err.cooldownUntil - Date.now())
+  if (err instanceof BCParksApiError && (err.status === 429 || err.status === 400 || err.status >= 500)) {
+    return policy.backoff.rateLimitBaseSeconds * 1000
+  }
+  return policy.backoff.errorBaseSeconds * 1000
+}
+
+function recordAvailabilityFailure(err: unknown, policy: ExtensionRemoteConfig['scanPolicy']): void {
+  if (err instanceof DOMException && err.name === 'AbortError') return
+  availabilityErrorCount += 1
+  const baseDelayMs = getAvailabilityBackoffDelayMs(err, policy)
+  const multiplier = Math.max(1, Math.min(4, availabilityErrorCount))
+  const delayMs = Math.min(policy.backoff.maxSeconds * 1000, baseDelayMs * multiplier)
+  availabilityBackoffUntil = Math.max(availabilityBackoffUntil, Date.now() + delayMs)
+}
+
+function clearAvailabilityFailure(): void {
+  availabilityErrorCount = 0
 }
 
 function isScanLease(value: unknown): value is ScanLease {
@@ -328,20 +437,34 @@ provider.onAvailabilityRaw = (siteId, siteName, daily) => {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  setupAlarm(60)
+  setupAlarm(getDefaultScanPolicy().defaultIntervalSeconds)
   setupLogSyncAlarm()
   setupExtensionConfigAlarm(10 * 60)
   void refreshAndScheduleExtensionConfig()
 })
 
 // Restore alarm on service worker restart
-chrome.storage.local.get('settings', result => {
-  const interval = (result as Record<string, { pollIntervalSeconds?: number }>)['settings']?.pollIntervalSeconds ?? 60
+chrome.storage.local.get(['settings', 'extensionConfig'], result => {
+  const data = result as Record<string, { pollIntervalSeconds?: number } | ExtensionRemoteConfig | null>
+  const settings = data['settings'] as { pollIntervalSeconds?: number } | undefined
+  const config = data['extensionConfig'] as ExtensionRemoteConfig | null | undefined
+  const interval = getEffectiveScanIntervalSeconds(
+    settings?.pollIntervalSeconds ?? getScanPolicy(config).defaultIntervalSeconds,
+    config,
+  )
   setupAlarm(interval)
   setupLogSyncAlarm()
   setupExtensionConfigAlarm(10 * 60)
   void flushPendingBookingPaymentEvents()
   void refreshAndScheduleExtensionConfig()
+})
+
+chrome.storage.onChanged.addListener(changes => {
+  if (!changes.settings && !changes.extensionConfig) return
+  void (async () => {
+    const { settings, extensionConfig } = await getStorage()
+    await setupAlarm(getEffectiveScanIntervalSeconds(settings.pollIntervalSeconds, extensionConfig))
+  })()
 })
 
 async function setupAlarm(intervalSeconds: number): Promise<void> {
@@ -401,7 +524,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       pendingScanAll = true
     }
     const { settings } = await getStorage()
-    if (settings.debugMode) await logEntry({
+    if (IS_LOCAL_BUILD) await logEntry({
       level: 'debug',
       eventCode: LogEventCode.scanSkipped,
       message: 'Previous scan still running',
@@ -436,24 +559,59 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
 
     const { settings } = await getStorage()
     const trips = await getTrips()
-    await setupAlarm(settings.pollIntervalSeconds)
+    const scanPolicy = getScanPolicy(extensionConfig)
+    provider.beforeAvailabilityMapRequest = signal => waitForAvailabilitySlot(scanPolicy.requestSpacingMs, signal)
+    const effectiveIntervalSeconds = getEffectiveScanIntervalSeconds(settings.pollIntervalSeconds, extensionConfig)
+    await setupAlarm(effectiveIntervalSeconds)
     const targetSet = targetTripIds
       ? new Set(Array.isArray(targetTripIds) ? targetTripIds : [targetTripIds])
       : null
 
-    const scanningTrips = trips.filter(t =>
+    const scanTripCursor = targetSet ? null : await getScanTripCursor()
+    const scanningTrips = orderTripsForCycle(trips.filter(t =>
       t.status === 'scanning' && (!targetSet || targetSet.has(t.id))
-    )
-    const debug = settings.debugMode
+    ), scanTripCursor)
+    const debug = IS_LOCAL_BUILD
+    const cursors = await getScanCursors()
+    const cycleBudget = { remainingCycleRequests: scanPolicy.maxRequestsPerCycle }
+    let completedTripCycle = true
 
     await logEntry({
       level: 'debug',
       eventCode: LogEventCode.scanCycleStarted,
       message: 'Alarm fired',
-      metadata: { scanningTripCount: scanningTrips.length },
+      metadata: {
+        scanningTripCount: scanningTrips.length,
+        effectiveIntervalSeconds,
+        requestSpacingMs: scanPolicy.requestSpacingMs,
+        maxRequestsPerCycle: scanPolicy.maxRequestsPerCycle,
+        maxRequestsPerTripPerCycle: scanPolicy.maxRequestsPerTripPerCycle,
+      },
     })
 
-    for (const trip of scanningTrips) {
+    for (let tripIndex = 0; tripIndex < scanningTrips.length; tripIndex += 1) {
+      const trip = scanningTrips[tripIndex]
+      if (Date.now() < availabilityBackoffUntil) {
+        completedTripCycle = false
+        if (!targetSet) await saveScanTripCursor(trip.id)
+        await logEntry({
+          level: 'warning',
+          message: 'BC Parks availability backoff active; continuing next cycle',
+          metadata: { backoffUntil: new Date(availabilityBackoffUntil).toISOString() },
+        })
+        break
+      }
+      if (cycleBudget.remainingCycleRequests <= 0) {
+        completedTripCycle = false
+        if (!targetSet) await saveScanTripCursor(trip.id)
+        await logEntry({
+          level: 'info',
+          message: 'Scan budget exhausted; continuing next cycle',
+          metadata: { remainingTrips: scanningTrips.length - tripIndex },
+        })
+        break
+      }
+
       const serverLoggedIn = await validateAuth()
       if (!serverLoggedIn) {
         await logEntry({
@@ -493,7 +651,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         await logEntry({
           level: 'warning',
           eventCode: LogEventCode.bcparksLoginMissing,
-          message: 'Not logged in to BC Parks; skipping hold or auto-pay',
+          message: 'Not logged in to BC Parks; skipping reserve or auto-pay',
           tripId: trip.id,
           tripName: trip.name,
           metadata: { mode: trip.mode },
@@ -527,7 +685,11 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       try {
         const controller = new AbortController()
         activeTripControllers.set(trip.id, controller)
-        const site = await scanTrip(trip, async (id, ci, co, filters) => {
+        const tripBudget: ScanBudget = {
+          remainingCycleRequests: cycleBudget.remainingCycleRequests,
+          remainingTripRequests: scanPolicy.maxRequestsPerTripPerCycle,
+        }
+        const scanResult = await scanTrip(trip, async (id, ci, co, filters) => {
           const parkName = trip.parks.find(p => p.id === id)?.name ?? id
           if (debug) await logEntry({
             level: 'debug',
@@ -540,6 +702,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             checkOut: co,
           })
           const results = await provider.getAvailability(id, ci, co, filters, controller.signal)
+          clearAvailabilityFailure()
           if (results.length > 0) {
             await logEntry({
               level: 'info',
@@ -575,9 +738,15 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             })
           }
           return results
-        }, () => !stoppedTripIds.has(trip.id) && !controller.signal.aborted)
-        if (site) {
-          await handleMatch(trip, site, scanLease.lease, settings.emailOnSiteFound ?? false)
+        }, () => !stoppedTripIds.has(trip.id) && !controller.signal.aborted, {
+          cursor: cursors[trip.id],
+          budget: tripBudget,
+        })
+        cycleBudget.remainingCycleRequests = tripBudget.remainingCycleRequests
+        await saveScanCursor(trip.id, scanResult.cursor)
+
+        if (scanResult.site) {
+          await handleMatch(trip, scanResult.site, scanLease.lease)
         } else if (stoppedTripIds.has(trip.id) || controller.signal.aborted) {
           if (debug) await logEntry({
             level: 'debug',
@@ -585,6 +754,17 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             message: 'Trip scan stopped',
             tripId: trip.id,
             tripName: trip.name,
+          })
+        } else if (scanResult.budgetExhausted) {
+          await logEntry({
+            level: 'info',
+            message: 'Trip scan budget exhausted; continuing next cycle',
+            tripId: trip.id,
+            tripName: trip.name,
+            metadata: {
+              requestsMade: scanResult.requestsMade,
+              remainingCycleRequests: cycleBudget.remainingCycleRequests,
+            },
           })
         } else {
           if (debug) await logEntry({
@@ -594,6 +774,16 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             tripId: trip.id,
             tripName: trip.name,
           })
+        }
+        if (cycleBudget.remainingCycleRequests <= 0) {
+          completedTripCycle = false
+          if (!targetSet) {
+            const nextTripId = scanResult.budgetExhausted
+              ? trip.id
+              : (scanningTrips[tripIndex + 1]?.id ?? null)
+            await saveScanTripCursor(nextTripId)
+          }
+          break
         }
       } catch (err) {
         if (stoppedTripIds.has(trip.id)) {
@@ -605,6 +795,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             tripName: trip.name,
           })
         } else {
+          recordAvailabilityFailure(err, scanPolicy)
           await logEntry({
             level: 'error',
             eventCode: LogEventCode.tripScanError,
@@ -614,11 +805,24 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             error: err instanceof Error ? err.message : String(err),
           })
           console.error(`Scan error for trip ${trip.id}:`, err)
+          if (Date.now() < availabilityBackoffUntil) {
+            completedTripCycle = false
+            if (!targetSet) await saveScanTripCursor(trip.id)
+            await logEntry({
+              level: 'warning',
+              message: 'BC Parks availability backoff scheduled',
+              tripId: trip.id,
+              tripName: trip.name,
+              metadata: { backoffUntil: new Date(availabilityBackoffUntil).toISOString() },
+            })
+            break
+          }
         }
       } finally {
         activeTripControllers.delete(trip.id)
       }
     }
+    if (completedTripCycle && !targetSet) await saveScanTripCursor(null)
   } finally {
     await flushPendingServerLogs()
     scanInProgress = false
@@ -661,7 +865,6 @@ async function reportFoundResult(
   trip: Trip,
   matchedSite: MatchedSite,
   scanLease: string,
-  sendEmail: boolean,
 ): Promise<void> {
   try {
     await logEntry({
@@ -676,10 +879,9 @@ async function reportFoundResult(
       checkOut: matchedSite.checkOut,
       status: 'found',
     })
-    const result = await notifyUserResult(trip.id, {
+    await notifyUserResult(trip.id, {
       resultCode: ResultCode.found,
       matchedSite,
-      sendEmail,
       scanLease,
       tripSnapshot: {
         name: trip.name,
@@ -693,15 +895,6 @@ async function reportFoundResult(
         updatedAt: trip.updatedAt,
         deletedAt: trip.deletedAt,
       },
-    })
-    await logEntry({
-      level: result.emailSent ? 'info' : 'warning',
-      eventCode: result.emailSent ? LogEventCode.serverEmailSent : LogEventCode.serverEmailNotSent,
-      message: result.emailSent ? 'Site found email sent' : 'Site found email not sent',
-      tripId: trip.id,
-      tripName: trip.name,
-      parkName: matchedSite.parkName,
-      siteName: matchedSite.siteName,
     })
   } catch (err) {
     await logEntry({
@@ -721,7 +914,6 @@ async function handleMatch(
   trip: Trip,
   site: AvailableSite,
   scanLease: string,
-  emailOnSiteFound: boolean,
 ): Promise<void> {
   const key = activeMatchKey(trip.id, site)
   if (activeMatchKeys.has(key) || isSameMatch(trip.lastMatch, site)) {
@@ -779,7 +971,7 @@ async function handleMatch(
     metadata: { availableCount },
   })
 
-  await reportFoundResult(trip, matchedSite, scanLease, emailOnSiteFound)
+  await reportFoundResult(trip, matchedSite, scanLease)
 
   if (trip.mode === 'alert') {
     await notify(
@@ -792,7 +984,7 @@ async function handleMatch(
     return
   }
 
-  // For hold and autopay: open BC Parks booking tab so the reservation
+  // For reserve and autopay: open BC Parks booking tab so the reservation
   // happens inside the user's real browser session (not the extension's
   // isolated service-worker session, which has a separate cart).
   // Use chrome.storage.local (not session) — content scripts can only access local storage
@@ -817,7 +1009,7 @@ async function handleMatch(
     }, resolve)
   )
 
-  if (trip.mode === 'hold') {
+  if (trip.mode === 'reserve') {
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
     await notify(
       `Site Available — Reserve Now`,
@@ -873,7 +1065,7 @@ async function notify(title: string, message: string, url?: string, persist = fa
       iconUrl: chrome.runtime.getURL('icons/icon48.png'),
       title,
       message,
-      requireInteraction: persist,  // true = stays until dismissed (match found, hold)
+      requireInteraction: persist,  // true = stays until dismissed (match found, reserve)
     }, createdId => {
       if (chrome.runtime.lastError) {
         console.error('[campsoon] Notification failed:', chrome.runtime.lastError.message)
@@ -979,7 +1171,7 @@ chrome.runtime.onMessage.addListener((msg: {
       void logEntry({
         level: 'info',
         eventCode: LogEventCode.bookingReserved,
-        message: 'Reservation held',
+        message: 'Site reserved',
         tripId: msg.tripId,
         tripName: trip?.name,
         parkName: match?.parkName,
@@ -1016,7 +1208,7 @@ chrome.runtime.onMessage.addListener((msg: {
               status: 'reserved',
             })
             const result = await notifyUserResult(msg.tripId!, {
-              resultCode: ResultCode.holdPlaced,
+              resultCode: ResultCode.reserved,
               matchedSite: match,
               scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
               tripSnapshot: {
@@ -1118,7 +1310,6 @@ chrome.runtime.onMessage.addListener((msg: {
           const result = await notifyUserResult(msg.tripId!, {
             resultCode: ResultCode.booked,
             matchedSite: match,
-            sendEmail: true,
             scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
             tripSnapshot: {
               name: trip.name,
@@ -1190,7 +1381,6 @@ chrome.runtime.onMessage.addListener((msg: {
             resultCode: ResultCode.failed,
             matchedSite: m ?? undefined,
             error: msg.error ?? 'Unknown error',
-            sendEmail: true,
             scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
             tripSnapshot: {
               name: trip.name,

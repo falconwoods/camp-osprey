@@ -69,6 +69,7 @@ export class BCParksProvider {
 
   // Set this to receive raw daily API responses for available sites
   onAvailabilityRaw?: (siteId: string, siteName: string, daily: Array<Record<string, number>>) => void | Promise<void>
+  beforeAvailabilityMapRequest?: (signal?: AbortSignal) => Promise<void>
 
   private async api(path: string, params?: Record<string, string>, signal?: AbortSignal): Promise<unknown> {
     const url = new URL(BASE + path)
@@ -119,6 +120,7 @@ export class BCParksProvider {
   ): Promise<AvailabilityMapResponse> {
     await this.assertAvailabilityNotCoolingDown()
     try {
+      await this.beforeAvailabilityMapRequest?.(signal)
       return await this.api('/api/availability/map', params, signal) as AvailabilityMapResponse
     } catch (err) {
       if (!(err instanceof BCParksApiError) || err.status !== 400) throw err
@@ -134,6 +136,7 @@ export class BCParksProvider {
     }
 
     try {
+      await this.beforeAvailabilityMapRequest?.(signal)
       return await this.api('/api/availability/map', retryParams, signal) as AvailabilityMapResponse
     } catch (err) {
       if (err instanceof BCParksApiError && err.status === 400) {

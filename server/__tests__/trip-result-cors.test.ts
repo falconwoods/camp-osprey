@@ -43,7 +43,7 @@ describe('trip result route CORS', () => {
     const request = new Request('http://localhost:4000/api/trips/trip-1/result', {
       method: 'POST',
       headers: { Origin: 'chrome-extension://acnelnljljoipopaijlhljbagpnapjoj' },
-      body: JSON.stringify({ outcome: 'hold_placed' }),
+      body: JSON.stringify({ outcome: 'reserved' }),
     });
 
     const response = await POST(request, { params: Promise.resolve({ id: 'trip-1' }) });

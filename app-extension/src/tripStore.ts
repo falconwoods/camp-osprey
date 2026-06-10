@@ -37,7 +37,7 @@ function toNullableTime(value: unknown): number | null {
 function normalizeMode(value: unknown): Trip['mode'] {
   if (value === 'notify' || value === 'alert') return 'alert'
   if (value === 'autopay') return 'autopay'
-  return 'hold'
+  return 'reserve'
 }
 
 function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {

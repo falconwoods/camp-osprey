@@ -1,13 +1,21 @@
-import { Bell, CalendarCheck, ChartNoAxesCombined, Clock, Mail, Moon, Palette, Sun, SunMoon } from 'lucide-react'
+import { Bell, Clock, Mail, Moon, Palette, Sun, SunMoon, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { saveSettings } from '../storage'
 import { applyTheme } from '../theme'
 import { Button } from '../components/ui/button'
 import { Select } from '../components/ui/select'
-import type { LogLevel, Settings, Theme } from '../types'
+import { getDefaultScanPolicy, resolveScanIntervalSeconds } from '../extensionConfig'
+import type { ExtensionRemoteConfig, Settings, Theme } from '../types'
 
-export function SettingsPanel({ settings, onChanged }: { settings: Settings; onChanged: () => Promise<void> }) {
+export function SettingsPanel({ settings, extensionConfig, onChanged }: { settings: Settings; extensionConfig: ExtensionRemoteConfig | null; onChanged: () => Promise<void> }) {
   const [savingTheme, setSavingTheme] = useState<Theme | null>(null)
+  const scanPolicy = extensionConfig?.scanPolicy ?? getDefaultScanPolicy()
+  const intervalOptions = scanPolicy.allowedIntervalSeconds.length
+    ? scanPolicy.allowedIntervalSeconds
+    : getDefaultScanPolicy().allowedIntervalSeconds
+  const effectiveInterval = intervalOptions.includes(settings.pollIntervalSeconds)
+    ? settings.pollIntervalSeconds
+    : resolveScanIntervalSeconds(settings.pollIntervalSeconds, scanPolicy)
 
   async function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch }
@@ -50,25 +58,23 @@ export function SettingsPanel({ settings, onChanged }: { settings: Settings; onC
 
       <section className="settings-card">
         <div className="settings-card-title"><Clock className="icon" /> Check interval</div>
-        <Select value={settings.pollIntervalSeconds} onChange={event => update({ pollIntervalSeconds: Number(event.target.value) as Settings['pollIntervalSeconds'] })}>
-          <option value={10}>Every 10 seconds</option>
-          <option value={30}>Every 30 seconds</option>
-          <option value={60}>Every 60 seconds</option>
-          <option value={120}>Every 2 minutes</option>
+        <Select value={effectiveInterval} onChange={event => update({ pollIntervalSeconds: Number(event.target.value) })}>
+          {intervalOptions.map(seconds => (
+            <option value={seconds} key={seconds}>{formatIntervalOption(seconds, seconds === scanPolicy.defaultIntervalSeconds)}</option>
+          ))}
         </Select>
-        <div className="setting-row-note">Chrome enforces a 30s minimum for published extensions. 10s works for the unpacked dev version.</div>
+        <div className="interval-risk-tip" role="note">
+          <TriangleAlert size={15} />
+          <div>
+            <strong>Use faster intervals carefully</strong>
+            <span>Shorter intervals can find openings faster, but they send more requests and may trigger rate limits, blocks, or account bans from booking providers. Choose them only if you accept that risk.</span>
+          </div>
+        </div>
       </section>
 
       <section className="settings-card email-alert-card">
         <div className="settings-card-title"><Mail className="icon" /> Email alerts</div>
         <div className="email-alert-list">
-          <label className="email-alert-option">
-            <input type="checkbox" checked={settings.emailOnSiteFound} onChange={event => update({ emailOnSiteFound: event.target.checked })} />
-            <span className="email-alert-copy">
-              <span className="email-alert-title">Site found</span>
-              <span className="email-alert-subtitle">Send an email as soon as campsoon finds an available site.</span>
-            </span>
-          </label>
           <label className="email-alert-option" aria-disabled="true">
             <input type="checkbox" checked disabled readOnly />
             <span className="email-alert-copy">
@@ -81,32 +87,22 @@ export function SettingsPanel({ settings, onChanged }: { settings: Settings; onC
       </section>
 
       <section className="settings-card">
-        <div className="settings-card-title"><CalendarCheck className="icon" /> Debug mode</div>
-        <label className="settings-check-label">
-          <input type="checkbox" checked={settings.debugMode} onChange={event => update({ debugMode: event.target.checked })} />
-          Enable debug mode
-        </label>
-        <div className="setting-row-note">Show additional logs and development information.</div>
-      </section>
-
-      <section className="settings-card">
-        <div className="settings-card-title"><ChartNoAxesCombined className="icon" /> Server log sync</div>
-        <Select value={settings.logSyncMinLevel ?? 'info'} onChange={event => update({ logSyncMinLevel: event.target.value as LogLevel })}>
-          <option value="debug">Debug and above</option>
-          <option value="info">Info and above</option>
-          <option value="warning">Warning and above</option>
-          <option value="error">Error only</option>
-        </Select>
-        <div className="setting-row-note">Only logs at this level or higher are queued for server sync.</div>
-      </section>
-
-      <section className="settings-card">
         <div className="settings-card-title"><Bell className="icon" /> Notifications</div>
         <Button variant="secondary" onClick={testNotification}><Bell size={16} /> Test Notification</Button>
-        <div className="notification-help"><strong>Tip</strong> If the test does not appear, check Chrome notification permissions in macOS System Settings.</div>
+        <div className="notification-help"><strong>Tip</strong> If the test does not appear, check Chrome notification permissions in your OS notification settings, such as macOS System Settings or Windows Settings &gt; System &gt; Notifications.</div>
       </section>
     </div>
   )
+}
+
+function formatIntervalOption(seconds: number, recommended: boolean): string {
+  return `${formatInterval(seconds)}${recommended ? ' (recommended)' : ''}`
+}
+
+function formatInterval(seconds: number): string {
+  if (seconds < 60) return `Every ${seconds} seconds`
+  const minutes = seconds / 60
+  return `Every ${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)} minute${minutes === 1 ? '' : 's'}`
 }
 
 function themeButton(theme: Theme, label: string, subtitle: string, active: Theme, update: (theme: Theme) => Promise<void>, savingTheme: Theme | null, icon: React.ReactNode) {

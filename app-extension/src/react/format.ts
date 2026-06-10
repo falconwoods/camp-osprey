@@ -13,7 +13,7 @@ export function statusLabel(status: Trip['status']): string {
 }
 
 export function modeLabel(mode: Trip['mode']): string {
-  return { alert: 'Alert Only', hold: 'Auto-reserve', autopay: 'Auto-pay' }[mode]
+  return { alert: 'Alert Only', reserve: 'Auto-reserve', autopay: 'Auto-pay' }[mode]
 }
 
 export function statusDisplay(trip: Trip): { title: string; detail: string; time: string } {

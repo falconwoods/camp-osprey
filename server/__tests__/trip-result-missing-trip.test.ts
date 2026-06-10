@@ -64,6 +64,14 @@ vi.mock('@/lib/extension-cors', async () => {
   return await import('../lib/extension-cors');
 });
 
+vi.mock('@/lib/scan-lease', () => ({
+  verifyScanLease: vi.fn(),
+}));
+
+vi.mock('../lib/scan-lease', () => ({
+  verifyScanLease: vi.fn(),
+}));
+
 describe('trip result route missing trip recovery', () => {
   beforeEach(() => {
     mocks.db.select.mockClear();
@@ -73,7 +81,7 @@ describe('trip result route missing trip recovery', () => {
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1', email: 'user@example.com', name: 'Eric' },
     });
-    mocks.buildResultEmail.mockReturnValue({ subject: 'Campsite held', html: '<p>Held</p>' });
+    mocks.buildResultEmail.mockReturnValue({ subject: 'Campsite reserved', html: '<p>Held</p>' });
     mocks.sendEmail.mockResolvedValue({ id: 'email-1' });
   });
 
@@ -89,7 +97,7 @@ describe('trip result route missing trip recovery', () => {
         'x-vercel-ip-city': 'Vancouver',
       },
       body: JSON.stringify({
-        outcome: 'hold_placed',
+        outcome: 'reserved',
         clientId: 'client-1',
         clientInfo: {
           userAgent: 'test-agent',
@@ -112,7 +120,7 @@ describe('trip result route missing trip recovery', () => {
           parks: [{ id: 'park-1', name: 'Alice Lake' }],
           dateRanges: [{ type: 'specific', checkIn: '2026-06-03', checkOut: '2026-06-04' }],
           filters: { noWalkin: false, noDouble: false },
-          mode: 'hold',
+          mode: 'reserve',
           status: 'reserved',
           attempted: [],
         },
@@ -129,11 +137,11 @@ describe('trip result route missing trip recovery', () => {
       id: 'trip-1',
       userId: 'user-1',
       name: 'Alice Lake',
-      mode: 'hold',
+      mode: 'reserve',
       status: 'reserved',
     }));
     expect(mocks.buildResultEmail).toHaveBeenCalledWith(
-      'hold_placed',
+      'reserved',
       expect.objectContaining({ parkName: 'Alice Lake', siteName: '27' }),
       'Alice Lake',
       'Eric',
@@ -142,7 +150,7 @@ describe('trip result route missing trip recovery', () => {
     expect(resultInsert).toHaveBeenCalledWith(expect.objectContaining({
       tripId: 'trip-1',
       userId: 'user-1',
-      outcome: 'hold_placed',
+      outcome: 'reserved',
       clientId: 'client-1',
       ipAddress: '203.0.113.10',
       country: 'CA',
@@ -153,5 +161,81 @@ describe('trip result route missing trip recovery', () => {
       platformArch: 'arm',
       extensionVersion: '0.1.0',
     }));
+  });
+
+  it('does not send email for found results', async () => {
+    mocks.buildResultEmail.mockClear();
+    mocks.sendEmail.mockClear();
+    mocks.setSelectedTrips([{
+      id: 'trip-1',
+      userId: 'user-1',
+      name: 'Alice Lake',
+      mode: 'alert',
+      status: 'scanning',
+      lastMatch: null,
+    }]);
+    const { POST } = await import('../app/api/trips/[id]/result/route');
+    const request = new Request('http://localhost:4000/api/trips/trip-1/result', {
+      method: 'POST',
+      headers: { Origin: 'chrome-extension://acnelnljljoipopaijlhljbagpnapjoj' },
+      body: JSON.stringify({
+        outcome: 'found',
+        matchedSite: {
+          parkName: 'Alice Lake',
+          sectionName: 'Main',
+          siteName: '27',
+          checkIn: '2026-06-03',
+          checkOut: '2026-06-04',
+          bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+          resourceId: 'site-27',
+          foundAt: '2026-05-26T17:21:23.000Z',
+        },
+      }),
+    });
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'trip-1' }) });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, emailSent: false });
+    expect(mocks.buildResultEmail).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not send reserved email for autopay trips', async () => {
+    mocks.buildResultEmail.mockClear();
+    mocks.sendEmail.mockClear();
+    mocks.setSelectedTrips([{
+      id: 'trip-1',
+      userId: 'user-1',
+      name: 'Alice Lake',
+      mode: 'autopay',
+      status: 'reserving',
+      lastMatch: null,
+    }]);
+    const { POST } = await import('../app/api/trips/[id]/result/route');
+    const request = new Request('http://localhost:4000/api/trips/trip-1/result', {
+      method: 'POST',
+      headers: { Origin: 'chrome-extension://acnelnljljoipopaijlhljbagpnapjoj' },
+      body: JSON.stringify({
+        outcome: 'reserved',
+        matchedSite: {
+          parkName: 'Alice Lake',
+          sectionName: 'Main',
+          siteName: '27',
+          checkIn: '2026-06-03',
+          checkOut: '2026-06-04',
+          bookingUrl: 'https://camping.bcparks.ca/create-booking/results',
+          resourceId: 'site-27',
+          reservedAt: '2026-05-26T17:21:23.000Z',
+        },
+      }),
+    });
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'trip-1' }) });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, emailSent: false });
+    expect(mocks.buildResultEmail).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
   });
 });

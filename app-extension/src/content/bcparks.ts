@@ -49,7 +49,7 @@ interface TargetSite {
   sectionName: string
   parkName: string
   tripId: string
-  mode: 'hold' | 'autopay'
+  mode: 'reserve' | 'autopay'
   noDouble: boolean
   noWalkin: boolean
   checkIn: string   // ISO date — needed to build the attempted key on failure
@@ -660,12 +660,12 @@ async function loadAllPanels(): Promise<void> {
 
 // "Review Reservation Details" page.
 // Checking the box and clicking Confirm is REQUIRED to lock the site into the cart.
-// For hold mode: stops after confirm (15-min hold active, user pays manually).
+// For reserve mode: stops after confirm (15-min reserve active, user pays manually).
 // For autopay: continues through surcharges → payment.
 // Handles reservationmessages page which has two states:
 // State 1: "Review Reservation Details" — checkbox + "Confirm reservation details" button
 // State 2: Surcharges — Continue button (page stays at same URL after confirming)
-async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay'): Promise<void> {
+async function handleReservationReview(tripId: string, mode: 'reserve' | 'autopay'): Promise<void> {
   injectBanner(`<span style="font-size:18px">🏕</span>
     <span><strong style="color:#22c55e">campsoon</strong> — locking site in cart…</span>
     <span id="campsoon-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Working…</span>`)
@@ -700,8 +700,8 @@ async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay')
       await sleep(2000)  // wait for page to transition to surcharges state
     }
 
-    if (mode === 'hold') {
-      // For hold: site is now locked in cart with 15-min timer — user pays manually
+    if (mode === 'reserve') {
+      // For reserve: site is now locked in cart with 15-min timer — user pays manually
       setStatus('Site reserved for 15 min — complete payment now!')
       dbg('reserved complete — site in cart')
       chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingReserved, tripId, scanLease: activeTargetSite?.scanLease })

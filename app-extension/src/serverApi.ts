@@ -72,7 +72,6 @@ export interface NotifyUserResultPayload {
   resultCode: number
   matchedSite?: MatchedSite
   error?: string
-  sendEmail?: boolean
   scanLease?: string
   tripSnapshot?: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>
 }

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { LoadingButton } from '../components/ui/loading-button'
 import type { DebugLogEntry, LogLevel } from '../types'
 import { LogEventCode } from '../protocol'
+import './LogsPanel.css'
 
 export function LogsPanel({ logs, onChanged }: { logs: DebugLogEntry[]; onChanged: () => Promise<void> }) {
   const [levels, setLevels] = useState<Set<LogLevel>>(() => new Set(ALL_LOG_LEVELS))

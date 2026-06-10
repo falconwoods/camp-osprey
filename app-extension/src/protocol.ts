@@ -14,7 +14,7 @@ export const RuntimeMessageCode = {
 
 export const ResultCode = {
   found: 1211,
-  holdPlaced: 1212,
+  reserved: 1212,
   booked: 1213,
   failed: 1214,
 } as const
@@ -64,7 +64,7 @@ export const LogEventCode = {
 
 const TRIP_MODE_CODES: Record<Trip['mode'], number> = {
   alert: 3101,
-  hold: 3102,
+  reserve: 3102,
   autopay: 3103,
 }
 
@@ -102,7 +102,7 @@ const LOG_MESSAGE_CODES: Record<string, number> = {
   'Alarm fired': 5109,
   'Not signed in to server; skipping scan': 5110,
   'Could not acquire scan lease; skipping trip': 5111,
-  'Not logged in to BC Parks; skipping hold or auto-pay': 5112,
+  'Not logged in to BC Parks; skipping reserve or auto-pay': 5112,
   'Scanning trip': 5113,
   'Checking park date window': 5114,
   '0 available site(s)': 5115,
@@ -110,8 +110,6 @@ const LOG_MESSAGE_CODES: Record<string, number> = {
   'No availability this cycle': 5117,
   'Error scanning trip': 5118,
   'Reporting found site result to server': 5119,
-  'Site found email sent': 5120,
-  'Site found email not sent': 5121,
   'Site found result reporting failed': 5122,
   'Already handling active match; suppressing duplicate tab and notification': 5123,
   'Found reservable site': 5124,
@@ -121,7 +119,7 @@ const LOG_MESSAGE_CODES: Record<string, number> = {
   'Content script log': 5128,
   'Match failed; marked attempted': 5129,
   'Match failed; retrying next scan': 5130,
-  'Reservation held': 5131,
+  'Site reserved': 5131,
   'Reporting reservation result to server': 5132,
   'Reservation email sent': 5133,
   'Reservation email not sent': 5134,

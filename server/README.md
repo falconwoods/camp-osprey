@@ -17,12 +17,12 @@ email notifications, and admin visibility.
   - `DELETE /api/trips/:id` deletes a trip owned by the signed-in user.
 - Authenticated extension notification endpoint at `POST /api/trips/:id/result`.
   The Chrome extension calls this after booking-related events such as a site being
-  found, a cart hold being placed, a booking being paid/confirmed, or a booking
+  found, a cart reservation being placed, a booking being paid/confirmed, or a booking
   failure.
-- Booking result payloads support `found`, `hold_placed`, `booked`, and `failed`
+- Booking result payloads support `found`, `reserved`, `booked`, and `failed`
   outcomes, plus matched campsite details, reservation/booking links, and error
   details from the extension.
-- Trip status updates from booking outcomes: held trips pause, booked trips complete, and failed trips return to idle.
+- Trip status updates from booking outcomes: reserved trips pause, booked trips complete, and failed trips return to idle.
 - Booking result history stored in `booking_results`, including matched site details, error messages, and email-send status.
 - Email notifications are sent to the signed-in user's email address with the trip
   name, park, site, dates, booking URL, and relevant failure details when present.

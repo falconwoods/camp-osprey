@@ -264,7 +264,7 @@ function parseLocalDate(value: string): Date {
 function modeDisplay(mode: Trip['mode']): { label: string; icon: React.ReactNode } {
   return {
     alert: { label: 'Alert only', icon: <Bell size={17} /> },
-    hold: { label: 'Auto-reserve', icon: <Gauge size={17} /> },
+    reserve: { label: 'Auto-reserve', icon: <Gauge size={17} /> },
     autopay: { label: 'Auto-pay', icon: <CreditCard size={17} /> },
   }[mode]
 }

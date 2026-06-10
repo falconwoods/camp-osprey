@@ -1,16 +1,16 @@
-type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
+type Outcome = 'found' | 'reserved' | 'booked' | 'failed';
 type Provider = 'bc_parks';
 
 const RESULT_BY_CODE: Record<number, Outcome> = {
   1211: 'found',
-  1212: 'hold_placed',
+  1212: 'reserved',
   1213: 'booked',
   1214: 'failed',
 };
 
 const MODE_BY_CODE: Record<number, string> = {
   3101: 'alert',
-  3102: 'hold',
+  3102: 'reserve',
   3103: 'autopay',
 };
 
@@ -91,7 +91,7 @@ const LOG_MESSAGE_BY_CODE: Record<number, string> = {
   5109: 'Alarm fired',
   5110: 'Not signed in to server; skipping scan',
   5111: 'Could not acquire scan lease; skipping trip',
-  5112: 'Not logged in to BC Parks; skipping hold or auto-pay',
+  5112: 'Not logged in to BC Parks; skipping reserve or auto-pay',
   5113: 'Scanning trip',
   5114: 'Checking park date window',
   5115: '0 available site(s)',
@@ -110,7 +110,7 @@ const LOG_MESSAGE_BY_CODE: Record<number, string> = {
   5128: 'Content script log',
   5129: 'Match failed; marked attempted',
   5130: 'Match failed; retrying next scan',
-  5131: 'Reservation held',
+  5131: 'Site reserved',
   5132: 'Reporting reservation result to server',
   5133: 'Reservation email sent',
   5134: 'Reservation email not sent',
@@ -141,7 +141,7 @@ export function decodeResultOutcome(body: Record<string, unknown>): Outcome {
   }
 
   const legacy = body.outcome;
-  if (legacy === 'found' || legacy === 'hold_placed' || legacy === 'booked' || legacy === 'failed') return legacy;
+  if (legacy === 'found' || legacy === 'reserved' || legacy === 'booked' || legacy === 'failed') return legacy;
   throw new Error('invalid_result_code');
 }
 

@@ -34,7 +34,7 @@ export function TripEditor({
   onNeedsPayment: () => void
 }) {
   const [name, setName] = useState(trip?.name ?? `Trip ${tripCount + 1}`)
-  const [mode, setMode] = useState<Trip['mode']>(trip?.mode ?? 'hold')
+  const [mode, setMode] = useState<Trip['mode']>(trip?.mode ?? 'reserve')
   const [noWalkin, setNoWalkin] = useState(trip?.filters.noWalkin ?? true)
   const [noDouble, setNoDouble] = useState(trip?.filters.noDouble ?? true)
   const [parks, setParks] = useState<Park[]>(trip?.parks ?? [])
@@ -270,7 +270,7 @@ export function TripEditor({
             <div className="section-label">On Match</div>
             <Select id="trip-mode" value={mode} onChange={event => setMode(event.target.value as Trip['mode'])}>
               <option value="alert">Alert Only</option>
-              <option value="hold">Auto-reserve</option>
+              <option value="reserve">Auto-reserve</option>
               <option value="autopay">Auto-pay</option>
             </Select>
             <div className="mode-help" id="trip-mode-help" aria-live="polite">
@@ -315,7 +315,7 @@ function dateRangesEqual(a: DateRange, b: DateRange): boolean {
 }
 
 function modeLabel(mode: Trip['mode']): string {
-  return { alert: 'Alert Only', hold: 'Auto-reserve', autopay: 'Auto-pay' }[mode]
+  return { alert: 'Alert Only', reserve: 'Auto-reserve', autopay: 'Auto-pay' }[mode]
 }
 
 function getModeHelpItems(mode: Trip['mode']): string[] {
@@ -326,15 +326,15 @@ function getModeHelpItems(mode: Trip['mode']): string[] {
     ]
   }
 
-  if (mode === 'hold') {
+  if (mode === 'reserve') {
     return [
-      'Holds a matching reservation for you to complete payment manually.',
-      `${successfulBookingPointCostLabel} points are deducted only after you successfully pay the held reservation.`,
+      'Reserves a matching site for you to complete payment manually.',
+      `${successfulBookingPointCostLabel} points are deducted only after you successfully pay the reservation.`,
     ]
   }
 
   return [
-    'Holds the reservation and completes payment automatically.',
+    'Reserves the site and completes payment automatically.',
     `${successfulBookingPointCostLabel} points are deducted only after reservation and payment both succeed.`,
   ]
 }
