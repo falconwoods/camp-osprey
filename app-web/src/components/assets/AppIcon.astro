@@ -1,0 +1,16 @@
+---
+import { withSiteAssetVersion } from "@/config/siteAssets";
+
+const { alt = "CampSoon app icon", class: className = "", size = 96, ...rest } = Astro.props;
+const iconSrc = withSiteAssetVersion("/icon-512.png");
+---
+
+<img
+  src={iconSrc}
+  alt={alt}
+  width={size}
+  height={size}
+  decoding="async"
+  class:list={["shrink-0 rounded-2xl", className]}
+  {...rest}
+/>

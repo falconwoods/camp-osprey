@@ -1,52 +1,54 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
-
-const chromeStoreUrl = "https://chromewebstore.google.com/search/CampSoon";
+import AppIcon from "@/components/assets/AppIcon.astro";
 
 const installSteps = [
   {
-    title: "Open CampSoon in the Chrome Web Store",
-    body: "Use the Chrome Web Store button on this page, or search for CampSoon directly in the Chrome Web Store from Chrome on your desktop.",
+    title: "Chrome Web Store listing",
+    body: "CampSoon is preparing its public Chrome Web Store listing. The listing URL will be published here when it is approved and available.",
   },
   {
-    title: "Add the extension to Chrome",
-    body: "On the CampSoon listing, click Add to Chrome to start the standard Chrome installation flow.",
+    title: "Install through Chrome",
+    body: "After launch, users will install CampSoon through Chrome's standard Add to Chrome flow.",
   },
   {
     title: "Review Chrome's confirmation prompt",
-    body: "Review the browser permissions shown by Chrome, then click Add extension to finish installing CampSoon.",
+    body: "Chrome will show the extension permissions before installation. Users should review the prompt and continue only if they trust the listing.",
   },
   {
     title: "Pin CampSoon",
-    body: "Click the puzzle icon in the Chrome toolbar and pin CampSoon so you can open it quickly.",
+    body: "After installation, users can click the puzzle icon in the Chrome toolbar and pin CampSoon for quick access.",
   },
 ];
 
 const checks = [
-  "Install CampSoon only from the Chrome Web Store listing.",
-  "Chrome Web Store installs are handled by Chrome and receive updates through the browser.",
-  "If you cannot find the listing, contact support before installing CampSoon from any unofficial source.",
+  "CampSoon is not yet publicly listed in the Chrome Web Store.",
+  "CampSoon does not currently distribute public extension ZIP packages for manual installation.",
+  "When CampSoon launches, install it only from the official Chrome Web Store listing.",
 ];
 ---
 
 <BaseLayout>
   <section class="bg-white py-20 sm:py-24">
     <div class="mx-auto max-w-4xl px-6 lg:px-8">
-      <div class="max-w-3xl">
-        <p class="text-sm font-semibold uppercase tracking-wide text-blue-600">Chrome Web Store Installation</p>
-        <h1 class="mt-4 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-          Install CampSoon from the Chrome Web Store
-        </h1>
-        <p class="mt-6 text-lg leading-8 text-slate-600">
-          The Chrome Web Store is the supported way to install CampSoon. It gives you Chrome's standard install prompt, browser-managed updates, and a safer installation path.
-        </p>
-        <div class="mt-8 flex flex-wrap items-center gap-4">
-          <a href={chromeStoreUrl} target="_blank" rel="noreferrer" class="rounded-md bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">
-            Open Chrome Web Store
-          </a>
-          <a href="mailto:support@campsoon.com" class="text-sm font-semibold text-slate-900 hover:text-blue-600">
-            Need help? Contact support
-          </a>
+      <div class="flex flex-col gap-8 sm:flex-row sm:items-start">
+        <AppIcon class="size-24 shadow-sm ring-1 ring-slate-200 sm:size-28" size={112} />
+        <div class="max-w-3xl">
+          <p class="text-sm font-semibold uppercase tracking-wide text-blue-600">Chrome Web Store Launch Status</p>
+          <h1 class="mt-4 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+            CampSoon is preparing for Chrome Web Store release
+          </h1>
+          <p class="mt-6 text-lg leading-8 text-slate-600">
+            CampSoon is not yet publicly available in the Chrome Web Store. After approval and launch, the Chrome Web Store will be the supported way to install CampSoon and receive browser-managed updates.
+          </p>
+          <div class="mt-8 flex flex-wrap items-center gap-4">
+            <div class="rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">
+              Chrome Web Store listing coming soon
+            </div>
+            <a href="mailto:support@campsoon.com" class="text-sm font-semibold text-slate-900 hover:text-blue-600">
+              Need help? Contact support
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -54,7 +56,7 @@ const checks = [
 
   <section class="bg-slate-50 py-20">
     <div class="mx-auto max-w-4xl px-6 lg:px-8">
-      <h2 class="text-2xl font-bold tracking-tight text-slate-900">Installation Steps</h2>
+      <h2 class="text-2xl font-bold tracking-tight text-slate-900">Expected Installation Flow</h2>
       <ol class="mt-8 space-y-4">
         {
           installSteps.map((step, index) => (

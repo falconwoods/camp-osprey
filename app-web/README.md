@@ -69,6 +69,16 @@ All commands are run from the root of the project, from a terminal:
 | `npm run astro ...`    | Run CLI commands like `astro add`, `astro check` |
 | `npm run astro --help` | Get help using the Astro CLI                     |
 
+## Site Assets
+
+Generate the favicon, touch icon, manifest icons, and OG image from a source image path you pass explicitly:
+
+```bash
+npm run generate:assets -- /path/to/source-image.png
+```
+
+The script writes the generated files into `public/` and updates `public/manifest.webmanifest`.
+
 ## Want to learn more?
 
 Feel free to check Astro's [documentation](https://docs.astro.build)
