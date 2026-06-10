@@ -1,6 +1,7 @@
 import { getAuth, getClientId } from './storage'
 import { ServerApiError, serverFetch, syncTripToServer, softDeleteTripOnServer } from './serverApi'
 import type { Trip } from './types'
+import { RuntimeMessageCode } from './protocol'
 
 export const TRIPS_CACHE_KEY = 'campsoonTripsCache'
 
@@ -12,7 +13,7 @@ interface TripsCache {
 
 function notifyTripsChanged(): void {
   try {
-    chrome.runtime.sendMessage({ type: 'TRIPS_CHANGED' })
+    chrome.runtime.sendMessage({ t: RuntimeMessageCode.tripsChanged })
   } catch {
     // Views also refresh on direct user actions; this only keeps open views fresh.
   }

@@ -1,6 +1,7 @@
 import { getAuth, getClientId, saveAuth } from './storage'
 import { BACKEND_BASE_URL, EXTENSION_CHANNEL } from './config'
 import type { ClientInfo, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, ScanLease, Trip } from './types'
+import { encodeDateRange, encodeDebugLogEntries, encodeTripMode, encodeTripStatus } from './protocol'
 
 export class ServerApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -68,12 +69,29 @@ export async function serverFetch<T>(
 }
 
 export interface NotifyUserResultPayload {
-  outcome: 'found' | 'hold_placed' | 'booked' | 'failed'
+  resultCode: number
   matchedSite?: MatchedSite
   error?: string
   sendEmail?: boolean
   scanLease?: string
   tripSnapshot?: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>
+}
+
+function encodedTripSnapshot(
+  trip: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>,
+) {
+  return {
+    name: trip.name,
+    parks: trip.parks,
+    dateRanges: trip.dateRanges.map(encodeDateRange),
+    filters: trip.filters,
+    modeCode: encodeTripMode(trip.mode),
+    statusCode: encodeTripStatus(trip.status),
+    attempted: trip.attempted,
+    createdAt: trip.createdAt,
+    updatedAt: trip.updatedAt,
+    deletedAt: trip.deletedAt,
+  }
 }
 
 function tripSyncPayload(trip: Trip, clientId: string) {
@@ -82,10 +100,10 @@ function tripSyncPayload(trip: Trip, clientId: string) {
     clientId: trip.clientId ?? clientId,
     name: trip.name,
     parks: trip.parks,
-    dateRanges: trip.dateRanges,
+    dateRanges: trip.dateRanges.map(encodeDateRange),
     filters: trip.filters,
-    mode: trip.mode,
-    status: trip.status,
+    modeCode: encodeTripMode(trip.mode),
+    statusCode: encodeTripStatus(trip.status),
     lastMatch: trip.lastMatch,
     attempted: trip.attempted,
     createdAt: new Date(trip.createdAt).toISOString(),
@@ -140,10 +158,13 @@ export async function notifyUserResult(
   payload: NotifyUserResultPayload,
 ): Promise<{ ok: true; emailSent: boolean }> {
   const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
+  const outbound = payload.tripSnapshot
+    ? { ...payload, tripSnapshot: encodedTripSnapshot(payload.tripSnapshot) }
+    : payload
   return serverFetch(`/api/trips/${encodeURIComponent(tripId)}/result`, {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ ...payload, clientId, clientInfo }),
+    body: JSON.stringify({ ...outbound, clientId, clientInfo }),
   })
 }
 
@@ -189,7 +210,7 @@ export async function sendExtensionLogs(
   return serverFetch('/api/extension-logs', {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ clientId, clientInfo, entries }),
+    body: JSON.stringify({ clientId, clientInfo, entries: encodeDebugLogEntries(entries) }),
   })
 }
 
@@ -235,7 +256,7 @@ export interface BookingPaymentEventPayload {
   clientEventId?: string
   idempotencyKey?: string
   scanLease?: string
-  provider: 'bc_parks'
+  providerCode: number
   confirmationNumber?: string
   providerReservationId?: string
   providerTransactionId?: string

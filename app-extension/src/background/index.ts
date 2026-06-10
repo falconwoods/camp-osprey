@@ -14,6 +14,7 @@ import {
   isForceUpdateRequired,
   refreshExtensionConfig,
 } from '../extensionConfig'
+import { LogEventCode, ProviderCode, ProviderSnapshotSourceCode, ResultCode, RuntimeMessageCode, opaqueHash } from '../protocol'
 
 const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
@@ -83,7 +84,7 @@ async function getScanLeaseForTrip(trip: Trip): Promise<ScanLease> {
   activeScanLeases.set(trip.id, scanLease)
   await logEntry({
     level: 'debug',
-    event: 'scan_lease_acquired',
+    eventCode: LogEventCode.scanLeaseAcquired,
     message: 'Scan lease acquired',
     tripId: trip.id,
     tripName: trip.name,
@@ -95,7 +96,7 @@ async function getScanLeaseForTrip(trip: Trip): Promise<ScanLease> {
 function isConfirmedBookingPaymentPayload(value: unknown): value is ConfirmedBookingPaymentPayload {
   if (!value || typeof value !== 'object') return false
   const payload = value as Partial<ConfirmedBookingPaymentPayload>
-  return payload.provider === 'bc_parks'
+  return payload.providerCode === ProviderCode.bcParks
     && typeof payload.idempotencyKey === 'string'
     && !!payload.idempotencyKey
     && typeof payload.parkName === 'string'
@@ -148,33 +149,39 @@ async function removePendingBookingPaymentEvent(idempotencyKey: string): Promise
   await savePendingBookingPaymentEvents(pending)
 }
 
-function bookingPaymentIdempotencyKey(
+async function bookingPaymentIdempotencyKey(
   trip: Trip,
   match: MatchedSite,
   confirmationNumber: string | undefined,
   paidAt: string,
-): string {
+): Promise<string> {
   const normalizedConfirmation = confirmationNumber?.trim()
-  return normalizedConfirmation && normalizedConfirmation !== 'unknown'
-    ? `bc_parks:confirmation:${normalizedConfirmation}`
-    : `bc_parks:booking:${trip.id}:${match.resourceId}:${match.checkIn}:${match.checkOut}:${paidAt}`
+  return opaqueHash([
+    2407,
+    trip.id,
+    match.resourceId,
+    match.checkIn,
+    match.checkOut,
+    normalizedConfirmation && normalizedConfirmation !== 'unknown' ? normalizedConfirmation : '',
+    paidAt,
+  ])
 }
 
-function buildBookingPaymentEvent(
+async function buildBookingPaymentEvent(
   trip: Trip,
   match: MatchedSite,
   confirmationNumber: string | undefined,
   paidAt: string,
   scanLease: string | undefined,
   bookingUrl?: string,
-): ConfirmedBookingPaymentPayload {
+): Promise<ConfirmedBookingPaymentPayload> {
   const normalizedConfirmation = confirmationNumber?.trim() || undefined
   return {
     tripId: trip.id,
-    clientEventId: `booking-confirmed:${trip.id}:${paidAt}`,
-    idempotencyKey: bookingPaymentIdempotencyKey(trip, match, normalizedConfirmation, paidAt),
+    clientEventId: crypto.randomUUID(),
+    idempotencyKey: await bookingPaymentIdempotencyKey(trip, match, normalizedConfirmation, paidAt),
     scanLease,
-    provider: 'bc_parks',
+    providerCode: ProviderCode.bcParks,
     confirmationNumber: normalizedConfirmation,
     parkName: match.parkName,
     sectionName: match.sectionName,
@@ -185,7 +192,7 @@ function buildBookingPaymentEvent(
     paidAt,
     bookingUrl: bookingUrl ?? match.bookingUrl,
     rawProviderSnapshot: {
-      source: 'bcparks_confirmation_dom',
+      sourceCode: ProviderSnapshotSourceCode.confirmationDom,
       confirmationRouteObserved: true,
       confirmationNumber: normalizedConfirmation,
     },
@@ -204,7 +211,7 @@ async function flushPendingBookingPaymentEvents(): Promise<void> {
         await removePendingBookingPaymentEvent(idempotencyKey)
         await logEntry({
           level: result.chargeStatus === 'failed_insufficient_points' ? 'warning' : 'info',
-          event: 'booking_payment_event_reported',
+          eventCode: LogEventCode.bookingPaymentEventReported,
           message: result.duplicate
             ? 'Booking payment event already reported'
             : 'Booking payment event reported',
@@ -238,7 +245,7 @@ async function flushPendingBookingPaymentEvents(): Promise<void> {
         await savePendingBookingPaymentEvents(latest)
         await logEntry({
           level: 'error',
-          event: 'booking_payment_event_report_failed',
+          eventCode: LogEventCode.bookingPaymentEventReportFailed,
           message: 'Booking payment event reporting failed; will retry',
           tripId: event.payload.tripId,
           tripName: event.tripName,
@@ -313,7 +320,7 @@ async function clearAuthIssue(kind: AuthNotificationKind, tripId: string): Promi
 provider.onAvailabilityRaw = (siteId, siteName, daily) => {
   void logEntry({
     level: 'debug',
-    event: 'availability_raw',
+    eventCode: LogEventCode.availabilityRaw,
     message: 'Raw availability response',
     siteName,
     metadata: { siteId, daily },
@@ -359,7 +366,7 @@ async function refreshAndScheduleExtensionConfig(): Promise<void> {
   } catch (err) {
     await logEntry({
       level: 'warning',
-      event: 'extension_config_refresh_failed',
+      eventCode: LogEventCode.extensionConfigRefreshFailed,
       message: 'Extension config refresh failed',
       error: err instanceof Error ? err.message : String(err),
     })
@@ -396,7 +403,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     const { settings } = await getStorage()
     if (settings.debugMode) await logEntry({
       level: 'debug',
-      event: 'scan_skipped',
+      eventCode: LogEventCode.scanSkipped,
       message: 'Previous scan still running',
     })
     return
@@ -409,7 +416,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     if (isForceUpdateRequired(extensionConfig)) {
       await logEntry({
         level: 'warning',
-        event: 'extension_update_required',
+        eventCode: LogEventCode.extensionUpdateRequired,
         message: 'Scan skipped because this extension version is no longer supported',
         metadata: {
           minSupportedVersion: extensionConfig?.minSupportedVersion,
@@ -441,7 +448,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
 
     await logEntry({
       level: 'debug',
-      event: 'scan_cycle_started',
+      eventCode: LogEventCode.scanCycleStarted,
       message: 'Alarm fired',
       metadata: { scanningTripCount: scanningTrips.length },
     })
@@ -451,7 +458,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       if (!serverLoggedIn) {
         await logEntry({
           level: 'debug',
-          event: 'server_auth_missing',
+          eventCode: LogEventCode.serverAuthMissing,
           message: 'Not signed in to server; skipping scan',
           tripId: trip.id,
           tripName: trip.name,
@@ -471,7 +478,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       } catch (err) {
         await logEntry({
           level: 'error',
-          event: 'scan_lease_failed',
+          eventCode: LogEventCode.scanLeaseFailed,
           message: 'Could not acquire scan lease; skipping trip',
           tripId: trip.id,
           tripName: trip.name,
@@ -485,7 +492,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
       if (needsLogin) {
         await logEntry({
           level: 'warning',
-          event: 'bcparks_login_missing',
+          eventCode: LogEventCode.bcparksLoginMissing,
           message: 'Not logged in to BC Parks; skipping hold or auto-pay',
           tripId: trip.id,
           tripName: trip.name,
@@ -505,7 +512,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         const parkNames = trip.parks.map(p => p.name).join(', ')
         await logEntry({
           level: 'debug',
-          event: 'trip_scan_started',
+          eventCode: LogEventCode.tripScanStarted,
           message: 'Scanning trip',
           tripId: trip.id,
           tripName: trip.name,
@@ -524,7 +531,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           const parkName = trip.parks.find(p => p.id === id)?.name ?? id
           if (debug) await logEntry({
             level: 'debug',
-            event: 'park_checked',
+            eventCode: LogEventCode.parkChecked,
             message: 'Checking park date window',
             tripId: trip.id,
             tripName: trip.name,
@@ -536,7 +543,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           if (results.length > 0) {
             await logEntry({
               level: 'info',
-              event: 'availability_result',
+              eventCode: LogEventCode.availabilityResult,
               message: `${results.length} available site(s)`,
               tripId: trip.id,
               tripName: trip.name,
@@ -557,7 +564,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           } else if (debug) {
             await logEntry({
               level: 'debug',
-              event: 'availability_result',
+              eventCode: LogEventCode.availabilityResult,
               message: '0 available site(s)',
               tripId: trip.id,
               tripName: trip.name,
@@ -574,7 +581,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         } else if (stoppedTripIds.has(trip.id) || controller.signal.aborted) {
           if (debug) await logEntry({
             level: 'debug',
-            event: 'trip_scan_stopped',
+            eventCode: LogEventCode.tripScanStopped,
             message: 'Trip scan stopped',
             tripId: trip.id,
             tripName: trip.name,
@@ -582,7 +589,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         } else {
           if (debug) await logEntry({
             level: 'debug',
-            event: 'trip_scan_empty',
+            eventCode: LogEventCode.tripScanEmpty,
             message: 'No availability this cycle',
             tripId: trip.id,
             tripName: trip.name,
@@ -592,7 +599,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         if (stoppedTripIds.has(trip.id)) {
           if (debug) await logEntry({
             level: 'debug',
-            event: 'trip_scan_stopped',
+            eventCode: LogEventCode.tripScanStopped,
             message: 'Trip scan stopped',
             tripId: trip.id,
             tripName: trip.name,
@@ -600,7 +607,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         } else {
           await logEntry({
             level: 'error',
-            event: 'trip_scan_error',
+            eventCode: LogEventCode.tripScanError,
             message: 'Error scanning trip',
             tripId: trip.id,
             tripName: trip.name,
@@ -659,7 +666,7 @@ async function reportFoundResult(
   try {
     await logEntry({
       level: 'info',
-      event: 'server_result_reported',
+      eventCode: LogEventCode.serverResultReported,
       message: 'Reporting found site result to server',
       tripId: trip.id,
       tripName: trip.name,
@@ -670,7 +677,7 @@ async function reportFoundResult(
       status: 'found',
     })
     const result = await notifyUserResult(trip.id, {
-      outcome: 'found',
+      resultCode: ResultCode.found,
       matchedSite,
       sendEmail,
       scanLease,
@@ -689,7 +696,7 @@ async function reportFoundResult(
     })
     await logEntry({
       level: result.emailSent ? 'info' : 'warning',
-      event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+      eventCode: result.emailSent ? LogEventCode.serverEmailSent : LogEventCode.serverEmailNotSent,
       message: result.emailSent ? 'Site found email sent' : 'Site found email not sent',
       tripId: trip.id,
       tripName: trip.name,
@@ -699,7 +706,7 @@ async function reportFoundResult(
   } catch (err) {
     await logEntry({
       level: 'error',
-      event: 'server_result_failed',
+      eventCode: LogEventCode.serverResultFailed,
       message: 'Site found result reporting failed',
       tripId: trip.id,
       tripName: trip.name,
@@ -720,7 +727,7 @@ async function handleMatch(
   if (activeMatchKeys.has(key) || isSameMatch(trip.lastMatch, site)) {
     await logEntry({
       level: 'warning',
-      event: 'active_match_suppressed',
+      eventCode: LogEventCode.activeMatchSuppressed,
       message: 'Already handling active match; suppressing duplicate tab and notification',
       tripId: trip.id,
       tripName: trip.name,
@@ -758,7 +765,7 @@ async function handleMatch(
 
   await logEntry({
     level: 'info',
-    event: 'site_found',
+    eventCode: LogEventCode.siteFound,
     message: 'Found reservable site',
     tripId: trip.id,
     tripName: trip.name,
@@ -821,7 +828,7 @@ async function handleMatch(
     chrome.tabs.create({ url: bookingUrl })
     await logEntry({
       level: 'info',
-      event: 'reservation_tab_opened',
+      eventCode: LogEventCode.reservationTabOpened,
       message: 'Reservation tab opened',
       tripId: trip.id,
       tripName: trip.name,
@@ -845,7 +852,7 @@ async function handleMatch(
     chrome.tabs.create({ url: bookingUrl })
     await logEntry({
       level: 'info',
-      event: 'reservation_tab_opened',
+      eventCode: LogEventCode.reservationTabOpened,
       message: 'Reservation tab opened for auto-pay',
       tripId: trip.id,
       tripName: trip.name,
@@ -872,7 +879,7 @@ async function notify(title: string, message: string, url?: string, persist = fa
         console.error('[campsoon] Notification failed:', chrome.runtime.lastError.message)
         void logEntry({
           level: 'error',
-          event: 'notification_error',
+          eventCode: LogEventCode.notificationError,
           message: 'Notification failed',
           error: chrome.runtime.lastError.message,
         })
@@ -893,8 +900,9 @@ async function notify(title: string, message: string, url?: string, persist = fa
 }
 
 chrome.runtime.onMessage.addListener((msg: {
-  type: string
+  t?: number
   level?: DebugLogEntry['level']
+  eventCode?: number
   event?: string
   message?: string
   tripId?: string
@@ -911,10 +919,10 @@ chrome.runtime.onMessage.addListener((msg: {
   resetActiveMatch?: boolean
   scanLease?: unknown
 }) => {
-  if (msg.type === 'CONTENT_DEBUG_LOG') {
+  if (msg.t === RuntimeMessageCode.contentDebugLog) {
     void addDebugLog({
       level: msg.level ?? 'info',
-      event: msg.event ?? 'content_script_log',
+      eventCode: msg.eventCode ?? LogEventCode.contentScriptLog,
       message: msg.message ?? 'Content script log',
       tripId: msg.tripId,
       parkName: msg.parkName,
@@ -925,7 +933,7 @@ chrome.runtime.onMessage.addListener((msg: {
     }, { forceServerSync: true }).then(scheduleContentLogFlush)
     return
   }
-  if (msg.type === 'SCAN_NOW') {
+  if (msg.t === RuntimeMessageCode.scanNow) {
     if (msg.tripId && isScanLease(msg.scanLease)) activeScanLeases.set(msg.tripId, msg.scanLease)
     if (msg.tripId) stoppedTripIds.delete(msg.tripId)
     if (msg.tripId && msg.resetActiveMatch) clearActiveMatchesForTrip(msg.tripId)
@@ -933,12 +941,12 @@ chrome.runtime.onMessage.addListener((msg: {
     runScanCycle(msg.tripId)
     return
   }
-  if (msg.type === 'STOP_SCAN' && msg.tripId) {
+  if (msg.t === RuntimeMessageCode.stopScan && msg.tripId) {
     stoppedTripIds.add(msg.tripId)
     activeTripControllers.get(msg.tripId)?.abort()
     return
   }
-  if (msg.type === 'MATCH_FAILED' && msg.tripId) {
+  if (msg.t === RuntimeMessageCode.matchFailed && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
     clearFailedActiveMatch(msg.tripId, msg.attemptKey)
     getTrips().then(trips => {
@@ -951,7 +959,7 @@ chrome.runtime.onMessage.addListener((msg: {
       }
       void logEntry({
         level: 'warning',
-        event: 'match_failed',
+        eventCode: LogEventCode.matchFailed,
         message: msg.attemptKey ? 'Match failed; marked attempted' : 'Match failed; retrying next scan',
         tripId: trip.id,
         tripName: trip.name,
@@ -961,7 +969,7 @@ chrome.runtime.onMessage.addListener((msg: {
     })
     return
   }
-  if (msg.type === 'BOOKING_RESERVED' && msg.tripId) {
+  if (msg.t === RuntimeMessageCode.bookingReserved && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
@@ -970,7 +978,7 @@ chrome.runtime.onMessage.addListener((msg: {
       const reservedAtLabel = formatDateTime(reservedAt)
       void logEntry({
         level: 'info',
-        event: 'booking_reserved',
+        eventCode: LogEventCode.bookingReserved,
         message: 'Reservation held',
         tripId: msg.tripId,
         tripName: trip?.name,
@@ -997,7 +1005,7 @@ chrome.runtime.onMessage.addListener((msg: {
           try {
             await logEntry({
               level: 'info',
-              event: 'server_result_reported',
+              eventCode: LogEventCode.serverResultReported,
               message: 'Reporting reservation result to server',
               tripId: msg.tripId!,
               tripName: trip.name,
@@ -1008,7 +1016,7 @@ chrome.runtime.onMessage.addListener((msg: {
               status: 'reserved',
             })
             const result = await notifyUserResult(msg.tripId!, {
-              outcome: 'hold_placed',
+              resultCode: ResultCode.holdPlaced,
               matchedSite: match,
               scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
               tripSnapshot: {
@@ -1026,7 +1034,7 @@ chrome.runtime.onMessage.addListener((msg: {
             })
             await logEntry({
               level: result.emailSent ? 'info' : 'warning',
-              event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+              eventCode: result.emailSent ? LogEventCode.serverEmailSent : LogEventCode.serverEmailNotSent,
               message: result.emailSent ? 'Reservation email sent' : 'Reservation email not sent',
               tripId: msg.tripId!,
               tripName: trip.name,
@@ -1036,7 +1044,7 @@ chrome.runtime.onMessage.addListener((msg: {
           } catch (err) {
             await logEntry({
               level: 'error',
-              event: 'server_email_failed',
+              eventCode: LogEventCode.serverEmailFailed,
               message: 'Reservation email failed',
               tripId: msg.tripId!,
               tripName: trip?.name,
@@ -1049,8 +1057,8 @@ chrome.runtime.onMessage.addListener((msg: {
     })
     return
   }
-  if (msg.type === 'BOOKING_CONFIRMED' && msg.tripId) {
-    getTrips().then(trips => {
+  if (msg.t === RuntimeMessageCode.bookingConfirmed && msg.tripId) {
+    getTrips().then(async trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
       const paidAt = msg.paidAt && !Number.isNaN(new Date(msg.paidAt).getTime())
@@ -1061,7 +1069,7 @@ chrome.runtime.onMessage.addListener((msg: {
         : ''
       const match = m ? { ...m, paidAt } : undefined
       const paymentEvent = trip && match
-        ? buildBookingPaymentEvent(
+        ? await buildBookingPaymentEvent(
           trip,
           match,
           msg.confirmationNumber,
@@ -1072,7 +1080,7 @@ chrome.runtime.onMessage.addListener((msg: {
         : null
       void logEntry({
         level: 'info',
-        event: 'booking_paid',
+        eventCode: LogEventCode.bookingPaid,
         message: 'Booking paid',
         tripId: msg.tripId,
         tripName: trip?.name,
@@ -1091,7 +1099,7 @@ chrome.runtime.onMessage.addListener((msg: {
         } else {
           await logEntry({
             level: 'error',
-            event: 'booking_payment_event_missing_metadata',
+            eventCode: LogEventCode.bookingPaymentEventMissingMetadata,
             message: 'Booking was paid, but matched site metadata was missing; cannot report point charge event',
             tripId: msg.tripId!,
             tripName: trip?.name,
@@ -1108,7 +1116,7 @@ chrome.runtime.onMessage.addListener((msg: {
         if (!trip) return
         try {
           const result = await notifyUserResult(msg.tripId!, {
-            outcome: 'booked',
+            resultCode: ResultCode.booked,
             matchedSite: match,
             sendEmail: true,
             scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
@@ -1127,7 +1135,7 @@ chrome.runtime.onMessage.addListener((msg: {
           })
           await logEntry({
             level: result.emailSent ? 'info' : 'warning',
-            event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+            eventCode: result.emailSent ? LogEventCode.serverEmailSent : LogEventCode.serverEmailNotSent,
             message: result.emailSent ? 'Booking paid email sent' : 'Booking paid email not sent',
             tripId: msg.tripId!,
             tripName: trip.name,
@@ -1137,7 +1145,7 @@ chrome.runtime.onMessage.addListener((msg: {
         } catch (err) {
           await logEntry({
             level: 'error',
-            event: 'server_result_failed',
+            eventCode: LogEventCode.serverResultFailed,
             message: 'Booking paid result reporting failed',
             tripId: msg.tripId!,
             tripName: trip.name,
@@ -1149,7 +1157,7 @@ chrome.runtime.onMessage.addListener((msg: {
       })
     })
   }
-  if (msg.type === 'BOOKING_FAILED' && msg.tripId) {
+  if (msg.t === RuntimeMessageCode.bookingFailed && msg.tripId) {
     chrome.storage.local.remove('campOspreyTarget')
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
@@ -1157,7 +1165,7 @@ chrome.runtime.onMessage.addListener((msg: {
       const detail = m ? `${m.parkName} › Site ${m.siteName}` : ''
       void logEntry({
         level: 'error',
-        event: 'booking_failed',
+        eventCode: LogEventCode.bookingFailed,
         message: 'Booking failed',
         tripId: msg.tripId,
         tripName: trip?.name,
@@ -1179,7 +1187,7 @@ chrome.runtime.onMessage.addListener((msg: {
         if (!trip) return
         try {
           const result = await notifyUserResult(msg.tripId!, {
-            outcome: 'failed',
+            resultCode: ResultCode.failed,
             matchedSite: m ?? undefined,
             error: msg.error ?? 'Unknown error',
             sendEmail: true,
@@ -1199,7 +1207,7 @@ chrome.runtime.onMessage.addListener((msg: {
           })
           await logEntry({
             level: result.emailSent ? 'info' : 'warning',
-            event: result.emailSent ? 'server_email_sent' : 'server_email_not_sent',
+            eventCode: result.emailSent ? LogEventCode.serverEmailSent : LogEventCode.serverEmailNotSent,
             message: result.emailSent ? 'Booking failure email sent' : 'Booking failure email not sent',
             tripId: msg.tripId!,
             tripName: trip.name,
@@ -1209,7 +1217,7 @@ chrome.runtime.onMessage.addListener((msg: {
         } catch (err) {
           await logEntry({
             level: 'error',
-            event: 'server_result_failed',
+            eventCode: LogEventCode.serverResultFailed,
             message: 'Booking failure result reporting failed',
             tripId: msg.tripId!,
             tripName: trip.name,
@@ -1223,8 +1231,8 @@ chrome.runtime.onMessage.addListener((msg: {
   }
 })
 
-chrome.runtime.onMessageExternal.addListener((msg: { type?: string }, _sender, sendResponse) => {
-  if (msg.type !== 'OPEN_ACCOUNT_PAGE') return false
+chrome.runtime.onMessageExternal.addListener((msg: { t?: number }, _sender, sendResponse) => {
+  if (msg.t !== RuntimeMessageCode.openAccountPage) return false
 
   chrome.tabs.create({ url: chrome.runtime.getURL('options.html#account') }, () => {
     if (chrome.runtime.lastError) {

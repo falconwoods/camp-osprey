@@ -8,6 +8,7 @@ import {
 } from '@/db/schema';
 import type { RequestContext } from '@/lib/request-context';
 import { logger } from './loki';
+import { decodeProvider, decodeRawProviderSnapshot } from './extension-protocol';
 
 export interface NormalizedBookingPaymentEvent {
   tripId?: string;
@@ -70,8 +71,8 @@ function optionalDate(body: Record<string, unknown>, field: string): Date | unde
 }
 
 function providerFromBody(body: Record<string, unknown>): 'bc_parks' {
-  const provider = requiredString(body, 'provider');
-  if (provider !== 'bc_parks') throw new Error('provider must be bc_parks');
+  const provider = decodeProvider(body);
+  if (!provider) throw new Error('provider must be bc_parks');
   return provider;
 }
 
@@ -109,7 +110,7 @@ export function normalizeBookingPaymentEventBody(body: unknown): NormalizedBooki
     bookingUrl: optionalString(input, 'bookingUrl'),
     amountPaid: optionalInteger(input, 'amountPaid'),
     currency: optionalString(input, 'currency')?.toUpperCase(),
-    rawProviderSnapshot: input.rawProviderSnapshot,
+    rawProviderSnapshot: decodeRawProviderSnapshot(input.rawProviderSnapshot),
   };
 }
 

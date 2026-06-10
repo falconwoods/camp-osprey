@@ -148,7 +148,8 @@ export interface ExtensionRemoteConfig {
 export interface DebugLogEntry {
   ts: string
   level: LogLevel
-  event: string
+  eventCode?: number
+  event?: string
   message: string
   tripId?: string
   tripName?: string

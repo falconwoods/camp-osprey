@@ -4,6 +4,7 @@ import { trips } from '@/db/schema';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
+import { decodeDateRanges, decodeTripMode, decodeTripStatus } from '@/lib/extension-protocol';
 
 function parseDate(value: unknown): Date | undefined {
   if (typeof value !== 'string' && typeof value !== 'number') return undefined;
@@ -36,8 +37,10 @@ export async function POST(request: Request) {
     parks: unknown;
     dateRanges: unknown;
     filters: unknown;
-    mode: string;
+    mode?: string;
+    modeCode?: number;
     status?: string;
+    statusCode?: number;
     lastMatch?: unknown;
     attempted?: string[];
     createdAt?: string | number;
@@ -47,6 +50,10 @@ export async function POST(request: Request) {
   const createdAt = parseDate(body.createdAt) ?? new Date();
   const updatedAt = parseDate(body.updatedAt) ?? createdAt;
   const deletedAt = body.deletedAt === null ? null : parseDate(body.deletedAt);
+  const input = body as unknown as Record<string, unknown>;
+  const mode = decodeTripMode(input, body.mode);
+  if (!mode) return withExtensionCors(request, NextResponse.json({ error: 'invalid_trip_mode' }, { status: 400 }));
+  const tripStatus = decodeTripStatus(input, body.status) ?? 'idle';
 
   try {
     const [trip] = await db.insert(trips).values({
@@ -55,10 +62,10 @@ export async function POST(request: Request) {
       clientId:   body.clientId,
       name:       body.name,
       parks:      body.parks,
-      dateRanges: body.dateRanges,
+      dateRanges: decodeDateRanges(body.dateRanges),
       filters:    body.filters,
-      mode:       body.mode,
-      status:     body.status ?? 'idle',
+      mode,
+      status:     tripStatus,
       lastMatch:  body.lastMatch ?? null,
       attempted:  body.attempted ?? [],
       deletedAt,

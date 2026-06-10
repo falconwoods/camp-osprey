@@ -6,6 +6,7 @@ import { deleteTrip, getTrips, saveTrip, updateTrip } from '../tripStore'
 import type { DateRange, Park, PaymentConfig, Trip } from '../types'
 import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig } from '../extensionConfig'
 import { requestScanLease } from '../serverApi'
+import { RuntimeMessageCode } from '../protocol'
 
 export function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
   if (!payment) return false
@@ -35,13 +36,13 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<{ o
   const scanLease = await requestScanLease(tripId)
   chrome.storage.local.remove('campOspreyTarget')
   await updateTrip(tripId, { status: 'scanning', lastMatch: null, attempted: [] })
-  chrome.runtime.sendMessage({ type: 'SCAN_NOW', tripId, resetActiveMatch: true, scanLease })
+  chrome.runtime.sendMessage({ t: RuntimeMessageCode.scanNow, tripId, resetActiveMatch: true, scanLease })
   return { ok: true }
 }
 
 export async function pauseTrip(tripId: string): Promise<void> {
   await updateTrip(tripId, { status: 'paused' })
-  chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId })
+  chrome.runtime.sendMessage({ t: RuntimeMessageCode.stopScan, tripId })
   chrome.storage.local.remove('campOspreyTarget')
 }
 

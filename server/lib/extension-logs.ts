@@ -1,3 +1,9 @@
+import {
+  decodeExtensionLogEvent,
+  decodeExtensionLogMessage,
+  decodeExtensionLogStatus,
+} from './extension-protocol';
+
 export type ExtensionLogLevel = 'debug' | 'info' | 'warning' | 'error';
 
 export interface ExtensionLogEntry {
@@ -95,15 +101,23 @@ function normalizeExtensionLogEntry(value: unknown): ExtensionLogEntry | null {
   const entry = value as Partial<ExtensionLogEntry>;
   if (typeof entry.ts !== 'string' || Number.isNaN(Date.parse(entry.ts))) return null;
   if (!isExtensionLogLevel(entry.level)) return null;
-  if (typeof entry.event !== 'string' || !entry.event) return null;
-  if (typeof entry.message !== 'string') return null;
+  const event = typeof entry.event === 'string' && entry.event
+    ? entry.event
+    : decodeExtensionLogEvent((entry as Record<string, unknown>).eventCode);
+  const message = typeof entry.message === 'string'
+    ? entry.message
+    : decodeExtensionLogMessage((entry as Record<string, unknown>).messageCode);
+  if (!event || typeof message !== 'string') return null;
 
   return {
     ts: entry.ts,
     level: entry.level,
-    event: entry.event,
-    message: entry.message,
+    event,
+    message,
     ...copyOptionalStringFields(entry),
+    status: typeof entry.status === 'string'
+      ? entry.status
+      : decodeExtensionLogStatus((entry as Record<string, unknown>).statusCode),
     metadata: entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)
       ? entry.metadata
       : undefined,

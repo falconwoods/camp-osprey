@@ -4,6 +4,7 @@ import { trips } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
+import { decodeDateRanges, decodeTripMode, decodeTripStatus } from '@/lib/extension-protocol';
 
 function parseDate(value: unknown): Date | undefined {
   if (typeof value !== 'string' && typeof value !== 'number') return undefined;
@@ -26,7 +27,9 @@ export async function PUT(
     dateRanges: unknown;
     filters: unknown;
     mode: string;
+    modeCode: number;
     status: string;
+    statusCode: number;
     lastMatch: unknown;
     attempted: string[];
     createdAt: string | number;
@@ -34,14 +37,17 @@ export async function PUT(
     deletedAt: string | number | null;
   }>;
 
-  const { clientId, name, parks, dateRanges, filters, mode, status, lastMatch, attempted } = body;
+  const { clientId, name, parks, dateRanges, filters, lastMatch, attempted } = body;
+  const input = body as Record<string, unknown>;
+  const mode = decodeTripMode(input, body.mode);
+  const status = decodeTripStatus(input, body.status);
   const createdAt = parseDate(body.createdAt) ?? new Date();
   const updatedAt = parseDate(body.updatedAt) ?? new Date();
   const deletedAt = body.deletedAt === null ? null : parseDate(body.deletedAt);
 
   const [trip] = await db
     .update(trips)
-    .set({ clientId, name, parks, dateRanges, filters, mode, status, lastMatch, attempted, deletedAt, updatedAt })
+    .set({ clientId, name, parks, dateRanges: decodeDateRanges(dateRanges), filters, mode, status, lastMatch, attempted, deletedAt, updatedAt })
     .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
     .returning();
 
@@ -57,7 +63,7 @@ export async function PUT(
     clientId,
     name,
     parks,
-    dateRanges,
+    dateRanges: decodeDateRanges(dateRanges),
     filters,
     mode,
     status: status ?? 'idle',

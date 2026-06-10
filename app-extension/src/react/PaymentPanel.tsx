@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label'
 import { LoadingButton } from '../components/ui/loading-button'
 import type { AuthState, PaymentConfig, Trip } from '../types'
 import { isValidParkPayment } from './tripActions'
+import { RuntimeMessageCode } from '../protocol'
 
 type PaymentForm = {
   cardNumber: string
@@ -101,7 +102,7 @@ export function PaymentPanel({
       if (!confirm(activeAutoPayTrips.length ? `Delete payment info and pause ${activeAutoPayTrips.length} active auto-pay trips?` : 'Delete saved park payment info from this device?')) return
       await savePayment(null)
       await Promise.all(activeAutoPayTrips.map(trip => updateTrip(trip.id, { status: 'paused' })))
-      activeAutoPayTrips.forEach(trip => chrome.runtime.sendMessage({ type: 'STOP_SCAN', tripId: trip.id }))
+      activeAutoPayTrips.forEach(trip => chrome.runtime.sendMessage({ t: RuntimeMessageCode.stopScan, tripId: trip.id }))
       chrome.storage.local.remove('campOspreyTarget')
       setForm(emptyPayment)
       setSaved(false)

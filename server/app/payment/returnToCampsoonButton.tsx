@@ -24,7 +24,7 @@ export function ReturnToCampsoonButton({
 
     if (extensionId && runtime?.sendMessage) {
       try {
-        runtime.sendMessage(extensionId, { type: 'OPEN_ACCOUNT_PAGE' }, response => {
+        runtime.sendMessage(extensionId, { t: 7109 }, response => {
           const lastError = runtime.lastError;
           if (lastError || !response?.ok) {
             setMessage('Could not open Campsoon. Reload the Chrome extension, then try again.');
@@ -109,7 +109,7 @@ type ChromeRuntime = {
   lastError?: { message?: string };
   sendMessage?: (
     extensionId: string,
-    message: { type: 'OPEN_ACCOUNT_PAGE' },
+    message: { t: number },
     responseCallback?: (response?: { ok?: boolean; error?: string }) => void,
   ) => void;
 };

@@ -134,8 +134,8 @@ export function OptionsApp() {
     <div className="options-shell">
       <aside className="sidebar">
         <div className="brand-row">
-          <img src="/icons/icon48.png" alt="" />
-          <div><strong>Campsoon</strong><span>Extension</span></div>
+          <img src="/icons/icon128.png" alt="" />
+          <div><strong>Campsoon</strong><span>Save Time Booking</span></div>
         </div>
         <nav className="nav-list">
           <NavButton active={tab === 'trips'} onClick={() => navigate('trips')} icon={<TentTree size={17} />} label="Trips" />
@@ -243,8 +243,8 @@ function PageLoadingShell({ tab }: { tab: Tab }) {
     <div className="options-shell">
       <aside className="sidebar" aria-hidden="true">
         <div className="brand-row">
-          <img src="/icons/icon48.png" alt="" />
-          <div><strong>Campsoon</strong><span>Extension</span></div>
+          <img src="/icons/icon128.png" alt="" />
+          <div><strong>Campsoon</strong><span>Save Time Booking</span></div>
         </div>
         <div className="nav-list trips-loading-nav">
           {Array.from({ length: 4 }, (_, index) => (

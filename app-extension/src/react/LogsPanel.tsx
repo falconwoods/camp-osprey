@@ -4,6 +4,7 @@ import { clearDebugLog } from '../storage'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { LoadingButton } from '../components/ui/loading-button'
 import type { DebugLogEntry, LogLevel } from '../types'
+import { LogEventCode } from '../protocol'
 
 export function LogsPanel({ logs, onChanged }: { logs: DebugLogEntry[]; onChanged: () => Promise<void> }) {
   const [levels, setLevels] = useState<Set<LogLevel>>(() => new Set(ALL_LOG_LEVELS))
@@ -103,7 +104,7 @@ export function LogsPanel({ logs, onChanged }: { logs: DebugLogEntry[]; onChange
             <div className={`debug-log-row debug-log-${log.level} ${milestoneClass(log)}`} role="row" key={`${log.ts}-${index}`}>
               <div role="cell" title={log.ts}>{formatLogTimestamp(log.ts)}</div>
               <div role="cell" className="debug-log-level">{log.level.toUpperCase()}</div>
-              <div role="cell">{log.event}</div>
+              <div role="cell">{formatEventCode(log)}</div>
               <div role="cell">{formatLogDetail(log)}</div>
             </div>
           )) : (
@@ -150,9 +151,13 @@ function formatMetadataValue(value: unknown): string {
 }
 
 function milestoneClass(entry: DebugLogEntry): string {
-  if (entry.event === 'site_found' || entry.status === 'found') return 'debug-log-found'
-  if (entry.event === 'booking_reserved' || entry.status === 'reserved') return 'debug-log-reserved'
-  if (entry.event === 'booking_paid' || entry.status === 'paid') return 'debug-log-paid'
-  if (entry.event === 'booking_failed' || entry.status === 'failed') return 'debug-log-failed'
+  if (entry.eventCode === LogEventCode.siteFound || entry.status === 'found') return 'debug-log-found'
+  if (entry.eventCode === LogEventCode.bookingReserved || entry.status === 'reserved') return 'debug-log-reserved'
+  if (entry.eventCode === LogEventCode.bookingPaid || entry.status === 'paid') return 'debug-log-paid'
+  if (entry.eventCode === LogEventCode.bookingFailed || entry.status === 'failed') return 'debug-log-failed'
   return ''
+}
+
+function formatEventCode(entry: DebugLogEntry): string {
+  return entry.eventCode ? `#${entry.eventCode}` : entry.event ?? '#4999'
 }

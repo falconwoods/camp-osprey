@@ -31,7 +31,7 @@ export function PopupApp() {
     <div className="popup-shell">
       <header className="popup-header">
         <div className="brand-row">
-          <img src="/icons/icon48.png" alt="" />
+          <img src="/icons/icon128.png" alt="" />
           <div><strong>campsoon</strong><span>{state.auth?.user?.email ?? 'Sign in required'}</span></div>
         </div>
         <Button variant="ghost" size="icon" onClick={() => chrome.runtime.openOptionsPage()} title="Settings"><Settings size={17} /></Button>

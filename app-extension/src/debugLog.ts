@@ -1,4 +1,5 @@
 import type { DebugLogEntry, LogLevel } from './types'
+import { LogEventCode } from './protocol'
 
 export const EMPTY_DEBUG_LOG_MESSAGE = 'No log entries match the selected filters.'
 export const ALL_LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warning', 'error']
@@ -45,7 +46,7 @@ export function renderDebugLogRows(
       `<div class="${escapeHtml(rowClasses)}">`,
       `<span class="log-cell log-time" title="${escapeHtml(entry.ts)}">${escapeHtml(formatLogTimestamp(entry.ts))}</span>`,
       `<span class="log-cell log-level">${escapeHtml(entry.level.toUpperCase())}</span>`,
-      `<span class="log-cell log-event">${escapeHtml(entry.event)}</span>`,
+      `<span class="log-cell log-event">${escapeHtml(formatEventCode(entry))}</span>`,
       `<span class="log-cell log-message">${escapeHtml(detail)}</span>`,
       '</div>',
     ].join('')
@@ -93,23 +94,27 @@ function renderMetadata(entry: DebugLogEntry): string {
 }
 
 function milestoneClass(entry: DebugLogEntry): string | null {
-  if (entry.event === 'site_found' || entry.status === 'found') {
+  if (entry.eventCode === LogEventCode.siteFound || entry.status === 'found') {
     return 'log-row--found'
   }
 
-  if (entry.event === 'booking_reserved' || entry.status === 'reserved') {
+  if (entry.eventCode === LogEventCode.bookingReserved || entry.status === 'reserved') {
     return 'log-row--reserved'
   }
 
-  if (entry.event === 'booking_paid' || entry.status === 'paid') {
+  if (entry.eventCode === LogEventCode.bookingPaid || entry.status === 'paid') {
     return 'log-row--paid'
   }
 
-  if (entry.event === 'booking_failed' || entry.status === 'failed') {
+  if (entry.eventCode === LogEventCode.bookingFailed || entry.status === 'failed') {
     return 'log-row--failed'
   }
 
   return null
+}
+
+function formatEventCode(entry: DebugLogEntry): string {
+  return entry.eventCode ? `#${entry.eventCode}` : entry.event ?? '#4999'
 }
 
 function hasValue(value: unknown): boolean {

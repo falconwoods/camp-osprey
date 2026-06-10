@@ -79,7 +79,7 @@ function isDebugLogEntry(value: unknown): value is DebugLogEntry {
   const entry = value as Partial<DebugLogEntry>
   return typeof entry.ts === 'string' &&
     (entry.level === 'debug' || entry.level === 'info' || entry.level === 'warning' || entry.level === 'error') &&
-    typeof entry.event === 'string' &&
+    (typeof entry.eventCode === 'number' || typeof entry.event === 'string') &&
     typeof entry.message === 'string'
 }
 

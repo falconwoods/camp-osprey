@@ -1,5 +1,6 @@
 // Content script — injected on all camping.bcparks.ca pages
 import { extractCampsiteName, extractSelectedCampsiteName, findBookingConfirmation, findDetailsControl, findPaymentFailure, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
+import { LogEventCode, RuntimeMessageCode } from '../protocol'
 
 // ── Debug logging ──────────────────────────────────────────────────────────
 // Content scripts run in an isolated world — window vars aren't visible in DevTools console.
@@ -12,9 +13,9 @@ function dbg(msg: string, data?: unknown): void {
   _dbg.push(`[${new Date().toLocaleTimeString()}] ${line}`)
   console.log(`[campsoon] ${line}`)
   chrome.runtime.sendMessage({
-    type: 'CONTENT_DEBUG_LOG',
-    level: msg.includes('FAILED') || msg.includes('error') || msg.includes('MATCH_FAILED') ? 'warning' : 'info',
-    event: 'content_script_log',
+    t: RuntimeMessageCode.contentDebugLog,
+    level: msg.includes('FAILED') || msg.includes('error') ? 'warning' : 'info',
+    eventCode: LogEventCode.contentScriptLog,
     message: msg,
     tripId: activeTargetSite?.tripId,
     parkName: activeTargetSite?.parkName,
@@ -156,9 +157,9 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   }
   const reportMatchFailed = (reason: string, attemptKey: string | null) => {
     setStatus('Reservation attempt failed — scanner will keep looking.')
-    dbg(`MATCH_FAILED — ${reason}`, { attemptKey })
+    dbg(`attempt stopped — ${reason}`, { attemptKey })
     chrome.runtime.sendMessage({
-      type: 'MATCH_FAILED',
+      t: RuntimeMessageCode.matchFailed,
       tripId: target.tripId,
       attemptKey,
     })
@@ -703,7 +704,7 @@ async function handleReservationReview(tripId: string, mode: 'hold' | 'autopay')
       // For hold: site is now locked in cart with 15-min timer — user pays manually
       setStatus('Site reserved for 15 min — complete payment now!')
       dbg('reserved complete — site in cart')
-      chrome.runtime.sendMessage({ type: 'BOOKING_RESERVED', tripId, scanLease: activeTargetSite?.scanLease })
+      chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingReserved, tripId, scanLease: activeTargetSite?.scanLease })
       chrome.storage.local.remove('campOspreyTarget')
       return
     }
@@ -787,10 +788,9 @@ async function runCheckout(tripId: string): Promise<void> {
   const reportConfirmedBooking = (confirmationNumber: string) => {
     dbg('booking confirmed', confirmationNumber)
     chrome.runtime.sendMessage({
-      type: 'BOOKING_CONFIRMED',
+      t: RuntimeMessageCode.bookingConfirmed,
       tripId,
       scanLease: activeTargetSite?.scanLease,
-      provider: 'bc_parks',
       confirmationNumber,
       bookingUrl: window.location.href,
       paidAt: new Date().toISOString(),
@@ -919,6 +919,6 @@ async function runCheckout(tripId: string): Promise<void> {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
     dbg('runCheckout error', errorMessage)
-    chrome.runtime.sendMessage({ type: 'BOOKING_FAILED', tripId, error: errorMessage, scanLease: activeTargetSite?.scanLease })
+    chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingFailed, tripId, error: errorMessage, scanLease: activeTargetSite?.scanLease })
   }
 }

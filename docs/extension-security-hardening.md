@@ -19,6 +19,8 @@ The practical goal is therefore:
   automation can produce billable events;
 - reject result/payment reports that are not tied to a valid server-issued scan
   session;
+- avoid shipping obvious server-facing event, outcome, provider, and runtime
+  message names in the extension bundle;
 - make website-distributed builds harder to inspect with post-build
   obfuscation.
 
@@ -89,11 +91,11 @@ The background worker also refreshes/caches leases during scan cycles:
 When a match is found, the background worker writes the lease into
 `campOspreyTarget` so the content script can carry it through the BC Parks flow.
 
-The content script sends the lease back with:
+The content script sends the lease back with opaque runtime message opcodes for:
 
-- `BOOKING_RESERVED`
-- `BOOKING_CONFIRMED`
-- `BOOKING_FAILED`
+- reservation held;
+- booking confirmed;
+- booking failed.
 
 Relevant file:
 
@@ -107,6 +109,56 @@ The background worker includes the lease in:
 - failed result reports;
 - booking payment event reports.
 
+## Opaque Protocol Codes
+
+The extension now avoids sending obvious business event names to the server or
+between extension contexts. Instead, the client sends numeric codes or opaque
+identifiers, and the server maps those values back to canonical names before
+writing to the database, sending email, or pushing logs.
+
+Client implementation:
+
+- `app-extension/src/protocol.ts`
+- `app-extension/src/serverApi.ts`
+- `app-extension/src/background/index.ts`
+- `app-extension/src/content/bcparks.ts`
+
+Server implementation:
+
+- `server/lib/extension-protocol.ts`
+- `server/app/api/trips/[id]/result/route.ts`
+- `server/app/api/trips/route.ts`
+- `server/app/api/trips/[id]/route.ts`
+- `server/lib/booking-payment-events.ts`
+- `server/lib/extension-logs.ts`
+
+The mapped fields include:
+
+- result reports: `resultCode` replaces client-sent `outcome` values such as
+  found, hold placed, booked, and failed;
+- booking payment events: `providerCode` replaces the provider name,
+  `rawProviderSnapshot.sourceCode` replaces the provider snapshot source, and
+  client-generated `clientEventId` / `idempotencyKey` values no longer contain
+  readable booking-confirmed or BC Parks prefixes;
+- Trip sync payloads: `modeCode`, `statusCode`, and `rangeTypeCode` replace
+  readable mode, status, and date-range type fields on writes;
+- extension log sync: `eventCode`, `messageCode`, and `statusCode` replace
+  readable log event/status/message fields before logs leave the extension;
+- extension runtime messages: content scripts, background worker, popup/options,
+  and the payment return page use numeric `t` opcodes instead of readable
+  message names.
+
+The server continues to store and process canonical values internally. This
+keeps existing database schema, email rendering, Loki labels, and downstream
+logic readable on the trusted side while removing the most direct string
+targets from the distributed extension.
+
+This is an obfuscation and reverse-engineering cost increase, not an
+authentication mechanism. A patched client can still observe numeric codes at
+runtime. Security-critical decisions still depend on server-side authentication,
+scan lease validation, Trip ownership checks, idempotency, and sequence
+consistency.
+
 ## What This Protects Against
 
 This blocks simple patches where a user:
@@ -114,6 +166,8 @@ This blocks simple patches where a user:
 - logs in normally;
 - uses the server to create/manage Trips;
 - lets the extension scan and auto-pay locally;
+- searches the extension bundle for readable booking/result/payment event names
+  to locate the final report path;
 - removes or forges the final payment/result report without a valid server scan
   authorization chain.
 
@@ -126,8 +180,10 @@ The lease is not secret once delivered to the extension. A patched client can
 read it while it is valid. The value is in binding and expiry, not secrecy.
 
 A sophisticated attacker can still patch the extension to request leases and
-reuse them inside a modified flow. Additional server-side behavioral checks can
-raise cost further:
+reuse them inside a modified flow. Opaque codes also do not stop a motivated
+attacker from observing network requests or runtime messages and replaying the
+numeric values. Additional server-side behavioral checks can raise cost
+further:
 
 - record scan lease issuance events in the database;
 - track scan-start, site-found, hold-start, hold-placed, payment-start, and
@@ -182,6 +238,7 @@ npm run build
 npm run build:website:secure
 for f in $(find .output/chrome-mv3 -type f -name '*.js' | sort); do node --check "$f" >/dev/null || exit 1; done
 find .output/chrome-mv3 -type f -name '*.map' -print
+! rg -n "BOOKING_CONFIRMED|BOOKING_RESERVED|BOOKING_FAILED|SCAN_NOW|STOP_SCAN|TRIPS_CHANGED|booking-confirmed|bc_parks:confirmation|bcparks_confirmation_dom|site_found|booking_paid|booking_failed" .output/chrome-mv3
 ```
 
 ```bash
@@ -200,4 +257,4 @@ The Next production build passed and includes:
 - `/api/trips/[id]/scan-lease`
 - `/api/trips/[id]/result`
 - `/api/booking-payment-events`
-
+- `/api/extension-logs`

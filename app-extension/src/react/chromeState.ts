@@ -5,6 +5,7 @@ import { getTrips, TRIPS_CACHE_KEY } from '../tripStore'
 import { applyTheme } from '../theme'
 import type { AuthState, DebugLogEntry, StorageData, Trip } from '../types'
 import { refreshExtensionConfig } from '../extensionConfig'
+import { RuntimeMessageCode } from '../protocol'
 
 export interface ExtensionState {
   storage: StorageData | null
@@ -62,8 +63,8 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
       if (Object.keys(changes).every(key => key === TRIPS_CACHE_KEY)) return
       void refresh({ syncTrips: false, includeTrips: false })
     }
-    const messageListener = (msg: { type?: string }) => {
-      if (msg.type === 'TRIPS_CHANGED') void refresh({ syncTrips: false })
+    const messageListener = (msg: { t?: number }) => {
+      if (msg.t === RuntimeMessageCode.tripsChanged) void refresh({ syncTrips: false })
     }
     chrome.storage.onChanged.addListener(storageListener)
     chrome.runtime.onMessage.addListener(messageListener)

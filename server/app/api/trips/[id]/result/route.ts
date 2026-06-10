@@ -8,6 +8,12 @@ import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors'
 import { logger } from '../../../../../lib/loki';
 import { buildRequestContext, normalizeRequestClientInfo } from '../../../../../lib/request-context';
 import { verifyScanLease } from '../../../../../lib/scan-lease';
+import {
+  decodeDateRanges,
+  decodeResultOutcome,
+  decodeTripMode,
+  decodeTripStatus,
+} from '../../../../../lib/extension-protocol';
 
 type Outcome = 'found' | 'hold_placed' | 'booked' | 'failed';
 
@@ -29,8 +35,10 @@ interface TripSnapshot {
   parks: unknown;
   dateRanges: unknown;
   filters: unknown;
-  mode: string;
+  mode?: string;
+  modeCode?: number;
   status?: string;
+  statusCode?: number;
   attempted?: string[];
   createdAt?: string | number;
   updatedAt?: string | number;
@@ -58,7 +66,8 @@ export async function POST(
   const { id } = await params;
 
   const body = await request.json() as {
-    outcome: Outcome;
+    outcome?: Outcome;
+    resultCode?: number;
     clientId?: string;
     clientInfo?: unknown;
     matchedSite?: MatchedSite;
@@ -68,7 +77,17 @@ export async function POST(
     scanLease?: unknown;
   };
 
-  const { outcome, clientId, matchedSite, error: bookingError, sendEmail: shouldSendEmail = true, tripSnapshot } = body;
+  let outcome: Outcome;
+  try {
+    outcome = decodeResultOutcome(body as Record<string, unknown>);
+  } catch (err) {
+    return withExtensionCors(
+      request,
+      NextResponse.json({ error: err instanceof Error ? err.message : 'invalid_result_code' }, { status: 400 }),
+    );
+  }
+
+  const { clientId, matchedSite, error: bookingError, sendEmail: shouldSendEmail = true, tripSnapshot } = body;
   const requestContext = await buildRequestContext(request, clientId, normalizeRequestClientInfo(body));
   let [trip] = await db
     .select()
@@ -80,16 +99,22 @@ export async function POST(
     const createdAt = parseDate(tripSnapshot.createdAt) ?? new Date();
     const updatedAt = parseDate(tripSnapshot.updatedAt) ?? createdAt;
     const deletedAt = tripSnapshot.deletedAt === null ? null : parseDate(tripSnapshot.deletedAt);
+    const snapshotInput = tripSnapshot as unknown as Record<string, unknown>;
+    const mode = decodeTripMode(snapshotInput, tripSnapshot.mode);
+    const snapshotStatus = decodeTripStatus(snapshotInput, tripSnapshot.status) ?? 'idle';
+    if (!mode) {
+      return withExtensionCors(request, NextResponse.json({ error: 'invalid_trip_mode' }, { status: 400 }));
+    }
     const leaseTrip = {
       id,
       userId: session.user.id,
       clientId,
       name: tripSnapshot.name,
       parks: tripSnapshot.parks,
-      dateRanges: tripSnapshot.dateRanges,
+      dateRanges: decodeDateRanges(tripSnapshot.dateRanges),
       filters: tripSnapshot.filters,
-      mode: tripSnapshot.mode,
-      status: tripSnapshot.status ?? 'idle',
+      mode,
+      status: snapshotStatus,
       updatedAt,
     };
     try {
@@ -113,10 +138,10 @@ export async function POST(
       clientId,
       name:       tripSnapshot.name,
       parks:      tripSnapshot.parks,
-      dateRanges: tripSnapshot.dateRanges,
+      dateRanges: decodeDateRanges(tripSnapshot.dateRanges),
       filters:    tripSnapshot.filters,
-      mode:       tripSnapshot.mode,
-      status:     tripSnapshot.status ?? 'idle',
+      mode,
+      status:     snapshotStatus,
       lastMatch:  matchedSite ?? null,
       attempted:  tripSnapshot.attempted ?? [],
       deletedAt,
