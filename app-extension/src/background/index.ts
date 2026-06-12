@@ -48,6 +48,10 @@ let contentLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 type ConfirmedBookingPaymentPayload = BookingPaymentEventPayload & { idempotencyKey: string }
 type ScanCursorMap = Record<string, TripScanCursor>
 
+chrome.action.onClicked.addListener(() => {
+  void chrome.runtime.openOptionsPage()
+})
+
 interface PendingBookingPaymentEvent {
   payload: ConfirmedBookingPaymentPayload
   tripName?: string

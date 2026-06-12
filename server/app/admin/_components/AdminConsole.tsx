@@ -2,16 +2,28 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Ban, Copy, Gift, History, Mail, RefreshCcw, Send, UserCircle, Users } from 'lucide-react';
+import { Ban, CheckCircle2, Copy, Gift, History, Mail, RefreshCcw, Search, Send, ShieldAlert, UserCircle, Users, WalletCards } from 'lucide-react';
 
 type AdminTab = 'recharge' | 'users';
 
 type UserRow = {
   id: string;
+  name: string | null;
   email: string;
+  emailVerified: boolean;
+  role: string | null;
+  banned: boolean;
   createdAt: string;
   trips: number;
   bookingResults: number;
+  paidBookings: number;
+  pointBalance: number;
+  pointsEarned: number;
+  pointsSpent: number;
+  pointTransactions: number;
+  activeSessions: number;
+  authEvents: number;
+  lastActivityAt: string | null;
 };
 
 type RechargeCode = {
@@ -406,38 +418,161 @@ function CodeRow({
 }
 
 function UsersTab({ users }: { users: UserRow[] }) {
+  const [query, setQuery] = useState('');
+
+  const filteredUsers = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return users;
+    return users.filter(row => (
+      row.email.toLowerCase().includes(needle)
+      || row.id.toLowerCase().includes(needle)
+      || (row.name ?? '').toLowerCase().includes(needle)
+    ));
+  }, [query, users]);
+
+  const totals = useMemo(() => users.reduce((acc, row) => ({
+    pointBalance: acc.pointBalance + row.pointBalance,
+    activeSessions: acc.activeSessions + row.activeSessions,
+    paidBookings: acc.paidBookings + row.paidBookings,
+    pointsEarned: acc.pointsEarned + row.pointsEarned,
+  }), {
+    pointBalance: 0,
+    activeSessions: 0,
+    paidBookings: 0,
+    pointsEarned: 0,
+  }), [users]);
+
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold text-slate-950">Users</h1>
-        <p className="mt-1 text-sm text-slate-500">Account overview and activity counts.</p>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-950">Users</h1>
+          <p className="mt-1 text-sm text-slate-500">Account health, point balances, and booking activity.</p>
+        </div>
+        <label className="relative block w-full max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            className="admin-input w-full pl-9"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder="Search email, name, or user ID"
+            type="search"
+          />
+        </label>
       </header>
+
+      <section className="mb-5 grid gap-3 md:grid-cols-4">
+        <UserMetric label="Users" value={users.length.toLocaleString()} />
+        <UserMetric label="Current points" value={totals.pointBalance.toLocaleString()} />
+        <UserMetric label="Points earned" value={totals.pointsEarned.toLocaleString()} />
+        <UserMetric label="Paid bookings" value={totals.paidBookings.toLocaleString()} />
+      </section>
+
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Trips</th>
-              <th className="px-4 py-3">Booking results</th>
-              <th className="px-4 py-3">Joined</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(row => (
-              <tr key={row.id} className="border-b border-slate-100">
-                <td className="px-4 py-3 font-semibold text-slate-900">
-                  <span className="inline-flex items-center gap-2"><UserCircle size={15} /> {row.email}</span>
-                </td>
-                <td className="px-4 py-3 text-slate-600">{row.trips}</td>
-                <td className="px-4 py-3 text-slate-600">{row.bookingResults}</td>
-                <td className="px-4 py-3 text-slate-500">{formatDate(row.createdAt)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3 text-right">Points</th>
+                <th className="px-4 py-3 text-right">Earned</th>
+                <th className="px-4 py-3 text-right">Spent</th>
+                <th className="px-4 py-3 text-right">Trips</th>
+                <th className="px-4 py-3 text-right">Results</th>
+                <th className="px-4 py-3 text-right">Paid bookings</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Last activity</th>
+                <th className="px-4 py-3">Joined</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredUsers.map(row => (
+                <tr key={row.id} className="border-b border-slate-100 align-top hover:bg-slate-50/70">
+                  <td className="px-4 py-3">
+                    <div className="flex items-start gap-2">
+                      <UserCircle className="mt-0.5 text-slate-400" size={16} />
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-900">{row.email}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          {row.name ? <span>{row.name}</span> : null}
+                          <span className="font-mono">{shortId(row.id)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="inline-flex items-center justify-end gap-1 font-black text-slate-950">
+                      <WalletCards size={14} />
+                      {row.pointBalance.toLocaleString()}
+                    </span>
+                    <div className="text-xs text-slate-400">{row.pointTransactions.toLocaleString()} tx</div>
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-700">{row.pointsEarned.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-red-700">{row.pointsSpent.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{row.trips.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{row.bookingResults.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-slate-900">{row.paidBookings.toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      <UserStatusPill row={row} />
+                      {row.activeSessions > 0 ? <TinyPill label={`${row.activeSessions} active`} tone="blue" /> : null}
+                      {row.role === 'admin' ? <TinyPill label="Admin" tone="emerald" /> : null}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <div>{formatDate(row.lastActivityAt)}</div>
+                    <div className="text-xs text-slate-400">{row.authEvents.toLocaleString()} auth events</div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">{formatDate(row.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!filteredUsers.length ? (
+          <div className="p-5 text-sm font-semibold text-slate-500">No users match that search.</div>
+        ) : null}
       </section>
     </div>
   );
+}
+
+function UserMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="text-xs font-bold uppercase text-slate-500">{label}</div>
+      <div className="mt-1 text-xl font-black text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function UserStatusPill({ row }: { row: UserRow }) {
+  if (row.banned) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-1 text-xs font-bold text-red-700">
+        <ShieldAlert size={12} />
+        Banned
+      </span>
+    );
+  }
+  if (row.emailVerified) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">
+        <CheckCircle2 size={12} />
+        Verified
+      </span>
+    );
+  }
+  return <TinyPill label="Unverified" tone="slate" />;
+}
+
+function TinyPill({ label, tone }: { label: string; tone: 'blue' | 'emerald' | 'slate' }) {
+  const styles = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    slate: 'border-slate-200 bg-slate-100 text-slate-600',
+  };
+  return <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${styles[tone]}`}>{label}</span>;
 }
 
 function AdminField({ label, children }: { label: string; children: ReactNode }) {
@@ -477,6 +612,11 @@ function formatDateTime(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Unknown';
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function shortId(value: string): string {
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
 function adminErrorMessage(err: unknown): string {
