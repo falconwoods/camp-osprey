@@ -304,7 +304,7 @@ export async function redeemRechargeCode(input: {
       "maxRedemptions": number;
       "redeemedCount": number;
       status: string;
-      "expiresAt": Date | null;
+      "expiresAt": Date | string | null;
     }>`
       select id, "codeHash", "codePrefix", "assignedEmail", "assignedUserId", points,
              "maxRedemptions", "redeemedCount", status, "expiresAt"
@@ -322,15 +322,19 @@ export async function redeemRechargeCode(input: {
       maxRedemptions: number;
       redeemedCount: number;
       status: string;
-      expiresAt: Date | null;
+      expiresAt: Date | string | null;
     }>)[0];
 
     if (!code) throw new RechargeCodeError('invalid_code', 404);
+    const expiresAt = dateValue(code.expiresAt);
     if (code.status !== 'active') throw new RechargeCodeError('code_not_active');
-    if (code.expiresAt && code.expiresAt.getTime() <= Date.now()) throw new RechargeCodeError('code_expired');
+    if (expiresAt && expiresAt.getTime() <= Date.now()) throw new RechargeCodeError('code_expired');
     if (code.assignedEmail !== userEmail) throw new RechargeCodeError('email_mismatch', 403);
     if (code.assignedUserId && code.assignedUserId !== input.userId) throw new RechargeCodeError('email_mismatch', 403);
-    if (code.redeemedCount >= code.maxRedemptions) throw new RechargeCodeError('code_fully_redeemed');
+    const redeemedCount = Number(code.redeemedCount);
+    const maxRedemptions = Number(code.maxRedemptions);
+    const points = Number(code.points);
+    if (redeemedCount >= maxRedemptions) throw new RechargeCodeError('code_fully_redeemed');
 
     const [existingRedemption] = await tx.select({ id: rechargeCodeRedemptions.id })
       .from(rechargeCodeRedemptions)
@@ -338,7 +342,7 @@ export async function redeemRechargeCode(input: {
         eq(rechargeCodeRedemptions.rechargeCodeId, code.id),
         eq(rechargeCodeRedemptions.userId, input.userId),
       ));
-    if (existingRedemption && code.maxRedemptions === 1) throw new RechargeCodeError('already_redeemed');
+    if (existingRedemption && maxRedemptions === 1) throw new RechargeCodeError('already_redeemed');
 
     await tx.insert(userPointAccounts)
       .values({ userId: input.userId, balance: 0 })
@@ -357,16 +361,16 @@ export async function redeemRechargeCode(input: {
       rechargeCodeId: code.id,
       userId: input.userId,
       email: userEmail,
-      pointsGranted: code.points,
+      pointsGranted: points,
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
     }).returning({ id: rechargeCodeRedemptions.id });
 
-    const balanceAfter = Number(account.balance) + code.points;
+    const balanceAfter = Number(account.balance) + points;
     const [transaction] = await tx.insert(pointTransactions).values({
       userId: input.userId,
       type: 'recharge_code',
-      pointsDelta: code.points,
+      pointsDelta: points,
       balanceAfter,
       sourceType: 'recharge_code_redemption',
       sourceId: String(redemption.id),
@@ -385,7 +389,7 @@ export async function redeemRechargeCode(input: {
       .where(eq(userPointAccounts.userId, input.userId));
     await tx.update(rechargeCodes)
       .set({
-        redeemedCount: code.redeemedCount + 1,
+        redeemedCount: redeemedCount + 1,
         updatedAt: new Date(),
       })
       .where(eq(rechargeCodes.id, code.id));
@@ -394,16 +398,26 @@ export async function redeemRechargeCode(input: {
       rechargeCodeId: code.id,
       redemptionId: redemption.id,
       userId: input.userId,
-      points: code.points,
+      points,
       balanceAfter,
     });
 
     return {
-      pointsGranted: code.points,
+      pointsGranted: points,
       balanceAfter,
       redemptionId: redemption.id,
     };
   });
+}
+
+function dateValue(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
 }
 
 function displayStatus(row: {
