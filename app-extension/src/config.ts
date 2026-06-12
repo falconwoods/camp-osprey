@@ -6,7 +6,7 @@ function normalizeBaseUrl(value: string | undefined): string {
 
 export const BACKEND_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL)
 export const EXTENSION_CHANNEL = (
-  import.meta.env.VITE_EXTENSION_CHANNEL === 'website' ? 'website' : 'chrome_store'
+  import.meta.env.VITE_EXTENSION_CHANNEL === 'chrome_store' ? 'chrome_store' : 'website'
 ) as 'chrome_store' | 'website'
 export const IS_LOCAL_BUILD = import.meta.env.MODE === 'development'
 

@@ -30,7 +30,7 @@ import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import type { ExtensionRemoteConfig, MatchedSite, Trip } from '../types'
-import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
+import { ExtensionUpdateAlert, OptionalUpdateDetails, RequiredUpdateDetails } from './ExtensionUpdateAlert'
 
 type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs' | 'demo'
 const LocalLogsPanel = IS_LOCAL_BUILD
@@ -149,7 +149,18 @@ export function OptionsApp() {
     const config = state.storage?.extensionConfig ?? null
     const confirmed = await confirmation.confirm({
       title: 'Update required',
-      message: config?.forceUpdateMessage ?? `Version ${config?.minSupportedVersion ?? 'the latest version'} or newer is required to continue scanning.`,
+      message: <RequiredUpdateDetails config={config} />,
+      confirmLabel: 'Download update',
+      cancelLabel: 'Close',
+    })
+    if (confirmed) chrome.tabs.create({ url: getExtensionUpdateUrl(config) })
+  }
+
+  async function promptForOptionalExtensionUpdate() {
+    const config = state.storage?.extensionConfig ?? null
+    const confirmed = await confirmation.confirm({
+      title: config?.releaseNote?.title ?? 'Update available',
+      message: <OptionalUpdateDetails config={config} />,
       confirmLabel: 'Download update',
       cancelLabel: 'Close',
     })
@@ -291,6 +302,7 @@ export function OptionsApp() {
             }}
             onWarningRoute={route => navigate(route)}
             onRequiredUpdate={promptForExtensionUpdate}
+            onOptionalUpdate={promptForOptionalExtensionUpdate}
           />
         ) : null}
         {tab === 'account' ? <AccountPanel auth={state.auth} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
@@ -418,6 +430,7 @@ function TripsView({
   onDelete,
   onWarningRoute,
   onRequiredUpdate,
+  onOptionalUpdate,
 }: {
   trips: Trip[]
   signedIn: boolean
@@ -431,6 +444,7 @@ function TripsView({
   onDelete: (trip: Trip) => void
   onWarningRoute: (route: Tab) => void
   onRequiredUpdate: () => void
+  onOptionalUpdate: () => void
 }) {
   const connectBcParks = () => chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
   const needsTwoStepOnboarding = !signedIn && !bcParksLoggedIn
@@ -440,7 +454,11 @@ function TripsView({
 
   return (
     <div className="trips-dashboard">
-      <ExtensionUpdateAlert config={extensionConfig} onRequiredUpdate={onRequiredUpdate} />
+      <ExtensionUpdateAlert
+        config={extensionConfig}
+        onRequiredUpdate={onRequiredUpdate}
+        onOptionalUpdate={onOptionalUpdate}
+      />
       {needsCampsoonReconnect ? (
         <AppAlert
           variant="error"

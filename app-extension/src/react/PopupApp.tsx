@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button'
 import { AppAlert } from '../components/AppAlert'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import type { Trip } from '../types'
-import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
+import { ExtensionUpdateAlert, OptionalUpdateDetails, RequiredUpdateDetails } from './ExtensionUpdateAlert'
 
 export function PopupApp() {
   const state = useExtensionState()
@@ -56,7 +56,18 @@ export function PopupApp() {
     const config = state.storage?.extensionConfig ?? null
     const confirmed = await confirmation.confirm({
       title: 'Update required',
-      message: config?.forceUpdateMessage ?? `Version ${config?.minSupportedVersion ?? 'the latest version'} or newer is required to continue scanning.`,
+      message: <RequiredUpdateDetails config={config} />,
+      confirmLabel: 'Download update',
+      cancelLabel: 'Close',
+    })
+    if (confirmed) chrome.tabs.create({ url: getExtensionUpdateUrl(config) })
+  }
+
+  async function promptForOptionalExtensionUpdate() {
+    const config = state.storage?.extensionConfig ?? null
+    const confirmed = await confirmation.confirm({
+      title: config?.releaseNote?.title ?? 'Update available',
+      message: <OptionalUpdateDetails config={config} />,
       confirmLabel: 'Download update',
       cancelLabel: 'Close',
     })
@@ -82,7 +93,11 @@ export function PopupApp() {
         <Button variant="ghost" size="icon" onClick={() => chrome.runtime.openOptionsPage()} title="Settings"><Settings size={17} /></Button>
       </header>
       <main className="popup-content stack">
-        <ExtensionUpdateAlert config={state.storage.extensionConfig} onRequiredUpdate={promptForExtensionUpdate} />
+        <ExtensionUpdateAlert
+          config={state.storage.extensionConfig}
+          onRequiredUpdate={promptForExtensionUpdate}
+          onOptionalUpdate={promptForOptionalExtensionUpdate}
+        />
         {warnings.map((warning, index) => (
           <AppAlert
             key={index}

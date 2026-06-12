@@ -26,7 +26,7 @@ const DEFAULT_SCAN_POLICY = {
 const LOG_LEVELS = ['debug', 'info', 'warning', 'error'] as const;
 
 export function normalizeExtensionChannel(value: unknown): ExtensionChannel {
-  return value === 'website' ? 'website' : 'chrome_store';
+  return value === 'chrome_store' ? 'chrome_store' : 'website';
 }
 
 function optionalString(value: unknown): string | undefined {

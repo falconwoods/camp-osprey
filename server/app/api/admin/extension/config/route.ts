@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { extensionConfigs, extensionReleases } from '@/db/schema';
+import { extensionConfigs } from '@/db/schema';
 import { requireAdminAuth } from '@/lib/admin-auth';
 import { getExtensionConfigResponse, normalizeExtensionChannel } from '@/lib/extension-config';
 import { sql } from 'drizzle-orm';
@@ -26,10 +26,14 @@ function recordField(input: Record<string, unknown>, key: string): Record<string
     : undefined;
 }
 
-function notesField(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map(item => item.trim())
-    : [];
+export async function GET(request: Request) {
+  const admin = await requireAdminAuth();
+  if (!admin.ok) return admin.response;
+
+  const url = new URL(request.url);
+  const channel = normalizeExtensionChannel(url.searchParams.get('channel'));
+
+  return NextResponse.json(await getExtensionConfigResponse(channel));
 }
 
 export async function PUT(request: Request) {
@@ -85,36 +89,6 @@ export async function PUT(request: Request) {
       updatedBy: admin.userId,
     },
   });
-
-  const release = recordField(input, 'releaseNote');
-  if (release) {
-    await db.insert(extensionReleases).values({
-      channel,
-      version: stringField(release, 'version') ?? latestVersion,
-      state: stringField(release, 'state') ?? rolloutState ?? 'hidden',
-      title: stringField(release, 'title') ?? 'Update available',
-      summary: stringField(release, 'summary'),
-      notes: notesField(release.notes),
-      changelogUrl: stringField(release, 'changelogUrl'),
-      publishedAt: release.publishedAt && typeof release.publishedAt === 'string'
-        ? new Date(release.publishedAt)
-        : now,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: [extensionReleases.channel, extensionReleases.version],
-      set: {
-        state: stringField(release, 'state') ?? rolloutState ?? 'hidden',
-        title: stringField(release, 'title') ?? 'Update available',
-        summary: stringField(release, 'summary') ?? null,
-        notes: notesField(release.notes),
-        changelogUrl: stringField(release, 'changelogUrl') ?? null,
-        publishedAt: release.publishedAt && typeof release.publishedAt === 'string'
-          ? new Date(release.publishedAt)
-          : now,
-        updatedAt: sql`now()`,
-      },
-    });
-  }
 
   return NextResponse.json(await getExtensionConfigResponse(channel));
 }

@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Ban, CheckCircle2, Copy, Gift, History, Mail, RefreshCcw, Search, Send, ShieldAlert, UserCircle, Users, WalletCards } from 'lucide-react';
+import { Ban, CheckCircle2, Copy, Edit3, FileJson, Gift, History, Plus, RefreshCcw, Save, Search, Send, Settings2, ShieldAlert, Trash2, UserCircle, Users, WalletCards, X } from 'lucide-react';
 
-type AdminTab = 'recharge' | 'users';
+type AdminTab = 'recharge' | 'extensionConfig' | 'users';
 
 type UserRow = {
   id: string;
@@ -64,6 +64,69 @@ type GeneratedCode = {
   points: number;
 };
 
+type ExtensionChannel = 'chrome_store' | 'website';
+type RolloutState = 'hidden' | 'available' | 'paused';
+
+type ExtensionConfigResponse = {
+  channel: ExtensionChannel;
+  latestVersion: string;
+  minSupportedVersion: string;
+  rolloutState: RolloutState;
+  pollIntervalSeconds: number;
+  downloadUrl?: string | null;
+  forceUpdateMessage?: string | null;
+  maintenance: {
+    enabled: boolean;
+    message?: string | null;
+  };
+  logSyncMinLevel: 'debug' | 'info' | 'warning' | 'error';
+  scanPolicy: Record<string, unknown>;
+  featureFlags: Record<string, unknown>;
+  extraConfig: Record<string, unknown>;
+  releaseNote: {
+    version: string;
+    title: string;
+    summary?: string | null;
+    notes: string[];
+    changelogUrl?: string | null;
+    publishedAt?: string | null;
+  } | null;
+  updatedAt: string;
+  serverTime: string;
+};
+
+type ExtensionReleaseRow = NonNullable<ExtensionConfigResponse['releaseNote']> & {
+  id: number;
+  channel: ExtensionChannel;
+  state: RolloutState;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ExtensionConfigFormState = {
+  channel: ExtensionChannel;
+  latestVersion: string;
+  minSupportedVersion: string;
+  rolloutState: RolloutState;
+  pollIntervalSeconds: string;
+  downloadUrl: string;
+  forceUpdateMessage: string;
+  maintenanceEnabled: boolean;
+  maintenanceMessage: string;
+  featureFlagsJson: string;
+  extraConfigJson: string;
+};
+
+type ExtensionReleaseFormState = {
+  version: string;
+  state: RolloutState;
+  title: string;
+  summary: string;
+  notes: string;
+  changelogUrl: string;
+  publishedAt: string;
+};
+
 const defaultExpiresAt = () => {
   const date = new Date();
   date.setDate(date.getDate() + 30);
@@ -87,11 +150,14 @@ export function AdminConsole({ users }: { users: UserRow[] }) {
         </div>
         <nav className="space-y-1">
           <AdminNavButton active={tab === 'recharge'} onClick={() => setTab('recharge')} icon={<Gift size={17} />} label="Recharge Codes" />
+          <AdminNavButton active={tab === 'extensionConfig'} onClick={() => setTab('extensionConfig')} icon={<Settings2 size={17} />} label="Extension Config" />
           <AdminNavButton active={tab === 'users'} onClick={() => setTab('users')} icon={<Users size={17} />} label="Users" />
         </nav>
       </aside>
       <main className="min-w-0 px-7 py-6">
-        {tab === 'recharge' ? <RechargeCodesTab /> : <UsersTab users={users} />}
+        {tab === 'recharge' ? <RechargeCodesTab /> : null}
+        {tab === 'extensionConfig' ? <ExtensionConfigTab /> : null}
+        {tab === 'users' ? <UsersTab users={users} /> : null}
       </main>
     </div>
   );
@@ -417,6 +483,405 @@ function CodeRow({
   );
 }
 
+function ExtensionConfigTab() {
+  const [channel, setChannel] = useState<ExtensionChannel>('website');
+  const [config, setConfig] = useState<ExtensionConfigResponse | null>(null);
+  const [releases, setReleases] = useState<ExtensionReleaseRow[]>([]);
+  const [form, setForm] = useState<ExtensionConfigFormState>(() => defaultExtensionConfigForm('website'));
+  const [releaseForm, setReleaseForm] = useState<ExtensionReleaseFormState>(() => defaultExtensionReleaseForm());
+  const [editingReleaseVersion, setEditingReleaseVersion] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [releaseSaving, setReleaseSaving] = useState(false);
+  const [deletingReleaseVersion, setDeletingReleaseVersion] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    void refreshAll(channel);
+  }, [channel]);
+
+  async function refreshAll(nextChannel = channel) {
+    await Promise.all([refresh(nextChannel), refreshReleases(nextChannel)]);
+  }
+
+  async function refresh(nextChannel = channel) {
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/admin/extension/config?channel=${encodeURIComponent(nextChannel)}`);
+      const json = await response.json();
+      if (!response.ok) throw new Error(String(json.error ?? 'server_error'));
+      const nextConfig = json as ExtensionConfigResponse;
+      setConfig(nextConfig);
+      setForm(formFromExtensionConfig(nextConfig));
+    } catch (err) {
+      setError(adminErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function refreshReleases(nextChannel = channel) {
+    try {
+      const response = await fetch(`/api/admin/extension/releases?channel=${encodeURIComponent(nextChannel)}`);
+      const json = await response.json();
+      if (!response.ok) throw new Error(String(json.error ?? 'server_error'));
+      setReleases(Array.isArray(json.releases) ? json.releases as ExtensionReleaseRow[] : []);
+    } catch (err) {
+      setError(adminErrorMessage(err));
+    }
+  }
+
+  async function saveConfig(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const featureFlags = parseJsonRecord(form.featureFlagsJson, 'Feature flags');
+      const extraConfig = parseJsonRecord(form.extraConfigJson, 'Extra config');
+      const pollIntervalSeconds = Number(form.pollIntervalSeconds);
+      if (!Number.isInteger(pollIntervalSeconds) || pollIntervalSeconds <= 0) {
+        throw new Error('Poll interval must be a positive integer.');
+      }
+
+      const response = await fetch('/api/admin/extension/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: form.channel,
+          latestVersion: form.latestVersion,
+          minSupportedVersion: form.minSupportedVersion,
+          rolloutState: form.rolloutState,
+          pollIntervalSeconds,
+          downloadUrl: emptyToUndefined(form.downloadUrl),
+          forceUpdateMessage: emptyToUndefined(form.forceUpdateMessage),
+          maintenanceEnabled: form.maintenanceEnabled,
+          maintenanceMessage: emptyToUndefined(form.maintenanceMessage),
+          featureFlags,
+          extraConfig,
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(String(json.error ?? 'server_error'));
+      const nextConfig = json as ExtensionConfigResponse;
+      setConfig(nextConfig);
+      setForm(formFromExtensionConfig(nextConfig));
+      setChannel(nextConfig.channel);
+      setNotice('Extension config saved.');
+    } catch (err) {
+      setError(adminErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveRelease(event: FormEvent) {
+    event.preventDefault();
+    setReleaseSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/admin/extension/releases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel,
+          version: releaseForm.version,
+          state: releaseForm.state,
+          title: releaseForm.title,
+          summary: emptyToUndefined(releaseForm.summary),
+          notes: releaseForm.notes.split('\n').map(note => note.trim()).filter(Boolean),
+          changelogUrl: emptyToUndefined(releaseForm.changelogUrl),
+          publishedAt: emptyToUndefined(releaseForm.publishedAt),
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(String(json.error ?? 'server_error'));
+      setReleases(Array.isArray(json.releases) ? json.releases as ExtensionReleaseRow[] : []);
+      setReleaseForm(defaultExtensionReleaseForm(form.latestVersion));
+      setEditingReleaseVersion(null);
+      setNotice('Release note saved.');
+      await refresh(channel);
+    } catch (err) {
+      setError(adminErrorMessage(err));
+    } finally {
+      setReleaseSaving(false);
+    }
+  }
+
+  async function deleteRelease(version: string) {
+    if (!confirm(`Delete release note for ${version}?`)) return;
+    setDeletingReleaseVersion(version);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/admin/extension/releases', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, version }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(String(json.error ?? 'server_error'));
+      setReleases(Array.isArray(json.releases) ? json.releases as ExtensionReleaseRow[] : []);
+      if (editingReleaseVersion === version) {
+        setReleaseForm(defaultExtensionReleaseForm(form.latestVersion));
+        setEditingReleaseVersion(null);
+      }
+      setNotice('Release note deleted.');
+      await refresh(channel);
+    } catch (err) {
+      setError(adminErrorMessage(err));
+    } finally {
+      setDeletingReleaseVersion(null);
+    }
+  }
+
+  function editRelease(release: ExtensionReleaseRow) {
+    setReleaseForm(formFromExtensionRelease(release));
+    setEditingReleaseVersion(release.version);
+  }
+
+  function resetReleaseForm() {
+    setReleaseForm(defaultExtensionReleaseForm(form.latestVersion));
+    setEditingReleaseVersion(null);
+  }
+
+  function updateForm(patch: Partial<ExtensionConfigFormState>) {
+    setForm(current => ({ ...current, ...patch }));
+  }
+
+  function updateReleaseForm(patch: Partial<ExtensionReleaseFormState>) {
+    setReleaseForm(current => ({ ...current, ...patch }));
+  }
+
+  return (
+    <div className="mx-auto max-w-6xl">
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-950">Extension Config</h1>
+          <p className="mt-1 text-sm text-slate-500">Manage extension version gates, rollout state, scan policy, and remote flags.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            className="admin-input w-auto min-w-40"
+            value={channel}
+            onChange={event => setChannel(event.target.value as ExtensionChannel)}
+          >
+            <option value="chrome_store">Chrome Store</option>
+            <option value="website">Website</option>
+          </select>
+          <button type="button" onClick={() => refreshAll()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" disabled={loading}>
+            <RefreshCcw size={15} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
+      </header>
+
+      {error ? <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div> : null}
+      {notice ? <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div> : null}
+
+      <section className="mb-5 grid gap-3 md:grid-cols-4">
+        <ConfigMetric label="Channel" value={config?.channel === 'website' ? 'Website' : 'Chrome Store'} />
+        <ConfigMetric label="Latest" value={config?.latestVersion ?? 'Loading'} />
+        <ConfigMetric label="Minimum" value={config?.minSupportedVersion ?? 'Loading'} />
+        <ConfigMetric label="Updated" value={config ? formatDateTime(config.updatedAt) : 'Loading'} />
+      </section>
+
+      <form className="grid gap-5" onSubmit={saveConfig}>
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Settings2 size={17} className="text-emerald-700" />
+            <h2 className="text-base font-bold text-slate-950">Version and Rollout</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <AdminField label="Channel">
+              <select className="admin-input" value={form.channel} onChange={event => updateForm({ channel: event.target.value as ExtensionChannel })}>
+                <option value="chrome_store">Chrome Store</option>
+                <option value="website">Website</option>
+              </select>
+            </AdminField>
+            <AdminField label="Latest version">
+              <input className="admin-input" value={form.latestVersion} onChange={event => updateForm({ latestVersion: event.target.value })} placeholder="0.1.0" required />
+            </AdminField>
+            <AdminField label="Minimum supported">
+              <input className="admin-input" value={form.minSupportedVersion} onChange={event => updateForm({ minSupportedVersion: event.target.value })} placeholder="0.1.0" required />
+            </AdminField>
+            <AdminField label="Rollout state">
+              <select className="admin-input" value={form.rolloutState} onChange={event => updateForm({ rolloutState: event.target.value as RolloutState })}>
+                <option value="hidden">Hidden</option>
+                <option value="available">Available</option>
+                <option value="paused">Paused</option>
+              </select>
+            </AdminField>
+            <AdminField label="Config poll seconds">
+              <input className="admin-input" value={form.pollIntervalSeconds} onChange={event => updateForm({ pollIntervalSeconds: event.target.value })} min="1" type="number" required />
+            </AdminField>
+            <AdminField label="Download URL">
+              <input className="admin-input" value={form.downloadUrl} onChange={event => updateForm({ downloadUrl: event.target.value })} placeholder="https://dub.sh/x2yQGXT" />
+            </AdminField>
+            <AdminField label="Force update message">
+              <input className="admin-input" value={form.forceUpdateMessage} onChange={event => updateForm({ forceUpdateMessage: event.target.value })} placeholder="Please update Campsoon to continue." />
+            </AdminField>
+            <label className="flex items-end gap-2 pb-2 text-sm font-semibold text-slate-600">
+              <input checked={form.maintenanceEnabled} onChange={event => updateForm({ maintenanceEnabled: event.target.checked })} type="checkbox" />
+              Maintenance enabled
+            </label>
+            <div className="md:col-span-2 lg:col-span-4">
+              <AdminField label="Maintenance message">
+                <input className="admin-input" value={form.maintenanceMessage} onChange={event => updateForm({ maintenanceMessage: event.target.value })} placeholder="Short user-facing maintenance notice" />
+              </AdminField>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <FileJson size={17} className="text-emerald-700" />
+            <h2 className="text-base font-bold text-slate-950">Remote JSON</h2>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <AdminField label="Feature flags">
+              <textarea className="admin-input min-h-36 font-mono text-xs" value={form.featureFlagsJson} onChange={event => updateForm({ featureFlagsJson: event.target.value })} spellCheck={false} />
+            </AdminField>
+            <AdminField label="Extra config">
+              <textarea className="admin-input min-h-36 font-mono text-xs" value={form.extraConfigJson} onChange={event => updateForm({ extraConfigJson: event.target.value })} spellCheck={false} />
+            </AdminField>
+          </div>
+          <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">
+            `scanPolicy` and `logSyncMinLevel` live inside Extra config. The extension receives the normalized values shown by the public config response.
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-950">Public Response Preview</h2>
+              <p className="mt-1 text-sm text-slate-500">Current normalized config returned to the extension.</p>
+            </div>
+            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" disabled={saving || loading} type="submit">
+              <Save size={16} />
+              {saving ? 'Saving...' : 'Save config'}
+            </button>
+          </div>
+          <pre className="mt-4 max-h-80 overflow-auto rounded-lg bg-slate-950 p-4 text-xs font-semibold leading-relaxed text-slate-100">
+            {config ? JSON.stringify(config, null, 2) : 'Loading...'}
+          </pre>
+        </section>
+      </form>
+
+      <section className="mt-5 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <History size={17} className="text-emerald-700" />
+            <div>
+              <h2 className="text-base font-bold text-slate-950">Release Notes</h2>
+              <p className="mt-1 text-sm text-slate-500">Manage update notes separately from the channel config.</p>
+            </div>
+          </div>
+          <button type="button" onClick={resetReleaseForm} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            <Plus size={15} />
+            New release
+          </button>
+        </div>
+
+        <form className="mb-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4" onSubmit={saveRelease}>
+          <AdminField label="Version">
+            <input className="admin-input" value={releaseForm.version} onChange={event => updateReleaseForm({ version: event.target.value })} placeholder={form.latestVersion} required />
+          </AdminField>
+          <AdminField label="State">
+            <select className="admin-input" value={releaseForm.state} onChange={event => updateReleaseForm({ state: event.target.value as RolloutState })}>
+              <option value="hidden">Hidden</option>
+              <option value="available">Available</option>
+              <option value="paused">Paused</option>
+            </select>
+          </AdminField>
+          <div className="md:col-span-2">
+            <AdminField label="Title">
+              <input className="admin-input" value={releaseForm.title} onChange={event => updateReleaseForm({ title: event.target.value })} placeholder="Update available" required />
+            </AdminField>
+          </div>
+          <div className="md:col-span-2">
+            <AdminField label="Summary">
+              <input className="admin-input" value={releaseForm.summary} onChange={event => updateReleaseForm({ summary: event.target.value })} placeholder="Short summary shown in the extension" />
+            </AdminField>
+          </div>
+          <AdminField label="Changelog URL">
+            <input className="admin-input" value={releaseForm.changelogUrl} onChange={event => updateReleaseForm({ changelogUrl: event.target.value })} placeholder="https://..." />
+          </AdminField>
+          <AdminField label="Published at">
+            <input className="admin-input" value={releaseForm.publishedAt} onChange={event => updateReleaseForm({ publishedAt: event.target.value })} type="datetime-local" />
+          </AdminField>
+          <div className="md:col-span-2 lg:col-span-4">
+            <AdminField label="Notes">
+              <textarea className="admin-input min-h-24" value={releaseForm.notes} onChange={event => updateReleaseForm({ notes: event.target.value })} placeholder="One note per line" />
+            </AdminField>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 md:col-span-2 lg:col-span-4">
+            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" disabled={releaseSaving} type="submit">
+              <Save size={16} />
+              {releaseSaving ? 'Saving...' : editingReleaseVersion ? 'Save release note' : 'Add release note'}
+            </button>
+            {editingReleaseVersion ? (
+              <button type="button" onClick={resetReleaseForm} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                <X size={16} />
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+        </form>
+
+        {releases.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[920px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                  <th className="px-4 py-3">Version</th>
+                  <th className="px-4 py-3">State</th>
+                  <th className="px-4 py-3">Title</th>
+                  <th className="px-4 py-3">Published</th>
+                  <th className="px-4 py-3">Updated</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {releases.map(release => (
+                  <tr className="border-b border-slate-100 align-top hover:bg-slate-50/70" key={`${release.channel}-${release.version}`}>
+                    <td className="px-4 py-3 font-mono font-bold text-slate-900">{release.version}</td>
+                    <td className="px-4 py-3"><TinyPill label={release.state} tone={release.state === 'available' ? 'emerald' : release.state === 'paused' ? 'blue' : 'slate'} /></td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-slate-900">{release.title}</div>
+                      {release.summary ? <div className="mt-1 text-xs text-slate-500">{release.summary}</div> : null}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{formatDate(release.publishedAt)}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatDateTime(release.updatedAt)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => editRelease(release)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                          <Edit3 size={13} />
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => deleteRelease(release.version)} disabled={deletingReleaseVersion === release.version} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-bold text-red-700 disabled:opacity-60">
+                          <Trash2 size={13} />
+                          {deletingReleaseVersion === release.version ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">No release notes for this channel yet.</div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function UsersTab({ users }: { users: UserRow[] }) {
   const [query, setQuery] = useState('');
 
@@ -546,6 +1011,123 @@ function UserMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ConfigMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="text-xs font-bold uppercase text-slate-500">{label}</div>
+      <div className="mt-1 truncate text-lg font-black text-slate-950">{value}</div>
+    </div>
+  );
+}
+
+function defaultExtensionConfigForm(channel: ExtensionChannel): ExtensionConfigFormState {
+  return {
+    channel,
+    latestVersion: '0.1.0',
+    minSupportedVersion: '0.1.0',
+    rolloutState: 'hidden',
+    pollIntervalSeconds: '600',
+    downloadUrl: '',
+    forceUpdateMessage: '',
+    maintenanceEnabled: false,
+    maintenanceMessage: '',
+    featureFlagsJson: '{}',
+    extraConfigJson: prettyJson({
+      logSyncMinLevel: 'info',
+      scanPolicy: {
+        minIntervalSeconds: 60,
+        maxIntervalSeconds: 300,
+        defaultIntervalSeconds: 120,
+        allowedIntervalSeconds: [60, 120, 180, 300],
+        requestSpacingMs: 2000,
+        maxRequestsPerCycle: 30,
+        maxRequestsPerTripPerCycle: 8,
+        backoff: {
+          errorBaseSeconds: 300,
+          rateLimitBaseSeconds: 600,
+          maxSeconds: 1800,
+        },
+      },
+    }),
+  };
+}
+
+function formFromExtensionConfig(config: ExtensionConfigResponse): ExtensionConfigFormState {
+  const extraConfig = {
+    ...config.extraConfig,
+    logSyncMinLevel: config.logSyncMinLevel,
+    scanPolicy: config.scanPolicy,
+  };
+
+  return {
+    channel: config.channel,
+    latestVersion: config.latestVersion,
+    minSupportedVersion: config.minSupportedVersion,
+    rolloutState: config.rolloutState,
+    pollIntervalSeconds: String(config.pollIntervalSeconds),
+    downloadUrl: config.downloadUrl ?? '',
+    forceUpdateMessage: config.forceUpdateMessage ?? '',
+    maintenanceEnabled: config.maintenance.enabled,
+    maintenanceMessage: config.maintenance.message ?? '',
+    featureFlagsJson: prettyJson(config.featureFlags),
+    extraConfigJson: prettyJson(extraConfig),
+  };
+}
+
+function defaultExtensionReleaseForm(version = ''): ExtensionReleaseFormState {
+  return {
+    version,
+    state: 'hidden',
+    title: '',
+    summary: '',
+    notes: '',
+    changelogUrl: '',
+    publishedAt: '',
+  };
+}
+
+function formFromExtensionRelease(release: ExtensionReleaseRow): ExtensionReleaseFormState {
+  return {
+    version: release.version,
+    state: release.state,
+    title: release.title,
+    summary: release.summary ?? '',
+    notes: release.notes.join('\n'),
+    changelogUrl: release.changelogUrl ?? '',
+    publishedAt: toDatetimeLocalValue(release.publishedAt),
+  };
+}
+
+function prettyJson(value: unknown): string {
+  return JSON.stringify(value ?? {}, null, 2);
+}
+
+function parseJsonRecord(value: string, label: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label} must be a JSON object.`);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof SyntaxError) throw new Error(`${label} has invalid JSON.`);
+    throw err;
+  }
+}
+
+function emptyToUndefined(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function toDatetimeLocalValue(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function UserStatusPill({ row }: { row: UserRow }) {
   if (row.banned) {
     return (
@@ -600,14 +1182,14 @@ function StatusPill({ status }: { status: RechargeCode['status'] }) {
   return <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${styles[status]}`}>{label}</span>;
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null | undefined): string {
   if (!value) return 'Never';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Unknown';
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(value: string | null | undefined): string {
   if (!value) return 'Never';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Unknown';
@@ -631,6 +1213,11 @@ function adminErrorMessage(err: unknown): string {
     code_not_active: 'This code is not active.',
     code_expired: 'This code has expired.',
     not_found: 'Recharge code not found.',
+    latestVersion_and_minSupportedVersion_required: 'Latest version and minimum supported version are required.',
+    invalid_rollout_state: 'Choose a valid rollout state.',
+    version_required: 'Release version is required.',
+    title_required: 'Release title is required.',
+    extension_config_required: 'Save the channel config before adding release notes.',
   };
-  return map[code] ?? 'Something went wrong. Try again.';
+  return map[code] ?? (code.includes(' ') ? code : 'Something went wrong. Try again.');
 }

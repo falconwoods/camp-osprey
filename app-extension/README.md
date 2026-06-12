@@ -76,13 +76,35 @@ Do not use `npm run zip` for offline distribution. `npm run zip` rebuilds a norm
 
 ## Website Channel Distribution
 
-For the website channel secure package:
+The extension channel is controlled at build time by `VITE_EXTENSION_CHANNEL`.
+
+Default channel:
+
+```text
+website
+```
+
+The default secure build now produces a website-channel extension:
+
+```bash
+npm run zip:secure
+```
+
+For the explicit website channel secure package:
 
 ```bash
 npm run zip:website:secure
 ```
 
-This uses the same secure packaging flow, but builds with `VITE_EXTENSION_CHANNEL=website`.
+This uses the same secure packaging flow and passes `VITE_EXTENSION_CHANNEL=website`.
+
+If a Chrome Store package is ever needed again, build it explicitly:
+
+```bash
+VITE_EXTENSION_CHANNEL=chrome_store npm run zip:secure
+```
+
+At runtime, the extension sends this channel to `/api/extension/config`, and the server returns the matching remote config.
 
 ## Security Notes
 

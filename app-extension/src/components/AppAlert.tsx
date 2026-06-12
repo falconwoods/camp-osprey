@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { ArrowRight, CircleX, Info, TriangleAlert } from 'lucide-react'
 
 export type AppAlertVariant = 'info' | 'warning' | 'error'
@@ -5,7 +6,7 @@ export type AppAlertVariant = 'info' | 'warning' | 'error'
 export interface AppAlertProps {
   variant: AppAlertVariant
   title: string
-  message: string
+  message: ReactNode
   action?: {
     label: string
     onClick: () => void
@@ -22,7 +23,7 @@ export function AppAlert({ variant, title, message, action }: AppAlertProps) {
       </div>
       <div className="app-alert-copy">
         <strong>{title}</strong>
-        <span>{message}</span>
+        <div className="app-alert-message">{message}</div>
       </div>
       {action ? (
         <button className="app-alert-action" type="button" onClick={action.onClick}>

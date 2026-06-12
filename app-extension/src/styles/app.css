@@ -373,10 +373,18 @@ a {
   line-height: 1.2;
 }
 
-.app-alert-copy span {
+.app-alert-message {
   color: var(--co-text-muted);
   font-size: 13px;
   line-height: 1.35;
+}
+
+.app-alert-message p {
+  margin: 0;
+}
+
+.app-alert-message p + p {
+  margin-top: 5px;
 }
 
 .app-alert-action {
@@ -581,6 +589,55 @@ a {
 
 .confirm-dialog-message p + p {
   margin-top: 8px;
+}
+
+.update-version-details {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--co-border);
+  border-radius: 8px;
+  background: var(--co-control);
+}
+
+.update-version-details div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.update-version-details dt,
+.update-version-details dd {
+  margin: 0;
+}
+
+.update-version-details dt {
+  color: var(--co-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.update-version-details dd {
+  color: var(--co-text);
+  font-weight: 800;
+  text-align: right;
+}
+
+.update-release-notes {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.update-release-notes li + li {
+  margin-top: 5px;
+}
+
+.update-install-note {
+  display: block;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--co-border);
 }
 
 .confirm-dialog-actions {
