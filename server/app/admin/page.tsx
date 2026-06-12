@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { user, trips, bookingResults } from '@/db/schema';
 import { count, desc } from 'drizzle-orm';
+import { AdminConsole } from './_components/AdminConsole';
 
 export default async function AdminPage() {
   const users = await db
@@ -25,29 +26,11 @@ export default async function AdminPage() {
   const tripCountMap = Object.fromEntries(tripCounts.map(r => [r.userId, r.count]));
   const resultCountMap = Object.fromEntries(resultCounts.map(r => [r.userId, r.count]));
 
-  return (
-    <div>
-      <h2 className="text-xl font-semibold mb-6">Users ({users.length})</h2>
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b border-gray-200 text-left text-gray-500">
-            <th className="pb-2 pr-4">Email</th>
-            <th className="pb-2 pr-4">Trips</th>
-            <th className="pb-2 pr-4">Booking results</th>
-            <th className="pb-2">Joined</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u.id} className="border-b border-gray-100">
-              <td className="py-2 pr-4 text-gray-900">{u.email}</td>
-              <td className="py-2 pr-4 text-gray-600">{tripCountMap[u.id] ?? 0}</td>
-              <td className="py-2 pr-4 text-gray-600">{resultCountMap[u.id] ?? 0}</td>
-              <td className="py-2 text-gray-400">{u.createdAt.toLocaleDateString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <AdminConsole users={users.map(u => ({
+    id: u.id,
+    email: u.email,
+    createdAt: u.createdAt.toISOString(),
+    trips: Number(tripCountMap[u.id] ?? 0),
+    bookingResults: Number(resultCountMap[u.id] ?? 0),
+  }))} />;
 }

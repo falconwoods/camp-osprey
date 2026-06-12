@@ -854,6 +854,47 @@ a {
   margin-top: auto;
 }
 
+.recharge-code-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.recharge-code-field .ui-input {
+  min-height: 44px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.recharge-code-button {
+  min-height: 44px;
+  min-width: 132px;
+}
+
+.account-redeem-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.account-redeem-message.success {
+  border: 1px solid var(--green-border);
+  background: var(--green-subtle);
+  color: var(--co-brand-dark);
+}
+
+.account-redeem-message.error {
+  border: 1px solid var(--red-border);
+  background: var(--red-subtle);
+  color: var(--co-red);
+}
+
 .account-stripe-note {
   display: flex;
   align-items: center;
@@ -3117,6 +3158,14 @@ a {
 
   .points-balance-badge {
     width: fit-content;
+  }
+
+  .recharge-code-form {
+    grid-template-columns: 1fr;
+  }
+
+  .recharge-code-button {
+    width: 100%;
   }
 
   .account-points-card h2 {

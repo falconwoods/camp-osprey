@@ -39,7 +39,9 @@ The development server runs on `http://localhost:3001`.
 
 Local development reads `server/.env`. Production deployment reads
 `server/.env.production` by default and uploads that file to the VPS before
-restarting the container:
+restarting the container. The deploy script passes that file to Docker with
+`--env-file`; `DATABASE_URL` and `RECHARGE_CODE_SECRET` are checked before the
+new container starts:
 
 ```bash
 cp .env.example .env.production

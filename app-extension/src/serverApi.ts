@@ -309,6 +309,25 @@ export async function createPointCheckout(
   })
 }
 
+export async function redeemRechargeCode(code: string): Promise<{
+  pointsGranted: number
+  balanceAfter: number
+  redemptionId: number
+}> {
+  const result = await serverFetch<{
+    pointsGranted: number
+    balanceAfter: number
+    redemptionId: number
+  }>('/api/points/redeem-code', {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({ code }),
+  })
+  const auth = await getAuth()
+  if (auth.user) await saveAuth({ ...auth, pointsBalance: result.balanceAfter })
+  return result
+}
+
 export interface BookingPaymentEventPayload {
   tripId?: string
   clientEventId?: string

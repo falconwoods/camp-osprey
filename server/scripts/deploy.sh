@@ -35,6 +35,10 @@ docker save $IMAGE:latest | gzip | ssh -p $SSH_PORT $SERVER "
       echo \"DATABASE_URL is missing from $SERVER_ENV_DIR/$ENV_FILE\" >&2
       exit 1
     fi
+    if [ -z \"\$RECHARGE_CODE_SECRET\" ]; then
+      echo \"RECHARGE_CODE_SECRET is missing from $SERVER_ENV_DIR/$ENV_FILE\" >&2
+      exit 1
+    fi
     url=\${DATABASE_URL#*://}
     host=\${url#*@}
     host=\${host%%[:/?]*}

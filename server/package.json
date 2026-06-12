@@ -11,6 +11,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:production": "node scripts/migrate-production.mjs",
+    "secret:recharge": "node scripts/generate-recharge-secret.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

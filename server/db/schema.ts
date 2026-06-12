@@ -181,6 +181,46 @@ export const stripeWebhookEvents = pgTable('stripe_webhook_events', {
   updatedAt:     timestamp('updatedAt').notNull().defaultNow(),
 });
 
+export const rechargeCodes = pgTable('recharge_codes', {
+  id:               serial('id').primaryKey(),
+  codeHash:         text('codeHash').notNull(),
+  codePrefix:       text('codePrefix').notNull(),
+  assignedEmail:    text('assignedEmail').notNull(),
+  assignedUserId:   text('assignedUserId').references(() => user.id, { onDelete: 'set null' }),
+  points:           integer('points').notNull(),
+  maxRedemptions:   integer('maxRedemptions').notNull().default(1),
+  redeemedCount:    integer('redeemedCount').notNull().default(0),
+  status:           text('status').notNull().default('active'),
+  expiresAt:        timestamp('expiresAt'),
+  note:             text('note'),
+  createdByAdminId: text('createdByAdminId').notNull().references(() => user.id, { onDelete: 'restrict' }),
+  sentAt:           timestamp('sentAt'),
+  lastSentAt:       timestamp('lastSentAt'),
+  revokedAt:        timestamp('revokedAt'),
+  createdAt:        timestamp('createdAt').notNull().defaultNow(),
+  updatedAt:        timestamp('updatedAt').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('recharge_codes_hash_idx').on(t.codeHash),
+  index('recharge_codes_email_idx').on(t.assignedEmail),
+  index('recharge_codes_status_idx').on(t.status),
+  index('recharge_codes_created_idx').on(t.createdAt),
+]);
+
+export const rechargeCodeRedemptions = pgTable('recharge_code_redemptions', {
+  id:                 serial('id').primaryKey(),
+  rechargeCodeId:     integer('rechargeCodeId').notNull().references(() => rechargeCodes.id, { onDelete: 'cascade' }),
+  userId:             text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  email:              text('email').notNull(),
+  pointsGranted:      integer('pointsGranted').notNull(),
+  pointTransactionId: integer('pointTransactionId').references(() => pointTransactions.id, { onDelete: 'set null' }),
+  ipAddress:          text('ipAddress'),
+  userAgent:          text('userAgent'),
+  createdAt:          timestamp('createdAt').notNull().defaultNow(),
+}, (t) => [
+  index('recharge_code_redemptions_code_idx').on(t.rechargeCodeId),
+  index('recharge_code_redemptions_user_idx').on(t.userId),
+]);
+
 export const bookingPaymentEvents = pgTable('booking_payment_events', {
   id:                    serial('id').primaryKey(),
   userId:                text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),

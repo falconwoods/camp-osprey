@@ -9,7 +9,8 @@ export type PointTransactionType =
   | 'booking_charge'
   | 'stripe_refund'
   | 'stripe_dispute'
-  | 'admin_adjustment';
+  | 'admin_adjustment'
+  | 'recharge_code';
 
 export interface PointTransactionInput {
   userId: string;
@@ -196,6 +197,7 @@ export function pointTransactionDetails(tx: PointTransactionSummaryRow, bookingE
   }
   if (tx.type === 'stripe_dispute') return 'Payment dispute adjustment';
   if (tx.type === 'admin_adjustment') return tx.pointsDelta >= 0 ? 'Manual points credit' : 'Manual points deduction';
+  if (tx.type === 'recharge_code') return 'Recharge code redemption';
   return 'Account activity';
 }
 

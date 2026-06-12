@@ -1,12 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { CircleAlert, Clock, Lock, Send, ShieldCheck } from 'lucide-react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { CircleAlert, Clock, Gift, Lock, Mail, Send, ShieldCheck } from 'lucide-react'
 import { requestCode, signOut, verifyCode } from '../auth'
 import {
-  createPointCheckout,
-  getPointPackages,
   getPointTransactions,
   getPointsBalance,
-  type PointPackagesResponse,
+  redeemRechargeCode,
   type PointTransaction,
 } from '../serverApi'
 import { consumePendingStartTripId, getPendingStartTripId } from '../startAuthGate'
@@ -16,7 +14,6 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { LoadingButton } from '../components/ui/loading-button'
 import { Skeleton } from '../components/ui/skeleton'
-import { APP_CONFIG } from '../config'
 import type { AuthState } from '../types'
 
 const RESEND_COOLDOWN_SECONDS = 60
@@ -187,10 +184,8 @@ export function AccountPanel({
   onSignIn: () => void
 }) {
   const [loading, setLoading] = useState<string | null>(null)
-  const [pointPackages, setPointPackages] = useState<PointPackagesResponse | null>(null)
   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
   const [pointTransactions, setPointTransactions] = useState<PointTransaction[] | null>(null)
-  const [packagesError, setPackagesError] = useState('')
   const [balanceError, setBalanceError] = useState('')
   const [transactionsError, setTransactionsError] = useState('')
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
@@ -198,24 +193,17 @@ export function AccountPanel({
 
   useEffect(() => {
     if (!userKey) {
-      setPointPackages(null)
       setPointsBalance(null)
       setPointTransactions(null)
-      setPackagesError('')
       setBalanceError('')
       setTransactionsError('')
       return
     }
     let cancelled = false
-    setPointPackages(null)
     setPointsBalance(null)
     setPointTransactions(null)
-    setPackagesError('')
     setBalanceError('')
     setTransactionsError('')
-    void getPointPackages()
-      .then(packages => { if (!cancelled) setPointPackages(packages) })
-      .catch(err => { if (!cancelled) setPackagesError(err instanceof Error ? err.message : 'server_error') })
     void getPointsBalance()
       .then(summary => { if (!cancelled) setPointsBalance(summary.balance) })
       .catch(err => { if (!cancelled) setBalanceError(err instanceof Error ? err.message : 'server_error') })
@@ -238,6 +226,19 @@ export function AccountPanel({
     await signOut()
     await onChanged()
     setLoading(null)
+  }
+
+  async function refreshPointData() {
+    setBalanceError('')
+    setTransactionsError('')
+    await Promise.all([
+      getPointsBalance()
+        .then(summary => setPointsBalance(summary.balance))
+        .catch(err => setBalanceError(err instanceof Error ? err.message : 'server_error')),
+      getPointTransactions()
+        .then(summary => setPointTransactions(summary.recentTransactions))
+        .catch(err => setTransactionsError(err instanceof Error ? err.message : 'server_error')),
+    ])
   }
 
   if (!auth?.user) {
@@ -276,10 +277,9 @@ export function AccountPanel({
       <PointsSection
         balance={pointsBalance}
         balanceError={balanceError}
-        packages={pointPackages}
-        packagesError={packagesError}
         transactions={pointTransactions}
         transactionsError={transactionsError}
+        onRedeemed={refreshPointData}
       />
     </div>
   )
@@ -291,8 +291,8 @@ function LockedPointsSection({ onSignIn }: { onSignIn: () => void }) {
       <div className="account-section-icon"><Lock size={24} /></div>
       <div className="account-points-card-copy">
         <div className="account-card-kicker">Campsoon Points</div>
-        <h2>Sign in to buy points</h2>
-        <p>Use points to pay for successful auto-bookings. Points are charged only after a campsite is successfully paid.</p>
+        <h2>Sign in to redeem points</h2>
+        <p>Use a recharge code to add points. Points are charged only after a campsite is successfully paid.</p>
       </div>
       <Button className="account-points-sign-in" onClick={onSignIn}>Sign in first</Button>
     </section>
@@ -327,38 +327,48 @@ function PointsStatusCard({
 function PointsSection({
   balance,
   balanceError,
-  packages,
-  packagesError,
   transactions,
   transactionsError,
+  onRedeemed,
 }: {
   balance: number | null
   balanceError: string
-  packages: PointPackagesResponse | null
-  packagesError: string
   transactions: PointTransaction[] | null
   transactionsError: string
+  onRedeemed: () => Promise<void>
 }) {
-  const [opening, setOpening] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+  const [redeeming, setRedeeming] = useState(false)
+  const [redeemError, setRedeemError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [localBalance, setLocalBalance] = useState<number | null>(null)
+  const shownBalance = localBalance ?? balance
 
-  async function buy(packageId: string) {
-    setOpening(packageId)
+  async function redeem(event: FormEvent) {
+    event.preventDefault()
+    setRedeeming(true)
+    setRedeemError('')
+    setSuccess('')
     try {
-      const returnUrl = chrome.runtime.getURL('options.html#account')
-      const checkout = await createPointCheckout(packageId, returnUrl, chrome.runtime.id)
-      chrome.tabs.create({ url: checkout.checkoutUrl })
+      const result = await redeemRechargeCode(code)
+      setLocalBalance(result.balanceAfter)
+      setCode('')
+      setSuccess(`Added ${result.pointsGranted.toLocaleString()} points.`)
+      await onRedeemed()
+    } catch (err) {
+      setRedeemError(redeemCodeMessage(err instanceof Error ? err.message : 'server_error'))
     } finally {
-      setOpening(null)
+      setRedeeming(false)
     }
   }
 
-  if (packagesError && balanceError && transactionsError) {
+  if (balanceError && transactionsError) {
     return (
       <PointsStatusCard
         icon={<CircleAlert size={24} />}
         kicker="Campsoon Points"
         title="Could not load points"
-        copy={packagesError}
+        copy={balanceError}
         warning
       />
     )
@@ -369,40 +379,33 @@ function PointsSection({
       <section className="account-points-card account-buy-points">
         <div className="buy-points-header">
           <div className="buy-points-title-group">
-            <h2>Buy points</h2>
-            <p>Choose a package and complete payment securely with Stripe.</p>
+            <h2>Redeem code</h2>
+            <p>Enter the recharge code you received after offline payment.</p>
           </div>
           <div className={`points-balance-badge ${balanceError ? 'points-balance-badge-error' : ''}`} aria-label="Current points balance">
-            {balanceError ? 'Points unavailable' : balance === null ? 'Loading points' : `${balance.toLocaleString()} points available`}
+            {balanceError ? 'Points unavailable' : shownBalance === null ? 'Loading points' : `${shownBalance.toLocaleString()} points available`}
           </div>
         </div>
-        {packages ? (
-          <div className="point-package-grid">
-            {packages.packages.length ? packages.packages.map(pkg => {
-              const successfulBookingPointCost = packages.successfulBookingPointCost || APP_CONFIG.points.successfulBookingPointCost
-              const bookingCount = Math.floor(pkg.points / successfulBookingPointCost)
-              return (
-                <article className={`point-package-card ${pkg.recommended ? 'point-package-featured' : ''}`} key={pkg.id}>
-                  <div className="point-package-header">
-                    <h3>{packageName(pkg.name)}</h3>
-                    {pkg.recommended ? <span className="point-package-badge">Best value</span> : null}
-                  </div>
-                  <div className="point-package-points">{pkg.points.toLocaleString()} <span>points</span></div>
-                  <div className="point-package-price">{formatPriceLabel(pkg.priceLabel)}</div>
-                  <p>{bookingEstimate(bookingCount)}</p>
-                  <LoadingButton className="point-package-btn" variant={pkg.recommended ? 'default' : 'secondary'} onClick={() => buy(pkg.id)} loading={opening === pkg.id} loadingText="Opening Stripe...">
-                    Buy now
-                  </LoadingButton>
-                </article>
-              )
-            }) : <div className="account-empty-state">No point packages are available.</div>}
+        <form className="recharge-code-form" onSubmit={redeem}>
+          <div className="field recharge-code-field">
+            <Label htmlFor="recharge-code">Recharge code</Label>
+            <Input
+              id="recharge-code"
+              value={code}
+              onChange={event => setCode(formatRechargeInput(event.target.value))}
+              placeholder="CS-XXXX-XXXX-XXXX-XXXX"
+              autoComplete="off"
+              spellCheck={false}
+            />
           </div>
-        ) : packagesError ? (
-          <div className="account-empty-state">Could not load point packages: {packagesError}</div>
-        ) : (
-          <PointPackagesSkeleton />
-        )}
-        <div className="account-stripe-note"><Lock size={15} /> <strong>Secure checkout with Stripe.</strong> A Stripe payment page will open to complete your purchase.</div>
+          <LoadingButton className="recharge-code-button" type="submit" loading={redeeming} loadingText="Redeeming..." disabled={!code.trim()}>
+            <Gift size={16} />
+            Redeem
+          </LoadingButton>
+        </form>
+        {success ? <div className="account-redeem-message success">{success}</div> : null}
+        {redeemError ? <div className="account-redeem-message error">{redeemError}</div> : null}
+        <div className="account-stripe-note"><Mail size={15} /> <strong>Offline recharge enabled.</strong> Codes are issued by Campsoon after offline purchase.</div>
       </section>
       <section className="account-points-card account-point-activity">
         <div className="account-card-heading">
@@ -440,25 +443,6 @@ function PointsSection({
   )
 }
 
-function PointPackagesSkeleton() {
-  return (
-    <div className="point-package-grid" aria-busy="true" aria-live="polite" aria-label="Loading point packages">
-      {Array.from({ length: 3 }, (_, index) => (
-        <article className="point-package-card" key={index}>
-          <div className="point-package-header">
-            <Skeleton className="h-5 w-28" />
-            {index === 1 ? <Skeleton className="h-5 w-16 rounded-full" /> : null}
-          </div>
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="mt-3 h-5 w-20" />
-          <Skeleton className="mt-3 h-4 w-36" />
-          <Skeleton className="mt-auto h-9 w-full" />
-        </article>
-      ))}
-    </div>
-  )
-}
-
 function PointActivitySkeleton() {
   return (
     <div className="point-activity-statement" aria-busy="true" aria-live="polite" aria-label="Loading point activity">
@@ -475,24 +459,23 @@ function PointActivitySkeleton() {
   )
 }
 
-function packageName(name: string): string {
-  return name.toLowerCase().includes('package') ? name : `${name} Package`
+function formatRechargeInput(value: string): string {
+  const raw = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18)
+  const groups = [raw.slice(0, 2), raw.slice(2, 6), raw.slice(6, 10), raw.slice(10, 14), raw.slice(14, 18)].filter(Boolean)
+  return groups.join('-')
 }
 
-function bookingEstimate(bookingCount: number): string {
-  if (bookingCount <= 0) return 'Good for getting started'
-  if (bookingCount === 1) return 'Enough for 1 successful booking'
-  return `Enough for ${bookingCount.toLocaleString()} successful bookings`
-}
-
-function formatPriceLabel(priceLabel: string): string {
-  const match = priceLabel.trim().match(/^([A-Z]{3})\s+(.+)$/)
-  if (!match) return priceLabel
-  const [, currency, value] = match
-  const amount = Number(value.replace(/,/g, ''))
-  if (!Number.isFinite(amount)) return priceLabel
-  const symbol = currency === 'CAD' || currency === 'USD' ? '$' : ''
-  return `${currency} ${symbol}${amount.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(amount) ? 0 : 2 })}`
+function redeemCodeMessage(code: string): string {
+  const map: Record<string, string> = {
+    invalid_code: 'Enter a valid recharge code.',
+    code_not_active: 'This recharge code is no longer active.',
+    code_expired: 'This recharge code has expired.',
+    email_mismatch: 'This recharge code is not assigned to this account.',
+    code_fully_redeemed: 'This recharge code has already been used.',
+    already_redeemed: 'This recharge code has already been redeemed.',
+    server_error: 'Could not redeem this code. Try again in a moment.',
+  }
+  return map[code] ?? 'Could not redeem this code. Try again in a moment.'
 }
 
 function transactionLabel(type: string): string {
@@ -504,6 +487,7 @@ function transactionDetails(tx: PointTransaction): string {
   if (tx.type === 'booking_charge') return 'Successful booking deduction'
   if (tx.type === 'stripe_purchase') return 'Point package purchase'
   if (tx.type === 'stripe_refund') return 'Point package refund'
+  if (tx.type === 'recharge_code') return 'Recharge code redemption'
   return 'Account activity'
 }
 
