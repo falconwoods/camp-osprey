@@ -1,9 +1,9 @@
-import { EXTENSION_CHANNEL } from './config'
 import { getClientId } from './storage'
 import { getExtensionRemoteConfig } from './serverApi'
 import type { ExtensionRemoteConfig } from './types'
 
 const STORAGE_KEY = 'extensionConfig'
+export const EXTENSION_DOWNLOAD_URL = 'https://dub.sh/x2yQGXT'
 const DEFAULT_POLL_INTERVAL_SECONDS = 600
 const DEFAULT_SCAN_POLICY = {
   minIntervalSeconds: 60,
@@ -204,6 +204,5 @@ export function isOptionalUpdateAvailable(config: ExtensionRemoteConfig | null):
 
 export function getExtensionUpdateUrl(config: ExtensionRemoteConfig | null): string {
   if (config?.downloadUrl) return config.downloadUrl
-  if (EXTENSION_CHANNEL === 'chrome_store') return 'chrome://extensions'
-  return 'https://campsoon.com'
+  return EXTENSION_DOWNLOAD_URL
 }

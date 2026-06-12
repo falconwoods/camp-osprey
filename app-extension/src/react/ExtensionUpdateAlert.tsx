@@ -19,7 +19,7 @@ export function ExtensionUpdateAlert({ config }: { config: ExtensionRemoteConfig
         variant="error"
         title="Update required"
         message={config.forceUpdateMessage ?? `Version ${config.minSupportedVersion} or newer is required.`}
-        action={{ label: 'Update', onClick: () => openUpdateUrl(config) }}
+        action={{ label: 'Download update', onClick: () => openUpdateUrl(config) }}
       />
     )
   }
@@ -31,7 +31,7 @@ export function ExtensionUpdateAlert({ config }: { config: ExtensionRemoteConfig
       variant="info"
       title={config.releaseNote?.title ?? 'Update available'}
       message={config.releaseNote?.summary ?? `Version ${config.latestVersion} is available.`}
-      action={{ label: 'Update', onClick: () => openUpdateUrl(config) }}
+      action={{ label: 'Download update', onClick: () => openUpdateUrl(config) }}
     />
   )
 }

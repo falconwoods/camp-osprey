@@ -10,8 +10,11 @@
     "build": "wxt build",
     "build:development": "wxt build --mode development",
     "build:production": "wxt build --mode production",
+    "build:secure": "node scripts/clean-output.mjs && wxt build --mode production && node scripts/obfuscate-output.mjs",
     "build:website:secure": "node scripts/clean-output.mjs && VITE_EXTENSION_CHANNEL=website wxt build --mode production && node scripts/obfuscate-output.mjs",
     "zip": "wxt zip",
+    "zip:secure": "npm run build:secure && node scripts/zip-secure-output.mjs",
+    "zip:website:secure": "npm run build:website:secure && node scripts/zip-secure-output.mjs",
     "compile": "wxt prepare && tsc --noEmit"
   },
   "dependencies": {
