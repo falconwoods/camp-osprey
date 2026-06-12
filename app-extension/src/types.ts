@@ -57,7 +57,7 @@ export interface AvailableSite {
   availableCount?: number
 }
 
-export interface PaymentConfig {
+export interface PlainPaymentConfig {
   cardNumber: string
   cardHolder: string
   cardExpiry: string      // "MM/YY"
@@ -65,6 +65,16 @@ export interface PaymentConfig {
   billingAddress: string  // → #street-field-0
   billingPostal: string   // → #postal-code-field-0
 }
+
+export interface EncryptedPaymentConfig {
+  schemaVersion: 2
+  keyVersion: number
+  updatedAt: string
+  encryptedPayload: string
+  iv: string
+}
+
+export type PaymentConfig = PlainPaymentConfig | EncryptedPaymentConfig
 
 export type Theme = 'auto' | 'light' | 'dark'
 

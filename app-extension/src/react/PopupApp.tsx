@@ -14,7 +14,9 @@ export function PopupApp() {
   async function start(trip: Trip) {
     const result = await startTripNow(trip.id)
     if (!result.ok && result.reason === 'extension_update_required') return
-    if (!result.ok && result.reason === 'payment') chrome.runtime.openOptionsPage()
+    if (!result.ok && result.reason === 'payment' && confirm('Auto-pay requires Park Payment\n\nPlease add your Park Payment details before starting an Auto-pay trip.')) {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options.html#payment') })
+    }
     await state.refresh()
   }
 

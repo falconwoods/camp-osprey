@@ -127,6 +127,14 @@ export const userPointAccounts = pgTable('user_point_accounts', {
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 });
 
+export const userPaymentKeys = pgTable('user_payment_keys', {
+  userId:     text('userId').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+  keyVersion: integer('keyVersion').notNull().default(1),
+  key:        text('key').notNull(),
+  createdAt:  timestamp('createdAt').notNull().defaultNow(),
+  updatedAt:  timestamp('updatedAt').notNull().defaultNow(),
+});
+
 export const pointTransactions = pgTable('point_transactions', {
   id:             serial('id').primaryKey(),
   userId:         text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),

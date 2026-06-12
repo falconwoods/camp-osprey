@@ -10,6 +10,7 @@ export const RuntimeMessageCode = {
   bookingConfirmed: 7107,
   bookingFailed: 7108,
   openAccountPage: 7109,
+  getDecryptedPayment: 7110,
 } as const
 
 export const ResultCode = {

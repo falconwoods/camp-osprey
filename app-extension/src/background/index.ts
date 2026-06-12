@@ -1,5 +1,5 @@
 import { BCParksApiError, BCParksCooldownError, BCParksProvider } from '../providers/bcparks'
-import { getStorage, addDebugLog, formatDateTime } from '../storage'
+import { getStorage, savePayment, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
 import type { ScanBudget, TripScanCursor } from './scanner'
@@ -19,6 +19,7 @@ import {
   resolveScanIntervalSeconds,
 } from '../extensionConfig'
 import { LogEventCode, ProviderCode, ProviderSnapshotSourceCode, ResultCode, RuntimeMessageCode, opaqueHash } from '../protocol'
+import { decryptParkPayment, encryptParkPayment, isPlainPaymentConfig } from '../paymentCrypto'
 
 const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
@@ -1110,7 +1111,24 @@ chrome.runtime.onMessage.addListener((msg: {
   attemptKey?: string
   resetActiveMatch?: boolean
   scanLease?: unknown
-}) => {
+}, _sender, sendResponse) => {
+  if (msg.t === RuntimeMessageCode.getDecryptedPayment) {
+    void (async () => {
+      try {
+        const { payment } = await getStorage()
+        if (!payment) {
+          sendResponse({ ok: false, error: 'payment_missing' })
+          return
+        }
+        const decrypted = await decryptParkPayment(payment)
+        if (isPlainPaymentConfig(payment)) await savePayment(await encryptParkPayment(decrypted))
+        sendResponse({ ok: true, payment: decrypted })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : 'payment_decrypt_failed' })
+      }
+    })()
+    return true
+  }
   if (msg.t === RuntimeMessageCode.contentDebugLog) {
     void addDebugLog({
       level: msg.level ?? 'info',

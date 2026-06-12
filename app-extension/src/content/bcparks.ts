@@ -885,10 +885,11 @@ async function runCheckout(tripId: string): Promise<void> {
       await pollUntil(15_000, () => !!document.querySelector('#cardNumber'))
       dbg('card fields ready', { found: !!document.querySelector('#cardNumber') })
 
-      const { payment } = await new Promise<Record<string, unknown>>(resolve =>
-        chrome.storage.local.get('payment', resolve)
-      ) as { payment: import('../types').PaymentConfig | null }
-      if (!payment) throw new Error('No payment info — add it in campsoon Settings.')
+      const paymentResponse = await chrome.runtime.sendMessage({ t: RuntimeMessageCode.getDecryptedPayment }) as
+        | { ok: true; payment: import('../types').PlainPaymentConfig }
+        | { ok: false; error?: string }
+      if (!paymentResponse?.ok) throw new Error('No payment info — add it in campsoon Settings.')
+      const payment = paymentResponse.payment
 
       const fill = async (selector: string, value: string) => {
         try {

@@ -1,4 +1,5 @@
 import type { PaymentConfig, Trip } from './types'
+import { hasSavedParkPayment } from './paymentCrypto'
 import { expandDateRange, isBookable } from './dates'
 
 export interface Warning {
@@ -72,13 +73,5 @@ export function renderWarnings(warnings: Warning[]): string {
 }
 
 function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
-  if (!payment) return false
-  return [
-    payment.cardNumber,
-    payment.cardHolder,
-    payment.cardExpiry,
-    payment.cardCvv,
-    payment.billingAddress,
-    payment.billingPostal,
-  ].every(value => typeof value === 'string' && value.trim())
+  return hasSavedParkPayment(payment)
 }

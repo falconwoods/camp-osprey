@@ -7,17 +7,28 @@ import type { DateRange, Park, PaymentConfig, Trip } from '../types'
 import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig } from '../extensionConfig'
 import { requestScanLease } from '../serverApi'
 import { RuntimeMessageCode } from '../protocol'
+import { decryptParkPayment, hasSavedParkPayment } from '../paymentCrypto'
 
 export function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
-  if (!payment) return false
-  return [
-    payment.cardNumber,
-    payment.cardHolder,
-    payment.cardExpiry,
-    payment.cardCvv,
-    payment.billingAddress,
-    payment.billingPostal,
-  ].every(value => typeof value === 'string' && value.trim())
+  return hasSavedParkPayment(payment)
+}
+
+async function canUseParkPayment(): Promise<boolean> {
+  const { payment } = await getStorage()
+  if (!isValidParkPayment(payment)) return false
+  try {
+    const decrypted = await decryptParkPayment(payment)
+    return [
+      decrypted.cardNumber,
+      decrypted.cardHolder,
+      decrypted.cardExpiry,
+      decrypted.cardCvv,
+      decrypted.billingAddress,
+      decrypted.billingPostal,
+    ].every(value => typeof value === 'string' && value.trim())
+  } catch {
+    return false
+  }
 }
 
 export async function startTripNow(tripId: string, openAuth = true): Promise<{ ok: true } | { ok: false; reason: string }> {
@@ -30,7 +41,7 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<{ o
     chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
     return { ok: false, reason: 'bcparks_auth' }
   }
-  if (trip?.mode === 'autopay' && !isValidParkPayment((await getStorage()).payment)) {
+  if (trip?.mode === 'autopay' && !(await canUseParkPayment())) {
     return { ok: false, reason: 'payment' }
   }
   const scanLease = await requestScanLease(tripId)

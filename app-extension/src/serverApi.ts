@@ -152,6 +152,10 @@ export async function getExtensionRemoteConfig(clientId: string): Promise<Extens
   })
 }
 
+export async function getPaymentEncryptionKey(): Promise<{ key: string; keyVersion: number }> {
+  return serverFetch('/api/extension/payment-key', { method: 'GET', auth: true })
+}
+
 export async function notifyUserResult(
   tripId: string,
   payload: NotifyUserResultPayload,

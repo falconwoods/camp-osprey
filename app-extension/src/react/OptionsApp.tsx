@@ -120,8 +120,15 @@ export function OptionsApp() {
     if (!result.ok && result.reason === 'server_auth') {
       openAuthDialog()
     }
-    if (!result.ok && result.reason === 'payment') navigate('payment')
+    if (!result.ok && result.reason === 'payment') promptForPaymentSetup()
     await state.refresh()
+  }
+
+  function promptForPaymentSetup() {
+    if (confirm('Auto-pay requires Park Payment\n\nPlease add your Park Payment details before starting an Auto-pay trip.')) {
+      setEditing(undefined)
+      navigate('payment')
+    }
   }
 
   function handleNewTrip() {
@@ -186,6 +193,7 @@ export function OptionsApp() {
             }}
             onNeedsAuth={openAuthDialog}
             onNeedsPayment={() => { setEditing(undefined); navigate('payment') }}
+            onInvalidPayment={promptForPaymentSetup}
           />
         ) : tab === 'trips' ? (
           <TripsView

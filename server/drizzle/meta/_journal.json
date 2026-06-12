@@ -57,6 +57,13 @@
       "when": 1781164800000,
       "tag": "0007_seed_extension_scan_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781226479214,
+      "tag": "0008_cloudy_betty_ross",
+      "breakpoints": true
     }
   ]
 }
