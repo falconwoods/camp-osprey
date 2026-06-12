@@ -20,7 +20,7 @@ import { TripEditor } from './TripEditor'
 import { PaymentPanel } from './PaymentPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
-import { getPointsSummary, type PointsSummary } from '../serverApi'
+import { getPointsBalance } from '../serverApi'
 import { getGlobalWarnings, type Warning } from '../warnings'
 import { IS_LOCAL_BUILD } from '../config'
 import { Button } from '../components/ui/button'
@@ -48,7 +48,7 @@ export function OptionsApp() {
   const state = useExtensionState({ syncTripsOnLoad: tab === 'trips' })
   const [editing, setEditing] = useState<Trip | null | undefined>(undefined)
   const [authDialogOpen, setAuthDialogOpen] = useState(() => location.hash.replace('#', '') === 'auth')
-  const [points, setPoints] = useState<PointsSummary | null>(null)
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null)
   const [pointsLoading, setPointsLoading] = useState(false)
   const [pointsError, setPointsError] = useState('')
   const userKey = state.auth?.user ? state.auth.user.id || state.auth.user.email : null
@@ -74,7 +74,7 @@ export function OptionsApp() {
 
   useEffect(() => {
     if (tab !== 'trips' || !userKey) {
-      setPoints(null)
+      setPointsBalance(null)
       setPointsLoading(false)
       setPointsError('')
       return
@@ -82,10 +82,10 @@ export function OptionsApp() {
     let cancelled = false
     setPointsLoading(true)
     setPointsError('')
-    void getPointsSummary()
+    void getPointsBalance()
       .then(summary => {
         if (cancelled) return
-        setPoints(summary)
+        setPointsBalance(summary.balance)
       })
       .catch(err => {
         if (cancelled) return
@@ -162,7 +162,7 @@ export function OptionsApp() {
               <div className="trips-header-actions">
                 <div className={`credits-summary-pill ${pointsError ? 'credits-summary-unavailable' : ''}`} aria-label="Current points balance">
                   <span className="credits-summary-value">
-                    {pointsLoading ? 'Loading points' : points ? `${points.balance.toLocaleString()} points` : 'Points unavailable'}
+                    {pointsLoading ? 'Loading points' : pointsBalance !== null ? `${pointsBalance.toLocaleString()} points` : 'Points unavailable'}
                   </span>
                   <button type="button" className="credits-summary-topup" onClick={() => navigate('account')}>Top up</button>
                 </div>

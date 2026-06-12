@@ -38,23 +38,44 @@ describe('points routes', () => {
     });
   });
 
-  it('returns balance and configured public packages', async () => {
-    const { GET } = await import('../app/api/points/route');
-    const response = await GET(new Request('http://localhost/api/points'));
+  it('returns configured point packages separately', async () => {
+    const { GET } = await import('../app/api/points/packages/route');
+    const response = await GET(new Request('http://localhost/api/points/packages'));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      balance: 50,
       packages: [{ id: 'starter', name: 'Starter', points: 500, priceLabel: 'CAD 5', recommended: true }],
       successfulBookingPointCost: 100,
-      recentTransactions: [],
+    });
+    expect(mocks.getPointAccountSummary).not.toHaveBeenCalled();
+  });
+
+  it('returns point balance separately', async () => {
+    const { GET } = await import('../app/api/points/balance/route');
+    const response = await GET(new Request('http://localhost/api/points/balance'));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ balance: 50 });
+  });
+
+  it('returns recent point transactions separately', async () => {
+    mocks.getPointAccountSummary.mockResolvedValue({
+      balance: 50,
+      recentTransactions: [{ id: 1, type: 'stripe_purchase', pointsDelta: 500, balanceAfter: 550, sourceType: 'stripe', sourceId: 'cs_123', createdAt: '2026-06-10T00:00:00.000Z' }],
+    });
+    const { GET } = await import('../app/api/points/transactions/route');
+    const response = await GET(new Request('http://localhost/api/points/transactions'));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      recentTransactions: [{ id: 1, type: 'stripe_purchase', pointsDelta: 500, balanceAfter: 550, sourceType: 'stripe', sourceId: 'cs_123', createdAt: '2026-06-10T00:00:00.000Z' }],
     });
   });
 
-  it('requires auth for point summary', async () => {
+  it('requires auth for point packages', async () => {
     mocks.getSession.mockResolvedValue(null);
-    const { GET } = await import('../app/api/points/route');
-    const response = await GET(new Request('http://localhost/api/points'));
+    const { GET } = await import('../app/api/points/packages/route');
+    const response = await GET(new Request('http://localhost/api/points/packages'));
 
     expect(response.status).toBe(401);
   });

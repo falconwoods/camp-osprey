@@ -213,29 +213,84 @@ export async function sendExtensionLogs(
   })
 }
 
-export interface PointsSummary {
-  balance: number
-  packages: Array<{ id: string; name: string; points: number; priceLabel: string; recommended: boolean }>
-  successfulBookingPointCost: number
-  recentTransactions: Array<{
-    id: number
-    type: string
-    pointsDelta: number
-    balanceAfter: number
-    sourceType: string
-    sourceId: string
-    details?: string
-    createdAt: string
-  }>
+const POINT_PACKAGES_CACHE_KEY = 'pointPackagesCache'
+const POINT_PACKAGES_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
+export interface PointPackageOption {
+  id: string
+  name: string
+  points: number
+  priceLabel: string
+  recommended: boolean
 }
 
-export async function getPointsSummary(): Promise<PointsSummary> {
-  const summary = await serverFetch<PointsSummary>('/api/points', { method: 'GET', auth: true })
+export interface PointPackagesResponse {
+  packages: PointPackageOption[]
+  successfulBookingPointCost: number
+}
+
+export interface PointTransaction {
+  id: number
+  type: string
+  pointsDelta: number
+  balanceAfter: number
+  sourceType: string
+  sourceId: string
+  details?: string
+  createdAt: string
+}
+
+interface CachedPointPackages extends PointPackagesResponse {
+  cachedAt: string
+}
+
+function isPointPackagesResponse(value: unknown): value is PointPackagesResponse {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const response = value as Partial<PointPackagesResponse>
+  return Array.isArray(response.packages) && typeof response.successfulBookingPointCost === 'number'
+}
+
+async function getCachedPointPackages(): Promise<PointPackagesResponse | null> {
+  const result = await storageGet([POINT_PACKAGES_CACHE_KEY])
+  const cached = result[POINT_PACKAGES_CACHE_KEY] as Partial<CachedPointPackages> | undefined
+  if (!cached || typeof cached.cachedAt !== 'string') return null
+  const cachedAt = new Date(cached.cachedAt).getTime()
+  if (!isPointPackagesResponse(cached)) return null
+  if (!Number.isFinite(cachedAt) || Date.now() - cachedAt > POINT_PACKAGES_CACHE_TTL_MS) return null
+  return {
+    packages: cached.packages,
+    successfulBookingPointCost: cached.successfulBookingPointCost,
+  }
+}
+
+async function savePointPackagesCache(packages: PointPackagesResponse): Promise<void> {
+  await new Promise<void>(resolve => chrome.storage.local.set({
+    [POINT_PACKAGES_CACHE_KEY]: {
+      ...packages,
+      cachedAt: new Date().toISOString(),
+    },
+  }, () => resolve()))
+}
+
+export async function getPointPackages(): Promise<PointPackagesResponse> {
+  const cached = await getCachedPointPackages()
+  if (cached) return cached
+  const packages = await serverFetch<PointPackagesResponse>('/api/points/packages', { method: 'GET', auth: true })
+  await savePointPackagesCache(packages)
+  return packages
+}
+
+export async function getPointsBalance(): Promise<{ balance: number }> {
+  const summary = await serverFetch<{ balance: number }>('/api/points/balance', { method: 'GET', auth: true })
   const auth = await getAuth()
   if (auth.user) {
     await saveAuth({ ...auth, pointsBalance: summary.balance })
   }
   return summary
+}
+
+export async function getPointTransactions(): Promise<{ recentTransactions: PointTransaction[] }> {
+  return serverFetch<{ recentTransactions: PointTransaction[] }>('/api/points/transactions', { method: 'GET', auth: true })
 }
 
 export async function createPointCheckout(

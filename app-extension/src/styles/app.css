@@ -762,6 +762,12 @@ a {
   white-space: nowrap;
 }
 
+.points-balance-badge-error {
+  border-color: var(--red-border);
+  background: var(--red-subtle);
+  color: var(--co-red);
+}
+
 .point-package-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

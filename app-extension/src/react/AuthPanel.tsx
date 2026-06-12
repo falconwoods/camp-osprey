@@ -1,7 +1,14 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { CircleAlert, Clock, Lock, Send, ShieldCheck } from 'lucide-react'
 import { requestCode, signOut, verifyCode } from '../auth'
-import { createPointCheckout, getPointsSummary, type PointsSummary } from '../serverApi'
+import {
+  createPointCheckout,
+  getPointPackages,
+  getPointTransactions,
+  getPointsBalance,
+  type PointPackagesResponse,
+  type PointTransaction,
+} from '../serverApi'
 import { consumePendingStartTripId, getPendingStartTripId } from '../startAuthGate'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
@@ -180,23 +187,41 @@ export function AccountPanel({
   onSignIn: () => void
 }) {
   const [loading, setLoading] = useState<string | null>(null)
-  const [points, setPoints] = useState<PointsSummary | null>(null)
-  const [pointsError, setPointsError] = useState('')
+  const [pointPackages, setPointPackages] = useState<PointPackagesResponse | null>(null)
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null)
+  const [pointTransactions, setPointTransactions] = useState<PointTransaction[] | null>(null)
+  const [packagesError, setPackagesError] = useState('')
+  const [balanceError, setBalanceError] = useState('')
+  const [transactionsError, setTransactionsError] = useState('')
   const [pendingTripId, setPendingTripId] = useState<string | null>(null)
   const userKey = auth?.user ? auth.user.id || auth.user.email : null
 
   useEffect(() => {
     if (!userKey) {
-      setPoints(null)
-      setPointsError('')
+      setPointPackages(null)
+      setPointsBalance(null)
+      setPointTransactions(null)
+      setPackagesError('')
+      setBalanceError('')
+      setTransactionsError('')
       return
     }
     let cancelled = false
-    setPoints(null)
-    setPointsError('')
-    void getPointsSummary()
-      .then(summary => { if (!cancelled) setPoints(summary) })
-      .catch(err => { if (!cancelled) setPointsError(err instanceof Error ? err.message : 'server_error') })
+    setPointPackages(null)
+    setPointsBalance(null)
+    setPointTransactions(null)
+    setPackagesError('')
+    setBalanceError('')
+    setTransactionsError('')
+    void getPointPackages()
+      .then(packages => { if (!cancelled) setPointPackages(packages) })
+      .catch(err => { if (!cancelled) setPackagesError(err instanceof Error ? err.message : 'server_error') })
+    void getPointsBalance()
+      .then(summary => { if (!cancelled) setPointsBalance(summary.balance) })
+      .catch(err => { if (!cancelled) setBalanceError(err instanceof Error ? err.message : 'server_error') })
+    void getPointTransactions()
+      .then(summary => { if (!cancelled) setPointTransactions(summary.recentTransactions) })
+      .catch(err => { if (!cancelled) setTransactionsError(err instanceof Error ? err.message : 'server_error') })
     return () => { cancelled = true }
   }, [userKey])
 
@@ -248,7 +273,14 @@ export function AccountPanel({
           </LoadingButton>
         </div>
       </section>
-      <PointsSection points={points} error={pointsError} />
+      <PointsSection
+        balance={pointsBalance}
+        balanceError={balanceError}
+        packages={pointPackages}
+        packagesError={packagesError}
+        transactions={pointTransactions}
+        transactionsError={transactionsError}
+      />
     </div>
   )
 }
@@ -292,7 +324,21 @@ function PointsStatusCard({
   )
 }
 
-function PointsSection({ points, error }: { points: PointsSummary | null; error: string }) {
+function PointsSection({
+  balance,
+  balanceError,
+  packages,
+  packagesError,
+  transactions,
+  transactionsError,
+}: {
+  balance: number | null
+  balanceError: string
+  packages: PointPackagesResponse | null
+  packagesError: string
+  transactions: PointTransaction[] | null
+  transactionsError: string
+}) {
   const [opening, setOpening] = useState<string | null>(null)
 
   async function buy(packageId: string) {
@@ -306,20 +352,16 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
     }
   }
 
-  if (error) {
+  if (packagesError && balanceError && transactionsError) {
     return (
       <PointsStatusCard
         icon={<CircleAlert size={24} />}
         kicker="Campsoon Points"
         title="Could not load points"
-        copy={error}
+        copy={packagesError}
         warning
       />
     )
-  }
-
-  if (!points) {
-    return <PointsSkeleton />
   }
 
   return (
@@ -330,11 +372,14 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
             <h2>Buy points</h2>
             <p>Choose a package and complete payment securely with Stripe.</p>
           </div>
-          <div className="points-balance-badge" aria-label="Current points balance">{points.balance.toLocaleString()} points available</div>
+          <div className={`points-balance-badge ${balanceError ? 'points-balance-badge-error' : ''}`} aria-label="Current points balance">
+            {balanceError ? 'Points unavailable' : balance === null ? 'Loading points' : `${balance.toLocaleString()} points available`}
+          </div>
         </div>
+        {packages ? (
           <div className="point-package-grid">
-            {points.packages.length ? points.packages.map(pkg => {
-              const successfulBookingPointCost = points.successfulBookingPointCost || APP_CONFIG.points.successfulBookingPointCost
+            {packages.packages.length ? packages.packages.map(pkg => {
+              const successfulBookingPointCost = packages.successfulBookingPointCost || APP_CONFIG.points.successfulBookingPointCost
               const bookingCount = Math.floor(pkg.points / successfulBookingPointCost)
               return (
                 <article className={`point-package-card ${pkg.recommended ? 'point-package-featured' : ''}`} key={pkg.id}>
@@ -352,7 +397,12 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
               )
             }) : <div className="account-empty-state">No point packages are available.</div>}
           </div>
-          <div className="account-stripe-note"><Lock size={15} /> <strong>Secure checkout with Stripe.</strong> A Stripe payment page will open to complete your purchase.</div>
+        ) : packagesError ? (
+          <div className="account-empty-state">Could not load point packages: {packagesError}</div>
+        ) : (
+          <PointPackagesSkeleton />
+        )}
+        <div className="account-stripe-note"><Lock size={15} /> <strong>Secure checkout with Stripe.</strong> A Stripe payment page will open to complete your purchase.</div>
       </section>
       <section className="account-points-card account-point-activity">
         <div className="account-card-heading">
@@ -361,7 +411,7 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
             <p>A statement of every points purchase, deduction, and balance change.</p>
           </div>
         </div>
-          {points.recentTransactions.length ? (
+          {transactions ? transactions.length ? (
             <div className="point-activity-statement" role="table" aria-label="Point activity statement">
               <div className="point-activity-row point-activity-header" role="row">
                 <div role="columnheader">Activity Type</div>
@@ -370,7 +420,7 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
                 <div role="columnheader">Date</div>
                 <div role="columnheader">Details</div>
               </div>
-              {[...points.recentTransactions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(tx => (
+              {[...transactions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(tx => (
                 <div className="point-activity-row" key={tx.id}>
                   <div role="cell" data-label="Activity Type">{transactionLabel(tx.type)}</div>
                   <div role="cell" data-label="Points" className={tx.pointsDelta >= 0 ? 'point-activity-earned' : 'point-activity-spent'}>{tx.pointsDelta > 0 ? '+' : ''}{tx.pointsDelta.toLocaleString()}</div>
@@ -380,65 +430,48 @@ function PointsSection({ points, error }: { points: PointsSummary | null; error:
                 </div>
               ))}
             </div>
-          ) : <div className="account-empty-state">No point activity yet.</div>}
+          ) : <div className="account-empty-state">No point activity yet.</div> : transactionsError ? (
+            <div className="account-empty-state">Could not load point activity: {transactionsError}</div>
+          ) : (
+            <PointActivitySkeleton />
+          )}
       </section>
     </>
   )
 }
 
-function PointsSkeleton() {
+function PointPackagesSkeleton() {
   return (
-    <>
-      <section className="account-points-card account-buy-points" aria-busy="true" aria-live="polite" aria-label="Loading point packages">
-        <div className="buy-points-header">
-          <div className="buy-points-title-group">
-            <div className="account-loading-status" role="status">
-              <span className="account-loading-spinner" aria-hidden="true" />
-              <span>Loading point packages...</span>
-            </div>
-            <Skeleton className="mt-3 h-4 w-80 max-w-full" />
+    <div className="point-package-grid" aria-busy="true" aria-live="polite" aria-label="Loading point packages">
+      {Array.from({ length: 3 }, (_, index) => (
+        <article className="point-package-card" key={index}>
+          <div className="point-package-header">
+            <Skeleton className="h-5 w-28" />
+            {index === 1 ? <Skeleton className="h-5 w-16 rounded-full" /> : null}
           </div>
-          <Skeleton className="h-9 w-40 rounded-full" />
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="mt-3 h-5 w-20" />
+          <Skeleton className="mt-3 h-4 w-36" />
+          <Skeleton className="mt-auto h-9 w-full" />
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function PointActivitySkeleton() {
+  return (
+    <div className="point-activity-statement" aria-busy="true" aria-live="polite" aria-label="Loading point activity">
+      {Array.from({ length: 4 }, (_, index) => (
+        <div className="point-activity-row" key={index}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-14 justify-self-end" />
+          <Skeleton className="h-4 w-16 justify-self-end" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-full" />
         </div>
-        <div className="point-package-grid">
-          {Array.from({ length: 3 }, (_, index) => (
-            <article className="point-package-card" key={index}>
-              <div className="point-package-header">
-                <Skeleton className="h-5 w-28" />
-                {index === 1 ? <Skeleton className="h-5 w-16 rounded-full" /> : null}
-              </div>
-              <Skeleton className="h-8 w-32" />
-              <Skeleton className="mt-3 h-5 w-20" />
-              <Skeleton className="mt-3 h-4 w-36" />
-              <Skeleton className="mt-auto h-9 w-full" />
-            </article>
-          ))}
-        </div>
-        <Skeleton className="mt-4 h-8 w-full" />
-      </section>
-      <section className="account-points-card account-point-activity" aria-busy="true" aria-live="polite" aria-label="Loading point activity">
-        <div className="account-card-heading">
-          <div>
-            <div className="account-loading-status" role="status">
-              <span className="account-loading-spinner" aria-hidden="true" />
-              <span>Loading point activity...</span>
-            </div>
-            <Skeleton className="mt-3 h-4 w-96 max-w-full" />
-          </div>
-        </div>
-        <div className="point-activity-statement">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div className="point-activity-row" key={index}>
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-14 justify-self-end" />
-              <Skeleton className="h-4 w-16 justify-self-end" />
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-4 w-full" />
-            </div>
-          ))}
-        </div>
-      </section>
-    </>
+      ))}
+    </div>
   )
 }
 
@@ -466,7 +499,7 @@ function transactionLabel(type: string): string {
   return type.replace(/[_-]+/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
 }
 
-function transactionDetails(tx: PointsSummary['recentTransactions'][number]): string {
+function transactionDetails(tx: PointTransaction): string {
   if (tx.details?.trim()) return tx.details.trim()
   if (tx.type === 'booking_charge') return 'Successful booking deduction'
   if (tx.type === 'stripe_purchase') return 'Point package purchase'

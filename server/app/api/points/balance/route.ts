@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
-import { getPointPackages, getRecommendedPointPackageId, getSuccessfulBookingPointCost } from '@/lib/points-config';
 import { getPointAccountSummary } from '@/lib/points-ledger';
 import { getSession } from '@/lib/session';
 
@@ -11,19 +10,9 @@ export async function GET(request: Request) {
   }
 
   const summary = await getPointAccountSummary(session.user.id);
-  const recommendedPackageId = getRecommendedPointPackageId();
 
   return withExtensionCors(request, NextResponse.json({
     balance: summary.balance,
-    packages: getPointPackages().map(pkg => ({
-      id: pkg.id,
-      name: pkg.name,
-      points: pkg.points,
-      priceLabel: pkg.priceLabel,
-      recommended: pkg.id === recommendedPackageId,
-    })),
-    successfulBookingPointCost: getSuccessfulBookingPointCost(),
-    recentTransactions: summary.recentTransactions,
   }));
 }
 
