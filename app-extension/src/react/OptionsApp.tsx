@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CreditCard,
   FileText,
+  FlaskConical,
   LockKeyhole,
   Plus,
   Settings,
@@ -26,10 +27,10 @@ import { IS_LOCAL_BUILD } from '../config'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
-import type { ExtensionRemoteConfig, Trip } from '../types'
+import type { ExtensionRemoteConfig, MatchedSite, Trip } from '../types'
 import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
 
-type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs'
+type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs' | 'demo'
 const LocalLogsPanel = IS_LOCAL_BUILD
   ? lazy(() => import('./LogsPanel').then(module => ({ default: module.LogsPanel })))
   : null
@@ -40,6 +41,7 @@ function tabFromHash(): Tab {
   if (hash === 'payment') return 'payment'
   if (hash === 'settings') return 'settings'
   if (IS_LOCAL_BUILD && hash === 'logs') return 'logs'
+  if (IS_LOCAL_BUILD && hash === 'demo') return 'demo'
   return 'trips'
 }
 
@@ -153,6 +155,7 @@ export function OptionsApp() {
           <NavButton active={tab === 'payment'} onClick={() => navigate('payment')} icon={<CreditCard size={17} />} label="Park Payment" />
           <NavButton active={tab === 'settings'} onClick={() => navigate('settings')} icon={<Settings size={17} />} label="Settings" />
           {IS_LOCAL_BUILD ? <NavButton active={tab === 'logs'} onClick={() => navigate('logs')} icon={<FileText size={17} />} label="Logs" /> : null}
+          {IS_LOCAL_BUILD ? <NavButton active={tab === 'demo'} onClick={() => navigate('demo')} icon={<FlaskConical size={17} />} label="Demo" /> : null}
         </nav>
         <div className="sidebar-account">
           <div className="sidebar-account-icon"><UserCircle size={25} /></div>
@@ -217,6 +220,7 @@ export function OptionsApp() {
         {tab === 'account' ? <AccountPanel auth={state.auth} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
         {tab === 'payment' ? <PaymentPanel auth={state.auth} payment={state.storage.payment} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
         {tab === 'settings' ? <SettingsPanel settings={state.storage.settings} extensionConfig={state.storage.extensionConfig} onChanged={() => state.refresh({ includeTrips: false })} /> : null}
+        {IS_LOCAL_BUILD && tab === 'demo' ? <DemoPanel /> : null}
         {IS_LOCAL_BUILD && tab === 'logs' && LocalLogsPanel ? (
           <Suspense fallback={<Skeleton className="h-24 w-full" />}>
             <LocalLogsPanel logs={state.debugLog} onChanged={() => state.refresh({ includeTrips: false })} />
@@ -481,6 +485,159 @@ function FeatureOverview() {
   )
 }
 
+const DEMO_NOW = Date.UTC(2026, 5, 11, 17, 30, 0)
+
+const demoTrips: Array<{ label: string; trip: Trip }> = [
+  {
+    label: 'Alert Only / monitoring',
+    trip: makeDemoTrip({
+      id: 'demo-alert-monitoring',
+      name: 'Trip 1 - Alice Lake',
+      mode: 'alert',
+      status: 'scanning',
+      updatedAt: DEMO_NOW - 1000 * 60 * 8,
+    }),
+  },
+  {
+    label: 'Alert Only / match found',
+    trip: makeDemoTrip({
+      id: 'demo-alert-found',
+      name: 'Trip 2 - Alice Lake',
+      mode: 'alert',
+      status: 'scanning',
+      lastMatch: makeDemoMatch({ foundAt: '2026-06-11T17:18:00.000Z', siteName: 'C14' }),
+      updatedAt: DEMO_NOW - 1000 * 60 * 3,
+    }),
+  },
+  {
+    label: 'Auto-reserve / reserving',
+    trip: makeDemoTrip({
+      id: 'demo-reserve-working',
+      name: 'Trip 3 - Alice Lake',
+      mode: 'reserve',
+      status: 'reserving',
+      lastMatch: makeDemoMatch({ foundAt: '2026-06-11T17:24:00.000Z', siteName: 'B07' }),
+      updatedAt: DEMO_NOW - 1000 * 60,
+    }),
+  },
+  {
+    label: 'Auto-reserve / booked',
+    trip: makeDemoTrip({
+      id: 'demo-reserve-success',
+      name: 'Trip 4 - Alice Lake',
+      mode: 'reserve',
+      status: 'reserved',
+      lastMatch: makeDemoMatch({
+        foundAt: '2026-06-11T17:05:00.000Z',
+        reservedAt: '2026-06-11T17:07:00.000Z',
+        siteName: 'D21',
+        sectionName: 'Lakeside',
+      }),
+      updatedAt: DEMO_NOW - 1000 * 60 * 20,
+    }),
+  },
+  {
+    label: 'Auto-pay / reservation captured',
+    trip: makeDemoTrip({
+      id: 'demo-autopay-reserved',
+      name: 'Trip 5 - Alice Lake',
+      mode: 'autopay',
+      status: 'reserved',
+      lastMatch: makeDemoMatch({
+        foundAt: '2026-06-11T16:52:00.000Z',
+        reservedAt: '2026-06-11T16:54:00.000Z',
+        siteName: 'A09',
+        sectionName: 'Forest Loop',
+      }),
+      updatedAt: DEMO_NOW - 1000 * 60 * 36,
+    }),
+  },
+  {
+    label: 'Auto-pay / paid',
+    trip: makeDemoTrip({
+      id: 'demo-autopay-paid',
+      name: 'Trip 6 - Alice Lake',
+      mode: 'autopay',
+      status: 'paid',
+      lastMatch: makeDemoMatch({
+        foundAt: '2026-06-11T16:30:00.000Z',
+        reservedAt: '2026-06-11T16:32:00.000Z',
+        paidAt: '2026-06-11T16:33:00.000Z',
+        siteName: 'F03',
+        sectionName: 'Creekside',
+      }),
+      updatedAt: DEMO_NOW - 1000 * 60 * 57,
+    }),
+  },
+  {
+    label: 'Auto-pay / payment failed',
+    trip: makeDemoTrip({
+      id: 'demo-autopay-failed',
+      name: 'Trip 7 - Alice Lake',
+      mode: 'autopay',
+      status: 'failed',
+      lastMatch: makeDemoMatch({
+        foundAt: '2026-06-11T15:58:00.000Z',
+        reservedAt: '2026-06-11T16:00:00.000Z',
+        siteName: 'H18',
+        sectionName: 'North Loop',
+      }),
+      updatedAt: DEMO_NOW - 1000 * 60 * 90,
+    }),
+  },
+]
+
+function DemoPanel() {
+  const noop = () => undefined
+
+  return (
+    <section className="demo-dashboard" aria-label="Trip card demo states">
+      <div className="demo-grid">
+        {demoTrips.map(({ label, trip }) => (
+          <section className="demo-state" key={trip.id}>
+            <div className="demo-state-label">{label}</div>
+            <TripCard trip={trip} onStart={noop} onPause={noop} />
+          </section>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function makeDemoTrip(overrides: Partial<Trip>): Trip {
+  return {
+    id: 'demo-trip',
+    name: 'Demo trip',
+    parks: [
+      { id: 'bc-1', name: 'Alice Lake Park' },
+      { id: 'bc-2', name: 'Porteau Cove Park' },
+    ],
+    dateRanges: [{ type: 'specific', checkIn: '2026-07-18', checkOut: '2026-07-21' }],
+    filters: { noWalkin: true, noDouble: true },
+    mode: 'alert',
+    status: 'idle',
+    lastMatch: null,
+    attempted: [],
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 5,
+    updatedAt: DEMO_NOW - 1000 * 60 * 15,
+    ...overrides,
+  }
+}
+
+function makeDemoMatch(overrides: Partial<MatchedSite> = {}): MatchedSite {
+  return {
+    parkName: 'Alice Lake Park',
+    siteName: 'C14',
+    sectionName: 'Stump Lake',
+    checkIn: '2026-07-18',
+    checkOut: '2026-07-21',
+    bookingUrl: 'https://camping.bcparks.ca/create-booking/results?demo=campsoon',
+    resourceId: 'demo-resource',
+    availableCount: 1,
+    ...overrides,
+  }
+}
+
 function tabTitle(tab: Tab): string {
   return {
     trips: 'Trips',
@@ -488,5 +645,6 @@ function tabTitle(tab: Tab): string {
     payment: 'Park Payment',
     settings: 'Settings',
     logs: 'Logs',
+    demo: 'Demo',
   }[tab]
 }

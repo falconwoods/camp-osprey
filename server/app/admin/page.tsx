@@ -112,10 +112,20 @@ export default async function AdminPage() {
   }))} />;
 }
 
-function latestIso(values: Array<Date | null | undefined>): string | null {
+type DateLike = Date | string | number | null | undefined;
+
+function latestIso(values: DateLike[]): string | null {
   const timestamps = values
-    .map(value => value?.getTime())
+    .map(toTimestamp)
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
   if (!timestamps.length) return null;
   return new Date(Math.max(...timestamps)).toISOString();
+}
+
+function toTimestamp(value: DateLike): number | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return value;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
 }

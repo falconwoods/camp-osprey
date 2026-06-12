@@ -1610,6 +1610,35 @@ a {
   margin: 0;
 }
 
+.demo-dashboard {
+  width: min(100%, 980px);
+  margin: 0;
+}
+
+.demo-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.demo-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.demo-state-label {
+  width: fit-content;
+  border: 1px solid var(--co-border);
+  border-radius: 8px;
+  background: var(--co-control);
+  color: var(--co-text-muted);
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .trip-list-loading {
   pointer-events: none;
 }

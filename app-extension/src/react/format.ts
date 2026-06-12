@@ -22,6 +22,9 @@ export function statusDisplay(trip: Trip): { title: string; detail: string; time
   const updated = checkedAt ? formatDateTime(checkedAt) : ''
   const time = checkedAt ? `Last checked ${relativeTime(checkedAt)}` : 'Not checked yet'
 
+  if (trip.mode === 'alert' && trip.lastMatch?.foundAt) {
+    return { title: 'Found', detail: 'Campsite available', time: updated || time }
+  }
   if (trip.status === 'scanning') return { title: 'Monitoring', detail: 'Checking availability', time }
   if (trip.status === 'idle' || trip.status === 'paused') return { title: 'Paused', detail: `Start ${modeLabel(trip.mode)} when ready`, time }
   if (trip.status === 'reserved' || trip.status === 'paid') {
