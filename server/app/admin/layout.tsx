@@ -5,7 +5,7 @@ import { getSession } from '@/lib/session';
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
   if (!session || session.user.role !== 'admin') {
-    redirect('/sign-in');
+    redirect('/sign-in?next=/admin');
   }
   return (
     <div className="min-h-screen bg-slate-50">
