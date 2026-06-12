@@ -196,7 +196,11 @@ export function pointTransactionDetails(tx: PointTransactionSummaryRow, bookingE
     return packageName ? `${packageName} refund` : 'Point package refund';
   }
   if (tx.type === 'stripe_dispute') return 'Payment dispute adjustment';
-  if (tx.type === 'admin_adjustment') return tx.pointsDelta >= 0 ? 'Manual points credit' : 'Manual points deduction';
+  if (tx.type === 'admin_adjustment') {
+    const reason = stringValue(metadata.reason);
+    const label = tx.pointsDelta >= 0 ? 'Manual points credit' : 'Manual points deduction';
+    return reason ? `${label}: ${reason}` : label;
+  }
   if (tx.type === 'recharge_code') return 'Recharge code redemption';
   return 'Account activity';
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Ban, CheckCircle2, Copy, Edit3, FileJson, Gift, History, Plus, RefreshCcw, Save, Search, Send, Settings2, ShieldAlert, Trash2, UserCircle, Users, WalletCards, X } from 'lucide-react';
+import { Ban, CheckCircle2, Copy, Edit3, FileJson, Gift, History, MinusCircle, Plus, RefreshCcw, Save, Search, Send, Settings2, ShieldAlert, Trash2, UserCircle, Users, WalletCards, X } from 'lucide-react';
 
 type AdminTab = 'recharge' | 'extensionConfig' | 'users';
 
@@ -883,19 +883,22 @@ function ExtensionConfigTab() {
 }
 
 function UsersTab({ users }: { users: UserRow[] }) {
+  const [rows, setRows] = useState(users);
   const [query, setQuery] = useState('');
+
+  useEffect(() => setRows(users), [users]);
 
   const filteredUsers = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return users;
-    return users.filter(row => (
+    if (!needle) return rows;
+    return rows.filter(row => (
       row.email.toLowerCase().includes(needle)
       || row.id.toLowerCase().includes(needle)
       || (row.name ?? '').toLowerCase().includes(needle)
     ));
-  }, [query, users]);
+  }, [query, rows]);
 
-  const totals = useMemo(() => users.reduce((acc, row) => ({
+  const totals = useMemo(() => rows.reduce((acc, row) => ({
     pointBalance: acc.pointBalance + row.pointBalance,
     activeSessions: acc.activeSessions + row.activeSessions,
     paidBookings: acc.paidBookings + row.paidBookings,
@@ -905,7 +908,7 @@ function UsersTab({ users }: { users: UserRow[] }) {
     activeSessions: 0,
     paidBookings: 0,
     pointsEarned: 0,
-  }), [users]);
+  }), [rows]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -927,11 +930,21 @@ function UsersTab({ users }: { users: UserRow[] }) {
       </header>
 
       <section className="mb-5 grid gap-3 md:grid-cols-4">
-        <UserMetric label="Users" value={users.length.toLocaleString()} />
+        <UserMetric label="Users" value={rows.length.toLocaleString()} />
         <UserMetric label="Current points" value={totals.pointBalance.toLocaleString()} />
         <UserMetric label="Points earned" value={totals.pointsEarned.toLocaleString()} />
         <UserMetric label="Paid bookings" value={totals.paidBookings.toLocaleString()} />
       </section>
+
+      <ManualPointDeductionPanel users={rows} onDeducted={(result) => {
+        setRows(current => current.map(row => row.id === result.userId ? {
+          ...row,
+          pointBalance: result.balanceAfter,
+          pointsSpent: row.pointsSpent + result.pointsDeducted,
+          pointTransactions: row.pointTransactions + 1,
+          lastActivityAt: new Date().toISOString(),
+        } : row));
+      }} />
 
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -999,6 +1012,114 @@ function UsersTab({ users }: { users: UserRow[] }) {
         ) : null}
       </section>
     </div>
+  );
+}
+
+type DeductPointsResult = {
+  userId: string;
+  pointsDeducted: number;
+  balanceAfter: number;
+  transactionId: number;
+};
+
+function ManualPointDeductionPanel({
+  users,
+  onDeducted,
+}: {
+  users: UserRow[];
+  onDeducted: (result: DeductPointsResult) => void;
+}) {
+  const [userId, setUserId] = useState(users[0]?.id ?? '');
+  const [points, setPoints] = useState('');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    if (!users.length) {
+      setUserId('');
+      return;
+    }
+    if (!users.some(row => row.id === userId)) setUserId(users[0].id);
+  }, [userId, users]);
+
+  const selectedUser = users.find(row => row.id === userId) ?? null;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      const response = await fetch('/api/admin/points/deduct', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          points: Number(points),
+          reason,
+        }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(json.error || 'server_error');
+      const result = json as DeductPointsResult;
+      onDeducted(result);
+      setPoints('');
+      setReason('');
+      setSuccess(`Deducted ${result.pointsDeducted.toLocaleString()} points from ${selectedUser?.email ?? 'user'}.`);
+    } catch (err) {
+      setError(adminErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-base font-bold text-slate-950">
+            <MinusCircle size={18} className="text-red-600" />
+            Manual points deduction
+          </div>
+          <p className="mt-1 text-sm text-slate-500">Deduct points from a user and save the reason in their points ledger.</p>
+        </div>
+        {selectedUser ? (
+          <div className="rounded-lg bg-slate-100 px-3 py-2 text-right">
+            <div className="text-xs font-bold uppercase text-slate-500">Selected balance</div>
+            <div className="text-sm font-black text-slate-950">{selectedUser.pointBalance.toLocaleString()} points</div>
+          </div>
+        ) : null}
+      </div>
+
+      <form className="grid gap-3 lg:grid-cols-[minmax(220px,1.3fr)_160px_minmax(260px,1.5fr)_auto]" onSubmit={submit}>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase text-slate-500">User</span>
+          <select className="admin-input w-full" value={userId} onChange={event => setUserId(event.target.value)} required>
+            {users.map(row => (
+              <option key={row.id} value={row.id}>{row.email} ({row.pointBalance.toLocaleString()} pts)</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase text-slate-500">Points</span>
+          <input className="admin-input w-full" value={points} onChange={event => setPoints(event.target.value)} min="1" type="number" required />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-bold uppercase text-slate-500">Reason</span>
+          <input className="admin-input w-full" value={reason} onChange={event => setReason(event.target.value)} maxLength={500} placeholder="Refund reversal, abuse adjustment, support case..." required />
+        </label>
+        <div className="flex items-end">
+          <button type="submit" className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={saving || !users.length}>
+            <MinusCircle size={16} />
+            {saving ? 'Deducting...' : 'Deduct'}
+          </button>
+        </div>
+      </form>
+      {error ? <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div> : null}
+      {success ? <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">{success}</div> : null}
+    </section>
   );
 }
 
@@ -1209,6 +1330,10 @@ function adminErrorMessage(err: unknown): string {
     invalid_max_redemptions: 'Uses must be a positive whole number.',
     invalid_expires_at: 'Choose a valid expiration date.',
     invalid_code: 'The generated code is missing or invalid.',
+    invalid_user: 'Choose a user.',
+    invalid_reason: 'Enter a reason for the adjustment.',
+    user_not_found: 'User not found.',
+    insufficient_points: 'This user does not have enough points to deduct that amount.',
     code_mismatch: 'This plaintext code does not match the stored code.',
     code_not_active: 'This code is not active.',
     code_expired: 'This code has expired.',
