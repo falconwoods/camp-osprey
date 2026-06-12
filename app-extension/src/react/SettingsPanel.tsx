@@ -4,11 +4,13 @@ import { saveSettings } from '../storage'
 import { applyTheme } from '../theme'
 import { Button } from '../components/ui/button'
 import { Select } from '../components/ui/select'
+import { useConfirmDialog } from '../components/ConfirmDialog'
 import { getDefaultScanPolicy, resolveScanIntervalSeconds } from '../extensionConfig'
 import type { ExtensionRemoteConfig, Settings, Theme } from '../types'
 
 export function SettingsPanel({ settings, extensionConfig, onChanged }: { settings: Settings; extensionConfig: ExtensionRemoteConfig | null; onChanged: () => Promise<void> }) {
   const [savingTheme, setSavingTheme] = useState<Theme | null>(null)
+  const confirmation = useConfirmDialog()
   const scanPolicy = extensionConfig?.scanPolicy ?? getDefaultScanPolicy()
   const intervalOptions = scanPolicy.allowedIntervalSeconds.length
     ? scanPolicy.allowedIntervalSeconds
@@ -41,20 +43,28 @@ export function SettingsPanel({ settings, extensionConfig, onChanged }: { settin
       message: 'If you see this, notifications are set up correctly.',
       requireInteraction: false,
     }, () => {
-      if (chrome.runtime.lastError) alert(`Notification failed: ${chrome.runtime.lastError.message}`)
+      if (chrome.runtime.lastError) {
+        void confirmation.confirm({
+          title: 'Notification failed',
+          message: chrome.runtime.lastError.message ?? 'Chrome could not create a test notification.',
+          confirmLabel: 'OK',
+          cancelLabel: null,
+        })
+      }
     })
   }
 
   return (
-    <div className="settings-main">
-      <section className="settings-card">
-        <div className="settings-card-title"><Palette className="icon" /> Theme</div>
-        <div className="theme-btns">
-          {themeButton('auto', 'Auto', 'Follow system', settings.theme, updateTheme, savingTheme, <SunMoon className="theme-icon" />)}
-          {themeButton('light', 'Light', 'Light mode', settings.theme, updateTheme, savingTheme, <Sun className="theme-icon" />)}
-          {themeButton('dark', 'Dark', 'Dark mode', settings.theme, updateTheme, savingTheme, <Moon className="theme-icon" />)}
-        </div>
-      </section>
+    <>
+      <div className="settings-main">
+        <section className="settings-card">
+          <div className="settings-card-title"><Palette className="icon" /> Theme</div>
+          <div className="theme-btns">
+            {themeButton('auto', 'Auto', 'Follow system', settings.theme, updateTheme, savingTheme, <SunMoon className="theme-icon" />)}
+            {themeButton('light', 'Light', 'Light mode', settings.theme, updateTheme, savingTheme, <Sun className="theme-icon" />)}
+            {themeButton('dark', 'Dark', 'Dark mode', settings.theme, updateTheme, savingTheme, <Moon className="theme-icon" />)}
+          </div>
+        </section>
 
       <section className="settings-card">
         <div className="settings-card-title"><Clock className="icon" /> Check interval</div>
@@ -91,7 +101,9 @@ export function SettingsPanel({ settings, extensionConfig, onChanged }: { settin
         <Button variant="secondary" onClick={testNotification}><Bell size={16} /> Test Notification</Button>
         <div className="notification-help"><strong>Tip</strong> If the test does not appear, check Chrome notification permissions in your OS notification settings, such as macOS System Settings or Windows Settings &gt; System &gt; Notifications.</div>
       </section>
-    </div>
+      </div>
+      {confirmation.dialog}
+    </>
   )
 }
 

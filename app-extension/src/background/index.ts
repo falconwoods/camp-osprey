@@ -12,7 +12,6 @@ import { getTrips, updateTrip } from '../tripStore'
 import { IS_LOCAL_BUILD } from '../config'
 import {
   getCachedExtensionConfig,
-  getExtensionUpdateUrl,
   getDefaultScanPolicy,
   isForceUpdateRequired,
   refreshExtensionConfig,
@@ -552,13 +551,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           channel: extensionConfig?.channel,
         },
       }, { forceServerSync: true })
-      await notify(
-        'campsoon update required',
-        extensionConfig?.forceUpdateMessage ?? 'Update campsoon to continue scanning.',
-      )
-      if (extensionConfig?.downloadUrl) {
-        chrome.tabs.create({ url: getExtensionUpdateUrl(extensionConfig) })
-      }
+      chrome.tabs.create({ url: chrome.runtime.getURL('options.html#update-required') })
       return
     }
 

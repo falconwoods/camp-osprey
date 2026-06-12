@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { LoadingButton } from '../components/ui/loading-button'
+import { useConfirmDialog } from '../components/ConfirmDialog'
 import type { AuthState, PaymentConfig, Trip } from '../types'
 import { isValidParkPayment } from './tripActions'
 import { RuntimeMessageCode } from '../protocol'
@@ -48,6 +49,7 @@ export function PaymentPanel({
   const [sensitiveRevealed, setSensitiveRevealed] = useState(false)
   const [savedForm, setSavedForm] = useState<PaymentForm | null>(isPlainPaymentConfig(payment) ? payment : null)
   const lastSavedEncryptedPayloadRef = useRef<string | null>(null)
+  const confirmation = useConfirmDialog()
   const signedIn = Boolean(auth?.user)
   const hasStoredPayment = Boolean(payment)
   const sensitiveEditable = signedIn && (!hasStoredPayment || sensitiveRevealed)
@@ -141,11 +143,19 @@ export function PaymentPanel({
   }
 
   async function remove() {
+    const trips = await getTrips()
+    const activeAutoPayTrips = trips.filter(isActiveAutoPayTrip)
+    const confirmed = await confirmation.confirm({
+      title: 'Delete payment info?',
+      message: activeAutoPayTrips.length
+        ? `Deleting payment info will pause ${activeAutoPayTrips.length} active auto-pay ${activeAutoPayTrips.length === 1 ? 'trip' : 'trips'}.`
+        : 'Delete saved Park Payment info from this device?',
+      confirmLabel: 'Delete payment info',
+      variant: 'destructive',
+    })
+    if (!confirmed) return
     setLoading('delete')
     try {
-      const trips = await getTrips()
-      const activeAutoPayTrips = trips.filter(isActiveAutoPayTrip)
-      if (!confirm(activeAutoPayTrips.length ? `Delete payment info and pause ${activeAutoPayTrips.length} active auto-pay trips?` : 'Delete saved park payment info from this device?')) return
       await savePayment(null)
       await Promise.all(activeAutoPayTrips.map(trip => updateTrip(trip.id, { status: 'paused' })))
       activeAutoPayTrips.forEach(trip => chrome.runtime.sendMessage({ t: RuntimeMessageCode.stopScan, tripId: trip.id }))
@@ -220,6 +230,7 @@ export function PaymentPanel({
           <Button onClick={onSignIn}>Sign in to save payment info</Button>
         )}
       </div>
+      {confirmation.dialog}
     </div>
   )
 }

@@ -24,9 +24,11 @@ import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripA
 import { getPointsBalance } from '../serverApi'
 import { getGlobalWarnings, type Warning } from '../warnings'
 import { IS_LOCAL_BUILD } from '../config'
+import { getExtensionUpdateUrl } from '../extensionConfig'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
+import { useConfirmDialog } from '../components/ConfirmDialog'
 import type { ExtensionRemoteConfig, MatchedSite, Trip } from '../types'
 import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
 
@@ -46,13 +48,16 @@ function tabFromHash(): Tab {
 }
 
 export function OptionsApp() {
-  const [tab, setTab] = useState<Tab>(() => location.hash.replace('#', '') === 'auth' ? 'account' : tabFromHash())
+  const initialHash = location.hash.replace('#', '')
+  const [tab, setTab] = useState<Tab>(() => initialHash === 'auth' ? 'account' : tabFromHash())
   const state = useExtensionState({ syncTripsOnLoad: tab === 'trips' })
   const [editing, setEditing] = useState<Trip | null | undefined>(undefined)
-  const [authDialogOpen, setAuthDialogOpen] = useState(() => location.hash.replace('#', '') === 'auth')
+  const [authDialogOpen, setAuthDialogOpen] = useState(() => initialHash === 'auth')
+  const [updateDialogRequested, setUpdateDialogRequested] = useState(() => initialHash === 'update-required')
   const [pointsBalance, setPointsBalance] = useState<number | null>(null)
   const [pointsLoading, setPointsLoading] = useState(false)
   const [pointsError, setPointsError] = useState('')
+  const confirmation = useConfirmDialog()
   const userKey = state.auth?.user ? state.auth.user.id || state.auth.user.email : null
 
   useEffect(() => {
@@ -60,6 +65,11 @@ export function OptionsApp() {
       if (location.hash.replace('#', '') === 'auth') {
         setAuthDialogOpen(true)
         if (tab === 'trips') setTab('account')
+        return
+      }
+      if (location.hash.replace('#', '') === 'update-required') {
+        setUpdateDialogRequested(true)
+        if (tab !== 'trips') setTab('trips')
         return
       }
       setTab(tabFromHash())
@@ -99,6 +109,12 @@ export function OptionsApp() {
     return () => { cancelled = true }
   }, [tab, userKey])
 
+  useEffect(() => {
+    if (!updateDialogRequested || state.loading || !state.storage) return
+    setUpdateDialogRequested(false)
+    void promptForExtensionUpdate()
+  }, [state.loading, state.storage, updateDialogRequested])
+
   function navigate(next: Tab) {
     if (editing !== undefined) setEditing(undefined)
     location.hash = next === 'trips' ? '' : next
@@ -122,12 +138,57 @@ export function OptionsApp() {
     if (!result.ok && result.reason === 'server_auth') {
       openAuthDialog()
     }
-    if (!result.ok && result.reason === 'payment') promptForPaymentSetup()
+    if (!result.ok && result.reason === 'extension_update_required') await promptForExtensionUpdate()
+    if (!result.ok && result.reason === 'active_trip') await promptForActiveTrip()
+    if (!result.ok && result.reason === 'payment') await promptForPaymentSetup()
+    if (!result.ok && result.reason === 'points') await promptForPointsTopUp()
     await state.refresh()
   }
 
-  function promptForPaymentSetup() {
-    if (confirm('Auto-pay requires Park Payment\n\nPlease add your Park Payment details before starting an Auto-pay trip.')) {
+  async function promptForExtensionUpdate() {
+    const config = state.storage?.extensionConfig ?? null
+    const confirmed = await confirmation.confirm({
+      title: 'Update required',
+      message: config?.forceUpdateMessage ?? `Version ${config?.minSupportedVersion ?? 'the latest version'} or newer is required to continue scanning.`,
+      confirmLabel: 'Download update',
+      cancelLabel: 'Close',
+    })
+    if (confirmed) chrome.tabs.create({ url: getExtensionUpdateUrl(config) })
+  }
+
+  async function promptForActiveTrip() {
+    await confirmation.confirm({
+      title: 'Only one active trip is allowed',
+      message: 'Pause your current active trip before starting another one.',
+      confirmLabel: 'OK',
+      cancelLabel: null,
+    })
+  }
+
+  async function promptForPointsTopUp() {
+    const confirmed = await confirmation.confirm({
+      title: 'Not enough points',
+      message: (
+        <>
+          <p>Auto-reserve and Auto-pay require enough points for one successful booking before scanning can start.</p>
+          <p>Top up your account to start this trip.</p>
+        </>
+      ),
+      confirmLabel: 'Top up points',
+    })
+    if (confirmed) {
+      setEditing(undefined)
+      navigate('account')
+    }
+  }
+
+  async function promptForPaymentSetup() {
+    const confirmed = await confirmation.confirm({
+      title: 'Auto-pay requires Park Payment',
+      message: 'Add your Park Payment details before starting an Auto-pay trip.',
+      confirmLabel: 'Set up Park Payment',
+    })
+    if (confirmed) {
       setEditing(undefined)
       navigate('payment')
     }
@@ -189,7 +250,13 @@ export function OptionsApp() {
             onClose={() => setEditing(undefined)}
             onSaved={state.refresh}
             onDelete={async trip => {
-              if (!confirm(`Delete "${trip.name}"?`)) return
+              const confirmed = await confirmation.confirm({
+                title: 'Delete trip?',
+                message: `Delete "${trip.name}"? This cannot be undone.`,
+                confirmLabel: 'Delete trip',
+                variant: 'destructive',
+              })
+              if (!confirmed) return
               await removeTrip(trip)
               await state.refresh()
               setEditing(undefined)
@@ -197,6 +264,8 @@ export function OptionsApp() {
             onNeedsAuth={openAuthDialog}
             onNeedsPayment={() => { setEditing(undefined); navigate('payment') }}
             onInvalidPayment={promptForPaymentSetup}
+            onInsufficientPoints={promptForPointsTopUp}
+            onActiveTripBlocked={promptForActiveTrip}
           />
         ) : tab === 'trips' ? (
           <TripsView
@@ -210,11 +279,18 @@ export function OptionsApp() {
             onStart={handleStart}
             onPause={async trip => { await pauseTrip(trip.id); await state.refresh() }}
             onDelete={async trip => {
-              if (!confirm(`Delete "${trip.name}"?`)) return
+              const confirmed = await confirmation.confirm({
+                title: 'Delete trip?',
+                message: `Delete "${trip.name}"? This cannot be undone.`,
+                confirmLabel: 'Delete trip',
+                variant: 'destructive',
+              })
+              if (!confirmed) return
               await removeTrip(trip)
               await state.refresh()
             }}
             onWarningRoute={route => navigate(route)}
+            onRequiredUpdate={promptForExtensionUpdate}
           />
         ) : null}
         {tab === 'account' ? <AccountPanel auth={state.auth} onChanged={() => state.refresh({ includeTrips: false })} onSignIn={openAuthDialog} /> : null}
@@ -250,6 +326,7 @@ export function OptionsApp() {
           </div>
         </div>
       ) : null}
+      {confirmation.dialog}
     </div>
   )
 }
@@ -340,6 +417,7 @@ function TripsView({
   onPause,
   onDelete,
   onWarningRoute,
+  onRequiredUpdate,
 }: {
   trips: Trip[]
   signedIn: boolean
@@ -352,6 +430,7 @@ function TripsView({
   onPause: (trip: Trip) => void
   onDelete: (trip: Trip) => void
   onWarningRoute: (route: Tab) => void
+  onRequiredUpdate: () => void
 }) {
   const connectBcParks = () => chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
   const needsTwoStepOnboarding = !signedIn && !bcParksLoggedIn
@@ -361,7 +440,7 @@ function TripsView({
 
   return (
     <div className="trips-dashboard">
-      <ExtensionUpdateAlert config={extensionConfig} />
+      <ExtensionUpdateAlert config={extensionConfig} onRequiredUpdate={onRequiredUpdate} />
       {needsCampsoonReconnect ? (
         <AppAlert
           variant="error"

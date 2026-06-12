@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     .select()
     .from(trips)
     .where(includeDeleted ? eq(trips.userId, session.user.id) : and(eq(trips.userId, session.user.id), isNull(trips.deletedAt)))
-    .orderBy(desc(trips.updatedAt));
+    .orderBy(desc(trips.createdAt));
   return withExtensionCors(request, NextResponse.json(rows));
 }
 

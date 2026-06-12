@@ -10,7 +10,13 @@ function openUpdateUrl(config: ExtensionRemoteConfig) {
   chrome.tabs.create({ url: getExtensionUpdateUrl(config) })
 }
 
-export function ExtensionUpdateAlert({ config }: { config: ExtensionRemoteConfig | null }) {
+export function ExtensionUpdateAlert({
+  config,
+  onRequiredUpdate,
+}: {
+  config: ExtensionRemoteConfig | null
+  onRequiredUpdate?: () => void
+}) {
   if (!config) return null
 
   if (isForceUpdateRequired(config)) {
@@ -19,7 +25,7 @@ export function ExtensionUpdateAlert({ config }: { config: ExtensionRemoteConfig
         variant="error"
         title="Update required"
         message={config.forceUpdateMessage ?? `Version ${config.minSupportedVersion} or newer is required.`}
-        action={{ label: 'Download update', onClick: () => openUpdateUrl(config) }}
+        action={{ label: 'Download update', onClick: onRequiredUpdate ?? (() => openUpdateUrl(config)) }}
       />
     )
   }

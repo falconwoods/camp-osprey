@@ -123,8 +123,10 @@ export async function saveTrip(trip: Trip): Promise<Trip> {
   const normalized = normalizeTrip(saved)
   const refreshedAuth = await getAuth()
   await updateTripsCache(refreshedAuth.token ?? auth.token, trips => {
-    const next = trips.filter(item => item.id !== normalized.id)
-    return normalized.deletedAt ? next : [...next, normalized]
+    const existingIndex = trips.findIndex(item => item.id === normalized.id)
+    if (normalized.deletedAt) return trips.filter(item => item.id !== normalized.id)
+    if (existingIndex === -1) return [normalized, ...trips]
+    return trips.map((item, index) => index === existingIndex ? normalized : item)
   })
   notifyTripsChanged()
   return normalized

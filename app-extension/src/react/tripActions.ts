@@ -3,11 +3,16 @@ import { validateAuth } from '../auth'
 import { openAuthGateForTrip, requireServerAuthForStart } from '../startAuthGate'
 import { getClientId, getStorage } from '../storage'
 import { deleteTrip, getTrips, saveTrip, updateTrip } from '../tripStore'
-import type { DateRange, Park, PaymentConfig, Trip } from '../types'
+import type { DateRange, Park, PaymentConfig, ScanLease, Trip } from '../types'
+import { APP_CONFIG } from '../config'
 import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig } from '../extensionConfig'
-import { requestScanLease } from '../serverApi'
+import { ServerApiError, getPointPackages, getPointsBalance, requestScanLease } from '../serverApi'
 import { RuntimeMessageCode } from '../protocol'
 import { decryptParkPayment, hasSavedParkPayment } from '../paymentCrypto'
+
+export type StartTripResult =
+  | { ok: true }
+  | { ok: false; reason: string }
 
 export function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
   return hasSavedParkPayment(payment)
@@ -31,12 +36,35 @@ async function canUseParkPayment(): Promise<boolean> {
   }
 }
 
-export async function startTripNow(tripId: string, openAuth = true): Promise<{ ok: true } | { ok: false; reason: string }> {
+function requiresBookingPoints(trip: Trip | undefined): boolean {
+  return trip?.mode === 'reserve' || trip?.mode === 'autopay'
+}
+
+function isActiveTrip(trip: Trip): boolean {
+  return trip.status === 'scanning' || trip.status === 'reserving'
+}
+
+async function hasEnoughBookingPoints(): Promise<boolean> {
+  const [summary, packages] = await Promise.all([
+    getPointsBalance(),
+    getPointPackages().catch(() => null),
+  ])
+  const requiredPoints = packages?.successfulBookingPointCost ?? APP_CONFIG.points.successfulBookingPointCost
+  return summary.balance >= requiredPoints
+}
+
+export async function startTripNow(tripId: string, openAuth = true): Promise<StartTripResult> {
   const extensionConfig = await getCachedExtensionConfig() ?? await refreshExtensionConfig().catch(() => null)
   if (isForceUpdateRequired(extensionConfig)) return { ok: false, reason: 'extension_update_required' }
   if (!(await requireServerAuthForStart(tripId, openAuth))) return { ok: false, reason: 'server_auth' }
   const trips = await getTrips()
   const trip = trips.find(item => item.id === tripId)
+  if (trips.some(item => item.id !== tripId && isActiveTrip(item))) {
+    return { ok: false, reason: 'active_trip' }
+  }
+  if (requiresBookingPoints(trip) && !(await hasEnoughBookingPoints())) {
+    return { ok: false, reason: 'points' }
+  }
   if (trip && trip.mode !== 'alert' && !(await isLoggedIn())) {
     chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
     return { ok: false, reason: 'bcparks_auth' }
@@ -44,7 +72,14 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<{ o
   if (trip?.mode === 'autopay' && !(await canUseParkPayment())) {
     return { ok: false, reason: 'payment' }
   }
-  const scanLease = await requestScanLease(tripId)
+  let scanLease: ScanLease
+  try {
+    scanLease = await requestScanLease(tripId)
+  } catch (err) {
+    if (err instanceof ServerApiError && err.code === 'insufficient_points') return { ok: false, reason: 'points' }
+    if (err instanceof ServerApiError && err.code === 'active_trip_exists') return { ok: false, reason: 'active_trip' }
+    throw err
+  }
   chrome.storage.local.remove('campOspreyTarget')
   await updateTrip(tripId, { status: 'scanning', lastMatch: null, attempted: [] })
   chrome.runtime.sendMessage({ t: RuntimeMessageCode.scanNow, tripId, resetActiveMatch: true, scanLease })

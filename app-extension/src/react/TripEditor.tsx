@@ -13,6 +13,7 @@ import { isValidParkPayment, saveTripDraft, startTripNow } from './tripActions'
 const provider = new BCParksProvider()
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const successfulBookingPointCostLabel = APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
+type MaybePromise<T> = T | Promise<T>
 
 export function TripEditor({
   trip,
@@ -24,6 +25,8 @@ export function TripEditor({
   onNeedsAuth,
   onNeedsPayment,
   onInvalidPayment,
+  onInsufficientPoints,
+  onActiveTripBlocked,
 }: {
   trip: Trip | null
   paymentValid: boolean
@@ -31,9 +34,11 @@ export function TripEditor({
   onClose: () => void
   onSaved: () => Promise<void>
   onDelete: (trip: Trip) => Promise<void>
-  onNeedsAuth: () => void
-  onNeedsPayment: () => void
-  onInvalidPayment: () => void
+  onNeedsAuth: () => MaybePromise<void>
+  onNeedsPayment: () => MaybePromise<void>
+  onInvalidPayment: () => MaybePromise<void>
+  onInsufficientPoints: () => MaybePromise<void>
+  onActiveTripBlocked: () => MaybePromise<void>
 }) {
   const [name, setName] = useState(trip?.name ?? `Trip ${tripCount + 1}`)
   const [mode, setMode] = useState<Trip['mode']>(trip?.mode ?? 'reserve')
@@ -123,7 +128,7 @@ export function TripEditor({
     setFieldErrors(nextErrors)
     if (Object.values(nextErrors).some(Boolean)) return
     if (mode === 'autopay' && !paymentValid) {
-      onInvalidPayment()
+      await onInvalidPayment()
       return
     }
     setSaving(startAfterSave ? 'start' : 'save')
@@ -138,8 +143,10 @@ export function TripEditor({
       })
       if (startAfterSave) {
         const result = await startTripNow(saved.id, false)
-        if (!result.ok && result.reason === 'server_auth') onNeedsAuth()
-        if (!result.ok && result.reason === 'payment') onInvalidPayment()
+        if (!result.ok && result.reason === 'server_auth') await onNeedsAuth()
+        if (!result.ok && result.reason === 'payment') await onInvalidPayment()
+        if (!result.ok && result.reason === 'points') await onInsufficientPoints()
+        if (!result.ok && result.reason === 'active_trip') await onActiveTripBlocked()
         if (!result.ok && result.reason === 'bcparks_auth') setError('BC Parks sign-in is required for auto-reserve and auto-pay trips.')
         if (!result.ok) return
       }

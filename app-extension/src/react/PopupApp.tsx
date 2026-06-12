@@ -3,21 +3,64 @@ import { useExtensionState } from './chromeState'
 import { TripCard } from './TripCard'
 import { pauseTrip, startTripNow } from './tripActions'
 import { getGlobalWarnings } from '../warnings'
+import { getExtensionUpdateUrl } from '../extensionConfig'
 import { Button } from '../components/ui/button'
 import { AppAlert } from '../components/AppAlert'
+import { useConfirmDialog } from '../components/ConfirmDialog'
 import type { Trip } from '../types'
 import { ExtensionUpdateAlert } from './ExtensionUpdateAlert'
 
 export function PopupApp() {
   const state = useExtensionState()
+  const confirmation = useConfirmDialog()
 
   async function start(trip: Trip) {
     const result = await startTripNow(trip.id)
-    if (!result.ok && result.reason === 'extension_update_required') return
-    if (!result.ok && result.reason === 'payment' && confirm('Auto-pay requires Park Payment\n\nPlease add your Park Payment details before starting an Auto-pay trip.')) {
-      chrome.tabs.create({ url: chrome.runtime.getURL('options.html#payment') })
+    if (!result.ok && result.reason === 'extension_update_required') {
+      await promptForExtensionUpdate()
+      return
+    }
+    if (!result.ok && result.reason === 'active_trip') {
+      await confirmation.confirm({
+        title: 'Only one active trip is allowed',
+        message: 'Pause your current active trip before starting another one.',
+        confirmLabel: 'OK',
+        cancelLabel: null,
+      })
+    }
+    if (!result.ok && result.reason === 'payment') {
+      const confirmed = await confirmation.confirm({
+        title: 'Auto-pay requires Park Payment',
+        message: 'Add your Park Payment details before starting an Auto-pay trip.',
+        confirmLabel: 'Set up Park Payment',
+      })
+      if (confirmed) chrome.tabs.create({ url: chrome.runtime.getURL('options.html#payment') })
+    }
+    if (!result.ok && result.reason === 'points') {
+      const confirmed = await confirmation.confirm({
+        title: 'Not enough points',
+        message: (
+          <>
+            <p>Auto-reserve and Auto-pay require enough points for one successful booking before scanning can start.</p>
+            <p>Top up your account to start this trip.</p>
+          </>
+        ),
+        confirmLabel: 'Top up points',
+      })
+      if (confirmed) chrome.tabs.create({ url: chrome.runtime.getURL('options.html#account') })
     }
     await state.refresh()
+  }
+
+  async function promptForExtensionUpdate() {
+    const config = state.storage?.extensionConfig ?? null
+    const confirmed = await confirmation.confirm({
+      title: 'Update required',
+      message: config?.forceUpdateMessage ?? `Version ${config?.minSupportedVersion ?? 'the latest version'} or newer is required to continue scanning.`,
+      confirmLabel: 'Download update',
+      cancelLabel: 'Close',
+    })
+    if (confirmed) chrome.tabs.create({ url: getExtensionUpdateUrl(config) })
   }
 
   async function pause(trip: Trip) {
@@ -39,7 +82,7 @@ export function PopupApp() {
         <Button variant="ghost" size="icon" onClick={() => chrome.runtime.openOptionsPage()} title="Settings"><Settings size={17} /></Button>
       </header>
       <main className="popup-content stack">
-        <ExtensionUpdateAlert config={state.storage.extensionConfig} />
+        <ExtensionUpdateAlert config={state.storage.extensionConfig} onRequiredUpdate={promptForExtensionUpdate} />
         {warnings.map((warning, index) => (
           <AppAlert
             key={index}
@@ -64,6 +107,7 @@ export function PopupApp() {
       <footer className="popup-footer">
         <Button onClick={() => chrome.runtime.openOptionsPage()}><Plus size={16} /> Manage Trip</Button>
       </footer>
+      {confirmation.dialog}
     </div>
   )
 }
