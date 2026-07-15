@@ -2,6 +2,7 @@ import { getAuth, getClientId } from './storage'
 import { ServerApiError, serverFetch, syncTripToServer, softDeleteTripOnServer } from './serverApi'
 import type { Trip } from './types'
 import { RuntimeMessageCode } from './protocol'
+import { DEFAULT_PROVIDER, isReservationProvider } from './providers/config'
 
 export const TRIPS_CACHE_KEY = 'campsoonTripsCache'
 
@@ -66,6 +67,7 @@ export function normalizeTrip(value: unknown): Trip {
     id: String(source.id),
     clientId: source.clientId,
     name: String(source.name ?? ''),
+    provider: isReservationProvider(source.provider) ? source.provider : DEFAULT_PROVIDER,
     parks: Array.isArray(source.parks) ? source.parks : [],
     dateRanges: Array.isArray(source.dateRanges) ? source.dateRanges : [],
     filters: source.filters ?? { noWalkin: true, noDouble: true },

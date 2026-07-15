@@ -23,6 +23,7 @@ export async function PUT(
   const body = await request.json() as Partial<{
     clientId: string;
     name: string;
+    provider: string;
     parks: unknown;
     dateRanges: unknown;
     filters: unknown;
@@ -37,7 +38,7 @@ export async function PUT(
     deletedAt: string | number | null;
   }>;
 
-  const { clientId, name, parks, dateRanges, filters, lastMatch, attempted } = body;
+  const { clientId, name, provider, parks, dateRanges, filters, lastMatch, attempted } = body;
   const input = body as Record<string, unknown>;
   const mode = decodeTripMode(input, body.mode);
   const status = decodeTripStatus(input, body.status);
@@ -47,7 +48,7 @@ export async function PUT(
 
   const [trip] = await db
     .update(trips)
-    .set({ clientId, name, parks, dateRanges: decodeDateRanges(dateRanges), filters, mode, status, lastMatch, attempted, deletedAt, updatedAt })
+    .set({ clientId, name, provider: provider ?? 'bc_parks', parks, dateRanges: decodeDateRanges(dateRanges), filters, mode, status, lastMatch, attempted, deletedAt, updatedAt })
     .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
     .returning();
 
@@ -62,6 +63,7 @@ export async function PUT(
     userId: session.user.id,
     clientId,
     name,
+    provider: provider ?? 'bc_parks',
     parks,
     dateRanges: decodeDateRanges(dateRanges),
     filters,

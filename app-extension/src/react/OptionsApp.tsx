@@ -705,6 +705,7 @@ function makeDemoTrip(overrides: Partial<Trip>): Trip {
   return {
     id: 'demo-trip',
     name: 'Demo trip',
+    provider: 'bc_parks',
     parks: [
       { id: 'bc-1', name: 'Alice Lake Park' },
       { id: 'bc-2', name: 'Porteau Cove Park' },

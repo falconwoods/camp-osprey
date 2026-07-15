@@ -1,4 +1,4 @@
-// Content script — injected on all camping.bcparks.ca pages
+// Content script — injected on all reservation.pc.gc.ca pages
 import { extractCampsiteName, extractSelectedCampsiteName, findBookingConfirmation, findDetailsControl, findPaymentFailure, findReserveControl, hasListResultOutcome, hasNoAvailabilityMessage, isExpansionPanelOpen, reservePasses } from './reserveStrategy'
 import { LogEventCode, RuntimeMessageCode } from '../protocol'
 
@@ -63,7 +63,7 @@ interface TargetSite {
 // content scripts can only access chrome.storage.local, not session
 dbg('content script loaded', { url: window.location.pathname })
 
-// BC Parks is an Angular SPA — route changes happen via pushState with no page reload.
+// Parks Canada is an Angular SPA — route changes happen via pushState with no page reload.
 // The content script only runs once on initial load, so we poll for URL changes and
 // re-dispatch when Angular navigates to a new route.
 //
@@ -76,7 +76,7 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
   }
   const target = result?.['campOspreyTarget'] as TargetSite | undefined
   if (!target) { dbg('no campOspreyTarget in storage'); return }
-  if (target.provider && target.provider !== 'bc_parks') { dbg('target provider is not BC Parks, ignoring', target.provider); return }
+  if (target.provider !== 'parks_canada') { dbg('target provider is not Parks Canada, ignoring', target.provider); return }
   activeTargetSite = target
   const age = Math.round((Date.now() - target.setAt) / 1000)
   dbg('target loaded', { ...target, ageSeconds: age })
@@ -90,6 +90,9 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
   } else if (initialUrl.includes('reservationmessages')) {
     dbg('detected: reservationmessages page (initial)')
     handleReservationReview(target.tripId, target.mode)
+  } else if (new URL(initialUrl).pathname === '/cart' && target.mode === 'autopay') {
+    dbg('detected: cart page (initial)')
+    handleCartPage(target.tripId)
   } else if (initialUrl.includes('/create-booking/') && target.mode === 'autopay') {
     dbg('detected: checkout step (initial)')
     runCheckout(target.tripId)
@@ -107,6 +110,9 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
     if (url.includes('reservationmessages')) {
       dbg('detected: reservationmessages page')
       handleReservationReview(target.tripId, target.mode)
+    } else if (path === '/cart' && target.mode === 'autopay') {
+      dbg('detected: cart page')
+      handleCartPage(target.tripId)
     } else if (url.includes('/create-booking/') && !url.includes('/results') && target.mode === 'autopay') {
       dbg('detected: checkout step')
       runCheckout(target.tripId)
@@ -119,7 +125,7 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
   setTimeout(() => clearInterval(watcher), 15 * 60 * 1000)
 })
 
-// ── Banner (fixed bottom so it never covers BC Parks nav/cart) ─────────────
+// ── Banner (fixed bottom so it never covers Parks Canada nav/cart) ─────────────
 
 function injectBanner(html: string): HTMLElement {
   const existing = document.getElementById('campsoon-banner')
@@ -179,7 +185,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
 
   // Step 2: detect if the URL has the "bad" mapId (equals resourceLocationId)
   // This happens when buildBookingUrl falls back to park ID for mapId.
-  // Fix: fetch the correct transactionLocationId + rootMapId from BC Parks API
+  // Fix: fetch the correct transactionLocationId + rootMapId from Parks Canada API
   // and navigate directly — no search form interaction needed.
   const params = new URLSearchParams(window.location.search)
   const resourceLocationId = params.get('resourceLocationId') || ''
@@ -219,10 +225,10 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     }
   }
 
-  // Step 3: apply BC Parks native filters (Walk-in: No, Double Site: No)
+  // Step 3: apply Parks Canada native filters (Walk-in: No, Double Site: No)
   if (target.noWalkin || target.noDouble) {
     setStatus('Applying filters…')
-    await applyBCParksFilters(target.noWalkin, target.noDouble)
+    await applyParksCanadaFilters(target.noWalkin, target.noDouble)
     dbg('filters applied', { noWalkin: target.noWalkin, noDouble: target.noDouble })
     // Wait for filtered results to reload
     await pollForToggles(8_000)
@@ -254,7 +260,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
 
   if (panelCount === 0) {
     if (hasNoAvailabilityMessage(document.body)) {
-      reportUnavailable('BC Parks reports no available campsites')
+      reportUnavailable('Parks Canada reports no available campsites')
       return
     }
     setStatus('List view not loading — click "List" → "Campground" → "Details" → "Reserve" manually.')
@@ -271,7 +277,7 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   if (reserveResult === true) {
     setStatus(target.mode === 'autopay'
       ? 'Reserved — proceeding to payment…'
-      : 'Reserved ✓ — complete payment in BC Parks')
+      : 'Reserved ✓ — complete payment in Parks Canada')
   } else {
     // Reserve button not found — likely a panel expansion timing issue, not confirmed unavailable.
     // Do NOT add to attempted — allow retry next scan cycle.
@@ -288,6 +294,25 @@ async function pollUntil(timeoutMs: number, fn: () => boolean): Promise<boolean>
     await sleep(200)
   }
   return false
+}
+
+function buttonByText(labels: string[]): HTMLElement | null {
+  const normalizedLabels = labels.map(label => label.toLowerCase())
+  return Array.from(document.querySelectorAll('button, a[role="button"], a.mat-mdc-button-base'))
+    .find(button => {
+      const text = (button.textContent ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+      return normalizedLabels.some(label => text.includes(label))
+    }) as HTMLElement | null ?? null
+}
+
+async function waitForButtonByText(labels: string[], timeoutMs = 15_000): Promise<HTMLElement | null> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const button = buttonByText(labels)
+    if (button) return button
+    await sleep(250)
+  }
+  return null
 }
 
 // Poll for Map/List/Calendar toggles — these appear in any results view
@@ -320,7 +345,7 @@ async function pollForPanels(timeoutMs: number): Promise<number> {
   return 0
 }
 
-// Fetch transactionLocationId and rootMapId from BC Parks API, return correct results URL
+// Fetch transactionLocationId and rootMapId from Parks Canada API, return correct results URL
 async function buildCorrectResultsUrl(resourceLocationId: string, checkIn: string, checkOut: string, nights: string): Promise<string | null> {
   try {
     const resp = await fetch('/api/resourceLocation', { credentials: 'include' })
@@ -331,10 +356,12 @@ async function buildCorrectResultsUrl(resourceLocationId: string, checkIn: strin
     const tli = String(loc['transactionLocationId'])
     const rootMapId = String(loc['rootMapId'])
     dbg('correct params', { tli, rootMapId })
-    return `https://camping.bcparks.ca/create-booking/results` +
+    return `https://reservation.pc.gc.ca/create-booking/results` +
       `?transactionLocationId=${tli}&resourceLocationId=${resourceLocationId}&mapId=${rootMapId}` +
       `&searchTabGroupId=0&bookingCategoryId=0&startDate=${checkIn}&endDate=${checkOut}` +
-      `&nights=${nights}&isReserving=true&equipmentId=-32768&subEquipmentId=-32768`
+      `&nights=${nights}&isReserving=true&equipmentId=-32768&subEquipmentId=-32768` +
+      `&peopleCapacityCategoryCounts=${encodeURIComponent(JSON.stringify([[-32767, null, 1, null]]))}` +
+      `&filterData=${encodeURIComponent(JSON.stringify({ '-32756': '[[1],0,0,0]' }))}`
   } catch (e) {
     dbg('buildCorrectResultsUrl error', String(e))
     return null
@@ -342,7 +369,7 @@ async function buildCorrectResultsUrl(resourceLocationId: string, checkIn: strin
 }
 
 // Click the Campground category row to drill into individual site panels.
-// BC Parks shows category rows (Campground, Walk-in) before individual sites in List view.
+// Parks Canada shows category rows (Campground, Walk-in) before individual sites in List view.
 // Each row has a button.map-link-button — click the Campground one (not Walk-in).
 async function clickCampgroundCategory(): Promise<boolean> {
   const btns = document.querySelectorAll('button.map-link-button')
@@ -366,7 +393,7 @@ async function clickCampgroundCategory(): Promise<boolean> {
   return false
 }
 
-// Apply BC Parks native UI filters via the Filters dialog.
+// Apply Parks Canada native UI filters via the Filters dialog.
 //
 // Confirmed DOM structure (from Playwright inspection across Porteau Cove, Rolley Lake,
 // Alice Lake, Golden Ears):
@@ -386,7 +413,7 @@ async function clickCampgroundCategory(): Promise<boolean> {
 //
 // Selecting by h3 text → clicking "No" mat-radio-button within that component
 // is robust regardless of how many filter groups the park has.
-async function applyBCParksFilters(noWalkin: boolean, noDouble: boolean): Promise<void> {
+async function applyParksCanadaFilters(noWalkin: boolean, noDouble: boolean): Promise<void> {
   // Dismiss cookie banner if present
   const cookieBtn = Array.from(document.querySelectorAll('button'))
     .find(b => (b.textContent ?? '').trim().toLowerCase() === 'i consent')
@@ -446,7 +473,7 @@ async function switchToListView(): Promise<boolean> {
   return false
 }
 
-// Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
+// Expand Parks Canada mat-expansion-panel.list-entry rows and click Reserve.
 async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<true | 'no-reserve-btn'> {
   // Load all panels first (click "View more" if present)
   await loadAllPanels()
@@ -486,7 +513,7 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
       const summaryText = panel.textContent ?? ''
       const selectedSite = extractSelectedCampsiteName(summaryText, header.textContent ?? '')
 
-      // BC Parks exposes "Details" through the expansion header. Do not click the header again
+      // Parks Canada exposes "Details" through the expansion header. Do not click the header again
       // after it is already open, because that collapses the reserve content.
       if (!findReserveControl(panel)) {
         const detailsBtn = findDetailsControl(panel)
@@ -692,12 +719,11 @@ async function handleReservationReview(tripId: string, mode: 'reserve' | 'autopa
     }
 
     // State 1: Click "Confirm reservation details" if present
-    const confirmBtn = Array.from(document.querySelectorAll('button'))
-      .find(b => (b.textContent ?? '').toLowerCase().includes('confirm reservation'))
+    const confirmBtn = await waitForButtonByText(['confirm reservation'], 10_000)
     dbg('confirm button found', !!confirmBtn)
 
     if (confirmBtn) {
-      ;(confirmBtn as HTMLElement).click()
+      confirmBtn.click()
       dbg('clicked Confirm reservation details')
       await sleep(2000)  // wait for page to transition to surcharges state
     }
@@ -713,20 +739,46 @@ async function handleReservationReview(tripId: string, mode: 'reserve' | 'autopa
 
     // Autopay: State 2 — surcharges page has "Proceed to checkout" button
     setStatus('Proceeding to checkout…')
-    const continueBtn = Array.from(document.querySelectorAll('button')).find(b => {
-      const t = (b.textContent ?? '').trim().toLowerCase()
-      return t.includes('proceed to checkout') || t.includes('continue') || t.includes('proceed')
-    })
+    const continueBtn = await waitForButtonByText(['proceed to checkout', 'continue', 'proceed'], 8_000)
     dbg('proceed button found', !!continueBtn)
     if (continueBtn) {
-      ;(continueBtn as HTMLElement).click()
+      continueBtn.click()
       setStatus('Proceeding to occupant details…')
     } else {
-      setStatus('Click Continue to proceed to payment.')
+      setStatus('Click Proceed to checkout to continue auto-pay.')
     }
   } catch (e) {
     dbg('handleReservationReview error', String(e))
     setStatus('Error — confirm the reservation manually.')
+  }
+}
+
+// Parks Canada may route to /cart after reservation details are confirmed.
+// Auto-pay needs one more click there before the checkout wizard begins.
+async function handleCartPage(tripId: string): Promise<void> {
+  injectBanner(`<span style="font-size:18px">🏕</span>
+    <span><strong style="color:#22c55e">campsoon</strong> — opening checkout…</span>
+    <span id="campsoon-status" style="margin-left:auto;color:#94a3b8;font-size:11px">Waiting for cart…</span>`)
+  const setStatus = (msg: string) => {
+    const el = document.getElementById('campsoon-status')
+    if (el) el.textContent = msg
+  }
+
+  try {
+    const proceedBtn = await waitForButtonByText(['proceed to checkout', 'checkout', 'continue'], 15_000)
+    dbg('cart proceed button found', !!proceedBtn)
+    if (!proceedBtn) {
+      setStatus('Click Proceed to checkout to continue auto-pay.')
+      return
+    }
+    setStatus('Proceeding to checkout…')
+    proceedBtn.click()
+    dbg('clicked cart Proceed to checkout')
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    dbg('handleCartPage error', errorMessage)
+    chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingFailed, tripId, error: errorMessage, scanLease: activeTargetSite?.scanLease })
+    setStatus('Error — open checkout manually.')
   }
 }
 
@@ -772,11 +824,11 @@ async function waitForBookingConfirmation(timeoutMs = 60_000): Promise<NonNullab
     if (failure) throw new Error(failure.message)
     await sleep(250)
   }
-  throw new Error('Payment submitted, but BC Parks confirmation page was not detected')
+  throw new Error('Payment submitted, but Parks Canada confirmation page was not detected')
 }
 
 // Checkout wizard driver — confirmed selectors from Playwright recording.
-// BC Parks checkout is a multi-step wizard; each step is a separate page load.
+// Parks Canada checkout is a multi-step wizard; each step is a separate page load.
 // We detect which step we're on by looking for the step's unique confirm button.
 //
 // Recorded step sequence:
@@ -902,12 +954,21 @@ async function runCheckout(tripId: string): Promise<void> {
           throw new Error(`Could not fill "${selector}" — field not found`)
         }
       }
+      const fillIfPresent = async (selector: string, value: string | undefined) => {
+        if (!value) return
+        if (!document.querySelector(selector)) {
+          dbg(`optional field not present: ${selector}`)
+          return
+        }
+        await fillInput(selector, value)
+        dbg(`filled optional: ${selector}`)
+      }
       await fill('#cardNumber', payment.cardNumber)
       await fill('#cardHolderName', payment.cardHolder)
       await fill('#cardExpiry', payment.cardExpiry)
       await fill('#cardCvv', payment.cardCvv)
-      if (payment.billingAddress) await fill('#street-field-0', payment.billingAddress)
-      if (payment.billingPostal)  await fill('#postal-code-field-0', payment.billingPostal)
+      await fillIfPresent('#street-field-0', payment.billingAddress)
+      await fillIfPresent('#postal-code-field-0', payment.billingPostal)
       await sleep(500)
 
       applyBtn.click()
@@ -922,6 +983,12 @@ async function runCheckout(tripId: string): Promise<void> {
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
     dbg('runCheckout error', errorMessage)
+    const statusEl = document.getElementById('campsoon-status')
+    if (statusEl) {
+      statusEl.textContent = errorMessage.toLowerCase().includes('payment was unsuccessful')
+        ? 'Payment failed — check card details.'
+        : 'Auto-pay failed — check this page.'
+    }
     chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingFailed, tripId, error: errorMessage, scanLease: activeTargetSite?.scanLease })
   }
 }

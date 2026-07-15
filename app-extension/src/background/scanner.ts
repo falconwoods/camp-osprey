@@ -1,4 +1,5 @@
-import type { Trip, AvailableSite, Filters } from '../types'
+import type { Trip, AvailableSite, Filters, ReservationProvider } from '../types'
+import { providerInfo } from '../providers/config'
 import { expandDateRange, isBookable } from '../dates'
 
 type GetAvailabilityFn = (
@@ -115,7 +116,7 @@ export async function scanTrip(
     if (fresh.length > 0) {
       const park = trip.parks[candidate.parkIndex]
       return {
-        site: { ...fresh[0], campgroundName: park?.name ?? candidate.parkId, availableCount: fresh.length },
+        site: { ...fresh[0], provider: trip.provider, campgroundName: park?.parentName ? `${park.parentName} › ${park.name}` : (park?.name ?? candidate.parkId), availableCount: fresh.length },
         cursor,
         budgetExhausted: false,
         completedFullScan: false,
@@ -131,17 +132,21 @@ export function makeAttemptedKey(site: AvailableSite): string {
   return `${site.campgroundId}|${site.checkIn}|${site.checkOut}`
 }
 
-export function buildBookingUrl(site: AvailableSite): string {
+export function buildBookingUrl(site: AvailableSite, provider: ReservationProvider = site.provider ?? 'bc_parks'): string {
   const nights = Math.round(
     (new Date(site.checkOut).getTime() - new Date(site.checkIn).getTime()) / 86_400_000
   )
   const pid = site.campgroundId
   const mid = site.mapId || pid
+  const extra = provider === 'parks_canada'
+    ? `&peopleCapacityCategoryCounts=${encodeURIComponent(JSON.stringify([[-32767, null, 1, null]]))}` +
+      `&filterData=${encodeURIComponent(JSON.stringify({ '-32756': '[[1],0,0,0]' }))}`
+    : ''
   return (
-    `https://camping.bcparks.ca/create-booking/results` +
+    `${providerInfo(provider).baseUrl}/create-booking/results` +
     `?transactionLocationId=${pid}&resourceLocationId=${pid}&mapId=${mid}` +
     `&searchTabGroupId=0&bookingCategoryId=0` +
     `&startDate=${site.checkIn}&endDate=${site.checkOut}&nights=${nights}` +
-    `&isReserving=true&equipmentId=-32768&subEquipmentId=-32768`
+    `&isReserving=true&equipmentId=-32768&subEquipmentId=-32768${extra}`
   )
 }

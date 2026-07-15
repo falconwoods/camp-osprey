@@ -10,11 +10,13 @@ import type { RequestContext } from '@/lib/request-context';
 import { logger } from './loki';
 import { decodeProvider, decodeRawProviderSnapshot } from './extension-protocol';
 
+type BookingProvider = 'bc_parks' | 'parks_canada';
+
 export interface NormalizedBookingPaymentEvent {
   tripId?: string;
   clientEventId?: string;
   idempotencyKey: string;
-  provider: 'bc_parks';
+  provider: BookingProvider;
   confirmationNumber?: string;
   providerReservationId?: string;
   providerTransactionId?: string;
@@ -70,9 +72,9 @@ function optionalDate(body: Record<string, unknown>, field: string): Date | unde
   return parsed;
 }
 
-function providerFromBody(body: Record<string, unknown>): 'bc_parks' {
+function providerFromBody(body: Record<string, unknown>): BookingProvider {
   const provider = decodeProvider(body);
-  if (!provider) throw new Error('provider must be bc_parks');
+  if (!provider) throw new Error('provider must be a supported booking provider');
   return provider;
 }
 

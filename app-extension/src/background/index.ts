@@ -1,4 +1,5 @@
 import { BCParksApiError, BCParksCooldownError, BCParksProvider } from '../providers/bcparks'
+import { ParksCanadaApiError, ParksCanadaCooldownError, ParksCanadaProvider } from '../providers/parksCanada'
 import { getStorage, savePayment, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
 import { scanTrip, buildBookingUrl } from './scanner'
@@ -19,6 +20,7 @@ import {
 } from '../extensionConfig'
 import { LogEventCode, ProviderCode, ProviderSnapshotSourceCode, ResultCode, RuntimeMessageCode, opaqueHash } from '../protocol'
 import { decryptParkPayment, encryptParkPayment, isPlainPaymentConfig } from '../paymentCrypto'
+import { DEFAULT_PROVIDER, providerInfo } from '../providers/config'
 
 const ALARM_NAME = 'scan'
 const LOG_SYNC_ALARM_NAME = 'log-sync'
@@ -26,7 +28,10 @@ const EXTENSION_CONFIG_ALARM_NAME = 'extension-config'
 const PENDING_BOOKING_PAYMENT_EVENTS_KEY = 'pendingBookingPaymentEvents'
 const SCAN_CURSORS_KEY = 'campsoonScanCursors'
 const SCAN_TRIP_CURSOR_KEY = 'campsoonScanTripCursor'
-const provider = new BCParksProvider()
+const providers = {
+  bc_parks: new BCParksProvider(),
+  parks_canada: new ParksCanadaProvider(),
+}
 let scanInProgress = false
 let bookingPaymentFlushInProgress = false
 let lastAvailabilityRequestAt = 0
@@ -155,8 +160,11 @@ async function waitForAvailabilitySlot(spacingMs: number, signal?: AbortSignal):
 }
 
 function getAvailabilityBackoffDelayMs(err: unknown, policy: ExtensionRemoteConfig['scanPolicy']): number {
-  if (err instanceof BCParksCooldownError) return Math.max(0, err.cooldownUntil - Date.now())
-  if (err instanceof BCParksApiError && (err.status === 429 || err.status === 400 || err.status >= 500)) {
+  if (err instanceof BCParksCooldownError || err instanceof ParksCanadaCooldownError) return Math.max(0, err.cooldownUntil - Date.now())
+  if (
+    (err instanceof BCParksApiError || err instanceof ParksCanadaApiError) &&
+    (err.status === 429 || err.status === 400 || err.status >= 500)
+  ) {
     return policy.backoff.rateLimitBaseSeconds * 1000
   }
   return policy.backoff.errorBaseSeconds * 1000
@@ -209,7 +217,7 @@ async function getScanLeaseForTrip(trip: Trip): Promise<ScanLease> {
 function isConfirmedBookingPaymentPayload(value: unknown): value is ConfirmedBookingPaymentPayload {
   if (!value || typeof value !== 'object') return false
   const payload = value as Partial<ConfirmedBookingPaymentPayload>
-  return payload.providerCode === ProviderCode.bcParks
+  return (payload.providerCode === ProviderCode.bcParks || payload.providerCode === ProviderCode.parksCanada)
     && typeof payload.idempotencyKey === 'string'
     && !!payload.idempotencyKey
     && typeof payload.parkName === 'string'
@@ -289,12 +297,15 @@ async function buildBookingPaymentEvent(
   bookingUrl?: string,
 ): Promise<ConfirmedBookingPaymentPayload> {
   const normalizedConfirmation = confirmationNumber?.trim() || undefined
+  const providerCode = (match.provider ?? trip.provider) === 'parks_canada'
+    ? ProviderCode.parksCanada
+    : ProviderCode.bcParks
   return {
     tripId: trip.id,
     clientEventId: crypto.randomUUID(),
     idempotencyKey: await bookingPaymentIdempotencyKey(trip, match, normalizedConfirmation, paidAt),
     scanLease,
-    providerCode: ProviderCode.bcParks,
+    providerCode,
     confirmationNumber: normalizedConfirmation,
     parkName: match.parkName,
     sectionName: match.sectionName,
@@ -430,14 +441,16 @@ async function clearAuthIssue(kind: AuthNotificationKind, tripId: string): Promi
 }
 
 // Log full raw daily API response for every site that passes availability check
-provider.onAvailabilityRaw = (siteId, siteName, daily) => {
-  void logEntry({
-    level: 'debug',
-    eventCode: LogEventCode.availabilityRaw,
-    message: 'Raw availability response',
-    siteName,
-    metadata: { siteId, daily },
-  })
+for (const [providerId, provider] of Object.entries(providers)) {
+  provider.onAvailabilityRaw = (siteId, siteName, daily) => {
+    void logEntry({
+      level: 'debug',
+      eventCode: LogEventCode.availabilityRaw,
+      message: 'Raw availability response',
+      siteName,
+      metadata: { provider: providerId, siteId, daily },
+    })
+  }
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -577,7 +590,9 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     const { settings } = await getStorage()
     const trips = await getTrips()
     const scanPolicy = getScanPolicy(extensionConfig)
-    provider.beforeAvailabilityMapRequest = signal => waitForAvailabilitySlot(scanPolicy.requestSpacingMs, signal)
+    for (const provider of Object.values(providers)) {
+      provider.beforeAvailabilityMapRequest = signal => waitForAvailabilitySlot(scanPolicy.requestSpacingMs, signal)
+    }
     const effectiveIntervalSeconds = getEffectiveScanIntervalSeconds(settings.pollIntervalSeconds, extensionConfig)
     await setupAlarm(effectiveIntervalSeconds)
     const scanAlarm = await getAlarm(ALARM_NAME)
@@ -615,7 +630,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         if (!targetSet) await saveScanTripCursor(trip.id)
         await logEntry({
           level: 'warning',
-          message: 'BC Parks availability backoff active; continuing next cycle',
+          message: 'Booking provider availability backoff active; continuing next cycle',
           metadata: { backoffUntil: new Date(availabilityBackoffUntil).toISOString() },
         })
         break
@@ -664,13 +679,15 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         continue
       }
 
-      const loggedIn = await isLoggedIn()
+      const tripProvider = trip.provider ?? DEFAULT_PROVIDER
+      const tripProviderInfo = providerInfo(tripProvider)
+      const loggedIn = await isLoggedIn(tripProvider)
       const needsLogin = trip.mode !== 'alert' && !loggedIn
       if (needsLogin) {
         await logEntry({
           level: 'warning',
           eventCode: LogEventCode.bcparksLoginMissing,
-          message: 'Not logged in to BC Parks; skipping reserve or auto-pay',
+          message: `Not logged in to ${tripProviderInfo.label}; skipping reserve or auto-pay`,
           tripId: trip.id,
           tripName: trip.name,
           metadata: { mode: trip.mode },
@@ -678,7 +695,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         if (await shouldNotifyAuthIssue('bcparks', trip.id)) {
           await notify(
             'campsoon — Login Required',
-            `Log in to BC Parks to use ${trip.mode} mode for "${trip.name}"`
+            `Log in to ${tripProviderInfo.label} to use ${trip.mode} mode for "${trip.name}"`
           )
         }
         continue
@@ -720,7 +737,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
             checkIn: ci,
             checkOut: co,
           })
-          const results = await provider.getAvailability(id, ci, co, filters, controller.signal)
+          const results = await providers[tripProvider].getAvailability(id, ci, co, filters, controller.signal)
           clearAvailabilityFailure()
           await updateTripLastScannedAt(trip.id)
           if (results.length > 0) {
@@ -905,6 +922,7 @@ async function reportFoundResult(
       scanLease,
       tripSnapshot: {
         name: trip.name,
+        provider: trip.provider,
         parks: trip.parks,
         dateRanges: trip.dateRanges,
         filters: trip.filters,
@@ -956,14 +974,17 @@ async function handleMatch(
   const nights = Math.round(
     (new Date(site.checkOut).getTime() - new Date(site.checkIn).getTime()) / 86_400_000
   )
+  const siteProvider = site.provider ?? trip.provider ?? DEFAULT_PROVIDER
+  const siteProviderInfo = providerInfo(siteProvider)
   const nightStr = `${nights} night${nights !== 1 ? 's' : ''}`
-  const bookingUrl = buildBookingUrl(site)
+  const bookingUrl = buildBookingUrl(site, siteProvider)
   const availableCount = site.availableCount ?? 1
   const availableLabel = `${availableCount} available site${availableCount === 1 ? '' : 's'}`
   const foundAt = new Date().toISOString()
   const foundAtLabel = formatDateTime(foundAt)
 
   const matchedSite: MatchedSite = {
+    provider: siteProvider,
     parkName: site.campgroundName || site.campgroundId,
     siteName: site.siteName,
     sectionName: site.sectionName,
@@ -1012,6 +1033,7 @@ async function handleMatch(
     chrome.storage.local.set({
       campOspreyTarget: {
         resourceId: site.resourceId,
+        provider: siteProvider,
         siteName: site.siteName,
         sectionName: site.sectionName,
         parkName: site.campgroundName || site.campgroundId,
@@ -1033,7 +1055,7 @@ async function handleMatch(
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
     await notify(
       `Site Available — Reserve Now`,
-      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}\nBC Parks is opening — click Reserve in your browser.`,
+      `${matchedSite.parkName} › ${availableLabel}\n${site.checkIn} → ${site.checkOut}\nFound: ${foundAtLabel}\n${siteProviderInfo.label} is opening — click Reserve in your browser.`,
       bookingUrl,
       true,
     )
@@ -1222,10 +1244,11 @@ chrome.runtime.onMessage.addListener((msg: {
       updateTrip(msg.tripId!, match ? { status: 'reserved', lastMatch: match } : { status: 'reserved' })
         .then(async () => {
           if (match) {
+            const matchProviderInfo = providerInfo(match.provider ?? trip?.provider ?? DEFAULT_PROVIDER)
             const siteDetail = `${match.parkName} › ${match.sectionName ? `${match.sectionName} › ` : ''}Site ${match.siteName}`
             await notify(
               'Site Reserved',
-              `${siteDetail}\n${match.checkIn} → ${match.checkOut}\nReserved: ${reservedAtLabel}\nComplete payment on BC Parks now.`,
+              `${siteDetail}\n${match.checkIn} → ${match.checkOut}\nReserved: ${reservedAtLabel}\nComplete payment on ${matchProviderInfo.label} now.`,
               match.bookingUrl,
               true,
             )
@@ -1250,6 +1273,7 @@ chrome.runtime.onMessage.addListener((msg: {
               scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
               tripSnapshot: {
                 name: trip.name,
+                provider: trip.provider,
                 parks: trip.parks,
                 dateRanges: trip.dateRanges,
                 filters: trip.filters,
@@ -1350,6 +1374,7 @@ chrome.runtime.onMessage.addListener((msg: {
             scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
             tripSnapshot: {
               name: trip.name,
+              provider: trip.provider,
               parks: trip.parks,
               dateRanges: trip.dateRanges,
               filters: trip.filters,
@@ -1406,10 +1431,11 @@ chrome.runtime.onMessage.addListener((msg: {
         error: msg.error ?? 'Unknown error',
       }, { forceServerSync: true })
       updateTrip(msg.tripId!, { status: 'failed' }).then(async () => {
+        const matchProviderInfo = providerInfo(m?.provider ?? trip?.provider ?? DEFAULT_PROVIDER)
         notify(
           '❌ Payment Failed',
-          `${detail}${detail ? '\n' : ''}${msg.error ?? 'Unknown error — check BC Parks tab.'}`,
-          'https://camping.bcparks.ca/cart',
+          `${detail}${detail ? '\n' : ''}${msg.error ?? `Unknown error — check ${matchProviderInfo.label} tab.`}`,
+          matchProviderInfo.cartUrl,
           true,
         )
         if (!trip) return
@@ -1421,6 +1447,7 @@ chrome.runtime.onMessage.addListener((msg: {
             scanLease: typeof msg.scanLease === 'string' ? msg.scanLease : undefined,
             tripSnapshot: {
               name: trip.name,
+              provider: trip.provider,
               parks: trip.parks,
               dateRanges: trip.dateRanges,
               filters: trip.filters,

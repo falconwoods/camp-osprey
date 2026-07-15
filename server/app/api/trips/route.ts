@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     id: string;
     clientId?: string;
     name: string;
+    provider?: string;
     parks: unknown;
     dateRanges: unknown;
     filters: unknown;
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
       userId:     session.user.id,
       clientId:   body.clientId,
       name:       body.name,
+      provider:   body.provider ?? 'bc_parks',
       parks:      body.parks,
       dateRanges: decodeDateRanges(body.dateRanges),
       filters:    body.filters,

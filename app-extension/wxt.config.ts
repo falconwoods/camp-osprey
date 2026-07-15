@@ -15,9 +15,9 @@ export default defineConfig({
   manifest: {
     name: 'campsoon',
     version: packageJson.version,
-    description: 'Scan BC Parks for campsite cancellations and auto-reserve when found.',
+    description: 'Scan campground booking providers for campsite cancellations and auto-reserve when found.',
     permissions: ['alarms', 'cookies', 'notifications', 'storage', 'tabs', 'unlimitedStorage'],
-    host_permissions: ['https://camping.bcparks.ca/*'],
+    host_permissions: ['https://camping.bcparks.ca/*', 'https://reservation.pc.gc.ca/*'],
     externally_connectable: {
       matches: [
         'https://campsoon.com/*',

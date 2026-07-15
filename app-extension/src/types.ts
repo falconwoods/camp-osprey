@@ -2,6 +2,7 @@ export interface Trip {
   id: string
   clientId?: string
   name: string
+  provider: ReservationProvider
   parks: Park[]           // index 0 = highest priority
   dateRanges: DateRange[]
   filters: Filters
@@ -16,9 +17,13 @@ export interface Trip {
 }
 
 export interface Park {
-  id: string              // BC Parks resourceLocationId as string
+  id: string              // provider resourceLocationId as string
   name: string
+  parentId?: string
+  parentName?: string
 }
+
+export type ReservationProvider = 'bc_parks' | 'parks_canada'
 
 export interface Filters {
   noWalkin: boolean
@@ -31,6 +36,7 @@ export type DateRange =
   // startDay/endDay: 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
 
 export interface MatchedSite {
+  provider?: ReservationProvider
   parkName: string
   siteName: string
   sectionName: string
@@ -45,6 +51,7 @@ export interface MatchedSite {
 }
 
 export interface AvailableSite {
+  provider?: ReservationProvider
   resourceId: string
   campgroundId: string
   campgroundName: string

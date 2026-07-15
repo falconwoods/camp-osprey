@@ -63,6 +63,7 @@ export const trips = pgTable('trips', {
   userId:      text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
   clientId:    text('clientId'),
   name:        text('name').notNull(),
+  provider:    text('provider').notNull().default('bc_parks'),
   parks:       jsonb('parks').notNull(),
   dateRanges:  jsonb('dateRanges').notNull(),
   filters:     jsonb('filters').notNull(),

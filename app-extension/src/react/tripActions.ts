@@ -9,6 +9,7 @@ import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig
 import { ServerApiError, getPointPackages, getPointsBalance, requestScanLease } from '../serverApi'
 import { RuntimeMessageCode } from '../protocol'
 import { decryptParkPayment, hasSavedParkPayment } from '../paymentCrypto'
+import { DEFAULT_PROVIDER, providerInfo } from '../providers/config'
 
 export type StartTripResult =
   | { ok: true }
@@ -65,9 +66,9 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<Sta
   if (requiresBookingPoints(trip) && !(await hasEnoughBookingPoints())) {
     return { ok: false, reason: 'points' }
   }
-  if (trip && trip.mode !== 'alert' && !(await isLoggedIn())) {
-    chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
-    return { ok: false, reason: 'bcparks_auth' }
+  if (trip && trip.mode !== 'alert' && !(await isLoggedIn(trip.provider))) {
+    chrome.tabs.create({ url: providerInfo(trip.provider).loginUrl })
+    return { ok: false, reason: 'provider_auth' }
   }
   if (trip?.mode === 'autopay' && !(await canUseParkPayment())) {
     return { ok: false, reason: 'payment' }
@@ -100,6 +101,7 @@ export async function saveTripDraft(input: {
   existing?: Trip | null
   name: string
   mode: Trip['mode']
+  provider: Trip['provider']
   filters: Trip['filters']
   parks: Park[]
   dateRanges: DateRange[]
@@ -112,6 +114,7 @@ export async function saveTripDraft(input: {
       clientId: input.existing.clientId ?? clientId,
       name: input.name,
       mode: input.mode,
+      provider: input.provider,
       filters: input.filters,
       parks: input.parks,
       dateRanges: input.dateRanges,
@@ -124,6 +127,7 @@ export async function saveTripDraft(input: {
       clientId,
       name: input.name,
       mode: input.mode,
+      provider: input.provider ?? DEFAULT_PROVIDER,
       filters: input.filters,
       parks: input.parks,
       dateRanges: input.dateRanges,

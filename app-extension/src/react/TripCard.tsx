@@ -20,9 +20,7 @@ import { LoadingButton } from '../components/ui/loading-button'
 import { getTripWarnings } from '../warnings'
 import type { DateRange, Trip } from '../types'
 import { describeRange, formatDateTime, matchLine, statusDisplay } from './format'
-
-const BC_PARKS_CART_URL = 'https://camping.bcparks.ca/cart'
-const BC_PARKS_RESERVATIONS_URL = 'https://camping.bcparks.ca/account/all-bookings'
+import { providerInfo } from '../providers/config'
 
 export function TripCard({
   trip,
@@ -43,7 +41,8 @@ export function TripCard({
   const [pausing, setPausing] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const warnings = getTripWarnings(trip)
-  const parks = trip.parks.map(park => park.name).join(', ') || 'No parks'
+  const tripProvider = providerInfo(trip.provider)
+  const parks = trip.parks.map(park => park.parentName ? `${park.parentName} › ${park.name}` : park.name).join(', ') || 'No parks'
   const dateSummary = conciseDateSummary(trip.dateRanges)
   const fullDateSummary = trip.dateRanges.map(describeRange).join(', ') || 'No dates selected'
   const status = statusDisplay(trip)
@@ -120,7 +119,7 @@ export function TripCard({
             <h3>{trip.name}</h3>
             <div className="trip-meta-row">
               <MapPin size={17} />
-              <span>{parks}</span>
+              <span>{tripProvider.label} · {parks}</span>
             </div>
             <div className="trip-meta-row">
               <Calendar size={17} />
@@ -214,14 +213,16 @@ function shouldShowResultPanel(trip: Trip): boolean {
 
 function resultPanelActionUrl(trip: Trip): string | null {
   if (!trip.lastMatch) return null
-  if (trip.status === 'paid') return BC_PARKS_RESERVATIONS_URL
-  if (trip.mode !== 'alert' && (trip.status === 'reserved' || trip.lastMatch.reservedAt)) return BC_PARKS_CART_URL
+  const provider = providerInfo(trip.lastMatch.provider ?? trip.provider)
+  if (trip.status === 'paid') return provider.reservationsUrl
+  if (trip.mode !== 'alert' && (trip.status === 'reserved' || trip.lastMatch.reservedAt)) return provider.cartUrl
   return trip.lastMatch.bookingUrl
 }
 
 function resultPanelActionLabel(trip: Trip): string {
   if (trip.status === 'paid') return 'View Reservations'
-  if (trip.mode !== 'alert' && (trip.status === 'reserved' || trip.lastMatch?.reservedAt)) return 'Go to BC Parks to Pay'
+  const match = trip.lastMatch
+  if (trip.mode !== 'alert' && match && (trip.status === 'reserved' || match.reservedAt)) return `Go to ${providerInfo(match.provider ?? trip.provider).label} to Pay`
   return 'Reserve Now'
 }
 

@@ -22,6 +22,7 @@ export const ResultCode = {
 
 export const ProviderCode = {
   bcParks: 2301,
+  parksCanada: 2302,
 } as const
 
 export const ProviderSnapshotSourceCode = {

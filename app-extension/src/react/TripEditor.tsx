@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CalendarDays, Filter, Settings2, Tag, Trash2, Zap } from 'lucide-react'
 import { BCParksProvider } from '../providers/bcparks'
+import { ParksCanadaProvider } from '../providers/parksCanada'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { LoadingButton } from '../components/ui/loading-button'
 import { Select } from '../components/ui/select'
 import { APP_CONFIG } from '../config'
-import type { DateRange, Park, Trip } from '../types'
+import type { DateRange, Park, ReservationProvider, Trip } from '../types'
 import { describeRange, statusDisplay } from './format'
 import { isValidParkPayment, saveTripDraft, startTripNow } from './tripActions'
+import { DEFAULT_PROVIDER, PROVIDERS } from '../providers/config'
 
-const provider = new BCParksProvider()
+const providers = {
+  bc_parks: new BCParksProvider(),
+  parks_canada: new ParksCanadaProvider(),
+} satisfies Record<ReservationProvider, { searchParks(query: string): Promise<Park[]> }>
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const successfulBookingPointCostLabel = APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
 type MaybePromise<T> = T | Promise<T>
@@ -42,6 +47,7 @@ export function TripEditor({
 }) {
   const [name, setName] = useState(trip?.name ?? `Trip ${tripCount + 1}`)
   const [mode, setMode] = useState<Trip['mode']>(trip?.mode ?? 'reserve')
+  const [provider, setProvider] = useState<ReservationProvider>(trip?.provider ?? DEFAULT_PROVIDER)
   const [noWalkin, setNoWalkin] = useState(trip?.filters.noWalkin ?? true)
   const [noDouble, setNoDouble] = useState(trip?.filters.noDouble ?? true)
   const [parks, setParks] = useState<Park[]>(trip?.parks ?? [])
@@ -65,10 +71,10 @@ export function TripEditor({
       return
     }
     const id = setTimeout(() => {
-      void provider.searchParks(query.trim()).then(parks => setResults(parks.slice(0, 8))).catch(() => setResults([]))
+      void providers[provider].searchParks(query.trim()).then(parks => setResults(parks.slice(0, 8))).catch(() => setResults([]))
     }, 250)
     return () => clearTimeout(id)
-  }, [query])
+  }, [provider, query])
 
   const years = useMemo(() => {
     const year = new Date().getFullYear()
@@ -89,6 +95,16 @@ export function TripEditor({
 
   function addPark(park: Park) {
     if (!parks.some(item => item.id === park.id)) setParks([...parks, park])
+    setQuery('')
+    setResults([])
+    setFieldErrors({ ...fieldErrors, parks: '' })
+  }
+
+  function changeProvider(nextProvider: ReservationProvider) {
+    if (nextProvider === provider) return
+    if (parks.length && !confirm('Changing provider will clear selected parks and campgrounds.')) return
+    setProvider(nextProvider)
+    setParks([])
     setQuery('')
     setResults([])
     setFieldErrors({ ...fieldErrors, parks: '' })
@@ -137,6 +153,7 @@ export function TripEditor({
         existing: trip,
         name: name.trim(),
         mode,
+        provider,
         filters: { noWalkin, noDouble },
         parks,
         dateRanges,
@@ -147,7 +164,7 @@ export function TripEditor({
         if (!result.ok && result.reason === 'payment') await onInvalidPayment()
         if (!result.ok && result.reason === 'points') await onInsufficientPoints()
         if (!result.ok && result.reason === 'active_trip') await onActiveTripBlocked()
-        if (!result.ok && result.reason === 'bcparks_auth') setError('BC Parks sign-in is required for auto-reserve and auto-pay trips.')
+        if (!result.ok && result.reason === 'provider_auth') setError(`${PROVIDERS[provider].label} sign-in is required for auto-reserve and auto-pay trips.`)
         if (!result.ok) return
       }
       await onSaved()
@@ -197,14 +214,22 @@ export function TripEditor({
               <div className={`field-error ${fieldErrors.name ? 'show' : ''}`} id="error-name">{fieldErrors.name}</div>
             </div>
 
+            <div className="editor-field-group" id="section-provider">
+              <div className="section-label">Reservation Provider</div>
+              <Select id="reservation-provider" value={provider} onChange={event => changeProvider(event.target.value as ReservationProvider)}>
+                <option value="bc_parks">BC Parks</option>
+                <option value="parks_canada">Parks Canada</option>
+              </Select>
+            </div>
+
             <div className="editor-field-group" id="section-parks">
-              <div className="section-label">Parks <small>(drag to reorder priority)</small></div>
+              <div className="section-label">{provider === 'parks_canada' ? 'Campgrounds' : 'Parks'} <small>(drag to reorder priority)</small></div>
               <div id="parks-list">
                 {parks.map((park, index) => (
                   <div className="chip park-chip" draggable="true" key={park.id}>
                     <span className="park-drag-handle" aria-hidden="true">⠿</span>
                     <span className="park-priority">{index + 1}.</span>
-                    <span className="park-name">{park.name}</span>
+                    <span className="park-name">{formatParkName(park)}</span>
                     <button className="chip-remove" type="button" aria-label={`Remove ${park.name}`} onClick={() => setParks(parks.filter(item => item.id !== park.id))}>×</button>
                   </div>
                 ))}
@@ -212,7 +237,7 @@ export function TripEditor({
               <div className="park-add-row">
                 <Input
                   id="park-search"
-                  placeholder="Search or add parks..."
+                  placeholder={provider === 'parks_canada' ? 'Search Jasper, Whistlers, Wapiti...' : 'Search or add parks...'}
                   value={query}
                   onChange={event => setQuery(event.target.value)}
                   onKeyDown={event => {
@@ -225,7 +250,7 @@ export function TripEditor({
                 <Button id="park-add-btn" type="button" onClick={() => results[0] && addPark(results[0])}>Add</Button>
               </div>
               <div className="search-results" id="park-results" style={{ display: results.length ? 'block' : 'none' }}>
-                {results.map(park => <button className="search-result" key={park.id} type="button" onClick={() => addPark(park)}>{park.name}</button>)}
+                {results.map(park => <button className="search-result" key={park.id} type="button" onClick={() => addPark(park)}>{formatParkName(park)}</button>)}
               </div>
               <div className={`field-error ${fieldErrors.parks ? 'show' : ''}`} id="error-parks">{fieldErrors.parks}</div>
             </div>
@@ -321,6 +346,10 @@ function dateRangesEqual(a: DateRange, b: DateRange): boolean {
     return a.year === b.year && a.month === b.month && a.startDay === b.startDay && a.endDay === b.endDay
   }
   return false
+}
+
+function formatParkName(park: Park): string {
+  return park.parentName ? `${park.parentName} › ${park.name}` : park.name
 }
 
 function modeLabel(mode: Trip['mode']): string {

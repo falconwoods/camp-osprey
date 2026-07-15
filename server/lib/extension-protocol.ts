@@ -1,5 +1,5 @@
 type Outcome = 'found' | 'reserved' | 'booked' | 'failed';
-type Provider = 'bc_parks';
+type Provider = 'bc_parks' | 'parks_canada';
 
 const RESULT_BY_CODE: Record<number, Outcome> = {
   1211: 'found',
@@ -38,6 +38,7 @@ const BOOKING_STATUS_BY_CODE: Record<number, string> = {
 
 const PROVIDER_BY_CODE: Record<number, Provider> = {
   2301: 'bc_parks',
+  2302: 'parks_canada',
 };
 
 const SNAPSHOT_SOURCE_BY_CODE: Record<number, string> = {
@@ -175,7 +176,7 @@ export function decodeProvider(body: Record<string, unknown>): Provider | undefi
   const code = numberField(body, 'providerCode');
   if (code !== undefined) return PROVIDER_BY_CODE[code];
   const legacy = body.provider;
-  return legacy === 'bc_parks' ? legacy : undefined;
+  return legacy === 'bc_parks' || legacy === 'parks_canada' ? legacy : undefined;
 }
 
 export function decodeRawProviderSnapshot(value: unknown): unknown {

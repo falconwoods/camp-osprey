@@ -73,14 +73,15 @@ export interface NotifyUserResultPayload {
   matchedSite?: MatchedSite
   error?: string
   scanLease?: string
-  tripSnapshot?: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>
+  tripSnapshot?: Pick<Trip, 'name' | 'provider' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>
 }
 
 function encodedTripSnapshot(
-  trip: Pick<Trip, 'name' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>,
+  trip: Pick<Trip, 'name' | 'provider' | 'parks' | 'dateRanges' | 'filters' | 'mode' | 'status' | 'attempted' | 'createdAt' | 'updatedAt' | 'deletedAt'>,
 ) {
   return {
     name: trip.name,
+    provider: trip.provider,
     parks: trip.parks,
     dateRanges: trip.dateRanges.map(encodeDateRange),
     filters: trip.filters,
@@ -98,6 +99,7 @@ function tripSyncPayload(trip: Trip, clientId: string) {
     id: trip.id,
     clientId: trip.clientId ?? clientId,
     name: trip.name,
+    provider: trip.provider,
     parks: trip.parks,
     dateRanges: trip.dateRanges.map(encodeDateRange),
     filters: trip.filters,
