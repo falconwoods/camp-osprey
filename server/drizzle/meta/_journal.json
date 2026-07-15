@@ -71,6 +71,13 @@
       "when": 1781231151180,
       "tag": "0010_known_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784155871450,
+      "tag": "0011_nasty_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "trips" ADD COLUMN "provider" text DEFAULT 'bc_parks' NOT NULL;
