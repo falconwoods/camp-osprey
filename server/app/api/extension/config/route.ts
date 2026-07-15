@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   return withExtensionCors(
     request,
-    NextResponse.json(await getExtensionConfigResponse(body.channel)),
+    NextResponse.json(await getExtensionConfigResponse(body.channel, session?.user.id)),
   );
 }
 

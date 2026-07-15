@@ -60,7 +60,9 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<Sta
   if (!(await requireServerAuthForStart(tripId, openAuth))) return { ok: false, reason: 'server_auth' }
   const trips = await getTrips()
   const trip = trips.find(item => item.id === tripId)
-  if (trips.some(item => item.id !== tripId && isActiveTrip(item))) {
+  const maxActiveTrips = extensionConfig?.userLimits?.maxActiveTrips ?? 1
+  const activeTripCount = trips.filter(item => item.id !== tripId && isActiveTrip(item)).length
+  if (activeTripCount >= maxActiveTrips) {
     return { ok: false, reason: 'active_trip' }
   }
   if (requiresBookingPoints(trip) && !(await hasEnoughBookingPoints())) {

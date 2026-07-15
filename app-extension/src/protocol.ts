@@ -11,6 +11,8 @@ export const RuntimeMessageCode = {
   bookingFailed: 7108,
   openAccountPage: 7109,
   getDecryptedPayment: 7110,
+  getCampsoonTarget: 7111,
+  clearCampsoonTarget: 7112,
 } as const
 
 export const ResultCode = {

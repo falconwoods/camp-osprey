@@ -21,9 +21,12 @@ export function PopupApp() {
       return
     }
     if (!result.ok && result.reason === 'active_trip') {
+      const maxActiveTrips = state.storage?.extensionConfig?.userLimits?.maxActiveTrips ?? 1
       await confirmation.confirm({
-        title: 'Only one active trip is allowed',
-        message: 'Pause your current active trip before starting another one.',
+        title: 'Active trip limit reached',
+        message: maxActiveTrips === 1
+          ? 'Pause your current active trip before starting another one.'
+          : `You can run up to ${maxActiveTrips} active trips at the same time. Pause one to start another.`,
         confirmLabel: 'OK',
         cancelLabel: null,
       })

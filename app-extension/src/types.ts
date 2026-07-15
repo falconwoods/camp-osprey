@@ -155,6 +155,9 @@ export interface ExtensionRemoteConfig {
   }
   logSyncMinLevel: LogLevel
   scanPolicy: ExtensionScanPolicy
+  userLimits: {
+    maxActiveTrips: number
+  }
   featureFlags: Record<string, unknown>
   extraConfig: Record<string, unknown>
   releaseNote: ExtensionReleaseNote | null

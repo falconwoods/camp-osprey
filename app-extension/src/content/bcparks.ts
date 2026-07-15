@@ -60,8 +60,27 @@ interface TargetSite {
   setAt: number
 }
 
-// content scripts can only access chrome.storage.local, not session
 dbg('content script loaded', { url: window.location.pathname })
+
+async function getCampsoonTarget(): Promise<TargetSite | null> {
+  let response: { ok: true; target: TargetSite } | { ok: false; error?: string } | undefined
+  try {
+    response = await chrome.runtime.sendMessage({ t: RuntimeMessageCode.getCampsoonTarget })
+  } catch (err) {
+    dbg('target lookup failed', err instanceof Error ? err.message : String(err))
+    return null
+  }
+  if (response?.ok) return response.target
+  dbg('no campsoon target for tab', response?.error ?? 'no response')
+  return null
+}
+
+function clearCampsoonTarget(): void {
+  chrome.runtime.sendMessage({ t: RuntimeMessageCode.clearCampsoonTarget }, () => {
+    void chrome.runtime.lastError
+  })
+  chrome.storage.local.remove('campOspreyTarget')
+}
 
 // BC Parks is an Angular SPA — route changes happen via pushState with no page reload.
 // The content script only runs once on initial load, so we poll for URL changes and
@@ -70,12 +89,9 @@ dbg('content script loaded', { url: window.location.pathname })
 // The results page is handled ONCE on initial load only — re-triggering it on the
 // same path (e.g. after filter dialog changes query params) causes duplicate handlers.
 // The watcher only dispatches for reservationmessages and checkout steps.
-chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) => {
-  if (chrome.runtime.lastError) {
-    dbg('storage error', chrome.runtime.lastError.message); return
-  }
-  const target = result?.['campOspreyTarget'] as TargetSite | undefined
-  if (!target) { dbg('no campOspreyTarget in storage'); return }
+(async () => {
+  const target = await getCampsoonTarget()
+  if (!target) return
   if (target.provider && target.provider !== 'bc_parks') { dbg('target provider is not BC Parks, ignoring', target.provider); return }
   activeTargetSite = target
   const age = Math.round((Date.now() - target.setAt) / 1000)
@@ -117,7 +133,7 @@ chrome.storage.local.get('campOspreyTarget', (result: Record<string, unknown>) =
 
   // Stop watching after 15 minutes (cart expires anyway)
   setTimeout(() => clearInterval(watcher), 15 * 60 * 1000)
-})
+})()
 
 // ── Banner (fixed bottom so it never covers BC Parks nav/cart) ─────────────
 
@@ -707,7 +723,7 @@ async function handleReservationReview(tripId: string, mode: 'reserve' | 'autopa
       setStatus('Site reserved for 15 min — complete payment now!')
       dbg('reserved complete — site in cart')
       chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingReserved, tripId, scanLease: activeTargetSite?.scanLease })
-      chrome.storage.local.remove('campOspreyTarget')
+      clearCampsoonTarget()
       return
     }
 
@@ -797,7 +813,7 @@ async function runCheckout(tripId: string): Promise<void> {
       bookingUrl: window.location.href,
       paidAt: new Date().toISOString(),
     })
-    chrome.storage.local.remove('campOspreyTarget')
+    clearCampsoonTarget()
   }
 
   // Helper: find a button containing the given text (case-insensitive)

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { trips } from '@/db/schema';
+import { trips, user } from '@/db/schema';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 import { getPointAccountSummary } from '@/lib/points-ledger';
 import { getSuccessfulBookingPointCost } from '@/lib/points-config';
@@ -30,19 +30,29 @@ export async function POST(
 
   if (!trip) return withExtensionCors(request, NextResponse.json({ error: 'Not found' }, { status: 404 }));
 
-  const [activeTrip] = await db
-    .select({ id: trips.id })
+  const [userLimits] = await db
+    .select({ maxActiveTrips: user.maxActiveTrips })
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+  const maxActiveTrips = Math.max(1, userLimits?.maxActiveTrips ?? 1);
+
+  const [activeTripCount] = await db
+    .select({ count: count() })
     .from(trips)
     .where(and(
       eq(trips.userId, session.user.id),
       ne(trips.id, id),
       isNull(trips.deletedAt),
       inArray(trips.status, ['scanning', 'reserving']),
-    ))
-    .limit(1);
+    ));
 
-  if (activeTrip) {
-    return withExtensionCors(request, NextResponse.json({ error: 'active_trip_exists' }, { status: 409 }));
+  if ((activeTripCount?.count ?? 0) >= maxActiveTrips) {
+    return withExtensionCors(request, NextResponse.json({
+      error: 'active_trip_exists',
+      activeTripCount: activeTripCount?.count ?? 0,
+      maxActiveTrips,
+    }, { status: 409 }));
   }
 
   if (requiresBookingPoints(trip.mode)) {

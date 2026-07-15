@@ -28,6 +28,8 @@ const EXTENSION_CONFIG_ALARM_NAME = 'extension-config'
 const PENDING_BOOKING_PAYMENT_EVENTS_KEY = 'pendingBookingPaymentEvents'
 const SCAN_CURSORS_KEY = 'campsoonScanCursors'
 const SCAN_TRIP_CURSOR_KEY = 'campsoonScanTripCursor'
+const CAMPSOON_TARGETS_BY_TAB_KEY = 'campsoonTargetsByTab'
+const LEGACY_CAMPSOON_TARGET_KEY = 'campOspreyTarget'
 const providers = {
   bc_parks: new BCParksProvider(),
   parks_canada: new ParksCanadaProvider(),
@@ -38,6 +40,7 @@ let lastAvailabilityRequestAt = 0
 let availabilityPacingQueue: Promise<void> = Promise.resolve()
 let availabilityBackoffUntil = 0
 let availabilityErrorCount = 0
+let reservationTargetWriteQueue: Promise<void> = Promise.resolve()
 let pendingScanAll = false
 const pendingScanTripIds = new Set<string>()
 const stoppedTripIds = new Set<string>()
@@ -51,9 +54,30 @@ let contentLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 
 type ConfirmedBookingPaymentPayload = BookingPaymentEventPayload & { idempotencyKey: string }
 type ScanCursorMap = Record<string, TripScanCursor>
+interface ReservationTabTarget {
+  resourceId: string
+  provider: Trip['provider']
+  siteName: string
+  sectionName: string
+  parkName: string
+  tripId: string
+  mode: 'reserve' | 'autopay'
+  noDouble: boolean
+  noWalkin: boolean
+  checkIn: string
+  checkOut: string
+  availableCount?: number
+  foundAt: string
+  scanLease: string
+  setAt: number
+}
 
 chrome.action.onClicked.addListener(() => {
   void chrome.runtime.openOptionsPage()
+})
+
+chrome.tabs.onRemoved.addListener(tabId => {
+  void clearReservationTargetForTab(tabId)
 })
 
 interface PendingBookingPaymentEvent {
@@ -80,6 +104,78 @@ function storageGet(keys: string | string[]): Promise<Record<string, unknown>> {
 
 function storageSet(values: Record<string, unknown>): Promise<void> {
   return new Promise(resolve => chrome.storage.local.set(values, () => resolve()))
+}
+
+function chromeTabsCreate(createProperties: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab> {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.create(createProperties, tab => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message))
+      else resolve(tab)
+    })
+  })
+}
+
+function chromeTabsUpdate(tabId: number, updateProperties: chrome.tabs.UpdateProperties): Promise<chrome.tabs.Tab> {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.update(tabId, updateProperties, tab => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message))
+      else if (tab) resolve(tab)
+      else reject(new Error('Tab update did not return a tab'))
+    })
+  })
+}
+
+async function getReservationTargetsByTab(): Promise<Record<string, ReservationTabTarget>> {
+  const result = await storageGet(CAMPSOON_TARGETS_BY_TAB_KEY)
+  const targets = result[CAMPSOON_TARGETS_BY_TAB_KEY]
+  return targets && typeof targets === 'object' && !Array.isArray(targets)
+    ? targets as Record<string, ReservationTabTarget>
+    : {}
+}
+
+function mutateReservationTargetsByTab(
+  mutate: (targets: Record<string, ReservationTabTarget>) => void,
+): Promise<void> {
+  reservationTargetWriteQueue = reservationTargetWriteQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const targets = await getReservationTargetsByTab()
+      mutate(targets)
+      await storageSet({ [CAMPSOON_TARGETS_BY_TAB_KEY]: targets })
+    })
+  return reservationTargetWriteQueue
+}
+
+async function setReservationTargetForTab(tabId: number, target: ReservationTabTarget): Promise<void> {
+  await mutateReservationTargetsByTab(targets => {
+    targets[String(tabId)] = target
+  })
+}
+
+async function getReservationTargetForTab(tabId: number): Promise<ReservationTabTarget | null> {
+  const targets = await getReservationTargetsByTab()
+  return targets[String(tabId)] ?? null
+}
+
+async function clearReservationTargetForTab(tabId: number | undefined): Promise<void> {
+  if (typeof tabId !== 'number') return
+  await mutateReservationTargetsByTab(targets => {
+    delete targets[String(tabId)]
+  })
+}
+
+async function clearReservationTargetForSender(sender: chrome.runtime.MessageSender): Promise<void> {
+  await clearReservationTargetForTab(sender.tab?.id)
+}
+
+async function openReservationTab(bookingUrl: string, target: ReservationTabTarget): Promise<chrome.tabs.Tab> {
+  const tab = await chromeTabsCreate({ url: 'about:blank', active: true })
+  if (typeof tab.id !== 'number') {
+    await storageSet({ [LEGACY_CAMPSOON_TARGET_KEY]: target })
+    return chromeTabsCreate({ url: bookingUrl })
+  }
+  await setReservationTargetForTab(tab.id, target)
+  return chromeTabsUpdate(tab.id, { url: bookingUrl })
 }
 
 function getScanPolicy(config: ExtensionRemoteConfig | null | undefined): ExtensionRemoteConfig['scanPolicy'] {
@@ -1025,31 +1121,26 @@ async function handleMatch(
     return
   }
 
-  // For reserve and autopay: open BC Parks booking tab so the reservation
-  // happens inside the user's real browser session (not the extension's
-  // isolated service-worker session, which has a separate cart).
-  // Use chrome.storage.local (not session) — content scripts can only access local storage
-  await new Promise<void>(resolve =>
-    chrome.storage.local.set({
-      campOspreyTarget: {
-        resourceId: site.resourceId,
-        provider: siteProvider,
-        siteName: site.siteName,
-        sectionName: site.sectionName,
-        parkName: site.campgroundName || site.campgroundId,
-        tripId: trip.id,
-        mode: trip.mode,
-        noDouble: trip.filters.noDouble,
-        noWalkin: trip.filters.noWalkin,
-        checkIn: site.checkIn,
-        checkOut: site.checkOut,
-        availableCount,
-        foundAt,
-        scanLease,
-        setAt: Date.now(),
-      },
-    }, resolve)
-  )
+  // For reserve and autopay: open the booking tab in the user's real browser
+  // session. Target metadata is scoped by tab so simultaneous reservation tabs
+  // cannot overwrite each other.
+  const reservationTarget: ReservationTabTarget = {
+    resourceId: site.resourceId,
+    provider: siteProvider,
+    siteName: site.siteName,
+    sectionName: site.sectionName,
+    parkName: site.campgroundName || site.campgroundId,
+    tripId: trip.id,
+    mode: trip.mode,
+    noDouble: trip.filters.noDouble,
+    noWalkin: trip.filters.noWalkin,
+    checkIn: site.checkIn,
+    checkOut: site.checkOut,
+    availableCount,
+    foundAt,
+    scanLease,
+    setAt: Date.now(),
+  }
 
   if (trip.mode === 'reserve') {
     await updateTrip(trip.id, { status: 'reserving', lastMatch: matchedSite })
@@ -1059,7 +1150,7 @@ async function handleMatch(
       bookingUrl,
       true,
     )
-    chrome.tabs.create({ url: bookingUrl })
+    await openReservationTab(bookingUrl, reservationTarget)
     await logEntry({
       level: 'info',
       eventCode: LogEventCode.reservationTabOpened,
@@ -1083,7 +1174,7 @@ async function handleMatch(
       bookingUrl,
       true,
     )
-    chrome.tabs.create({ url: bookingUrl })
+    await openReservationTab(bookingUrl, reservationTarget)
     await logEntry({
       level: 'info',
       eventCode: LogEventCode.reservationTabOpened,
@@ -1152,7 +1243,30 @@ chrome.runtime.onMessage.addListener((msg: {
   attemptKey?: string
   resetActiveMatch?: boolean
   scanLease?: unknown
-}, _sender, sendResponse) => {
+}, sender, sendResponse) => {
+  if (msg.t === RuntimeMessageCode.getCampsoonTarget) {
+    void (async () => {
+      try {
+        const tabId = sender.tab?.id
+        const target = typeof tabId === 'number'
+          ? await getReservationTargetForTab(tabId)
+          : null
+        if (target) {
+          sendResponse({ ok: true, target })
+          return
+        }
+        const legacy = (await storageGet(LEGACY_CAMPSOON_TARGET_KEY))[LEGACY_CAMPSOON_TARGET_KEY]
+        sendResponse(legacy ? { ok: true, target: legacy } : { ok: false, error: 'target_not_found' })
+      } catch (err) {
+        sendResponse({ ok: false, error: err instanceof Error ? err.message : 'target_lookup_failed' })
+      }
+    })()
+    return true
+  }
+  if (msg.t === RuntimeMessageCode.clearCampsoonTarget) {
+    void clearReservationTargetForSender(sender)
+    return
+  }
   if (msg.t === RuntimeMessageCode.getDecryptedPayment) {
     void (async () => {
       try {
@@ -1188,7 +1302,7 @@ chrome.runtime.onMessage.addListener((msg: {
     if (msg.tripId && isScanLease(msg.scanLease)) activeScanLeases.set(msg.tripId, msg.scanLease)
     if (msg.tripId) stoppedTripIds.delete(msg.tripId)
     if (msg.tripId && msg.resetActiveMatch) clearActiveMatchesForTrip(msg.tripId)
-    chrome.storage.local.remove('campOspreyTarget')
+    chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
     runScanCycle(msg.tripId)
     return
   }
@@ -1198,7 +1312,8 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.t === RuntimeMessageCode.matchFailed && msg.tripId) {
-    chrome.storage.local.remove('campOspreyTarget')
+    void clearReservationTargetForSender(sender)
+    chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
     clearFailedActiveMatch(msg.tripId, msg.attemptKey)
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
@@ -1221,7 +1336,8 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.t === RuntimeMessageCode.bookingReserved && msg.tripId) {
-    chrome.storage.local.remove('campOspreyTarget')
+    void clearReservationTargetForSender(sender)
+    chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const reservedAt = new Date().toISOString()
@@ -1311,6 +1427,8 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.t === RuntimeMessageCode.bookingConfirmed && msg.tripId) {
+    void clearReservationTargetForSender(sender)
+    chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
     getTrips().then(async trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch
@@ -1411,7 +1529,8 @@ chrome.runtime.onMessage.addListener((msg: {
     })
   }
   if (msg.t === RuntimeMessageCode.bookingFailed && msg.tripId) {
-    chrome.storage.local.remove('campOspreyTarget')
+    void clearReservationTargetForSender(sender)
+    chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const m = trip?.lastMatch

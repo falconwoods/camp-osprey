@@ -99,6 +99,7 @@ export function normalizeExtensionConfig(value: unknown): ExtensionRemoteConfig 
   ) return null
 
   const maintenance = isRecord(value.maintenance) ? value.maintenance : {}
+  const userLimits = isRecord(value.userLimits) ? value.userLimits : {}
   const releaseNote = isRecord(value.releaseNote) &&
     typeof value.releaseNote.version === 'string' &&
     typeof value.releaseNote.title === 'string'
@@ -129,6 +130,9 @@ export function normalizeExtensionConfig(value: unknown): ExtensionRemoteConfig 
     },
     logSyncMinLevel: asLogLevel(value.logSyncMinLevel),
     scanPolicy: normalizeScanPolicy(value.scanPolicy),
+    userLimits: {
+      maxActiveTrips: positiveInteger(userLimits.maxActiveTrips, 1),
+    },
     featureFlags: isRecord(value.featureFlags) ? value.featureFlags : {},
     extraConfig: isRecord(value.extraConfig) ? value.extraConfig : {},
     releaseNote,

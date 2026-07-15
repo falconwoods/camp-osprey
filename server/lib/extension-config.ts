@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { extensionConfigs, extensionHeartbeats, extensionReleases } from '@/db/schema';
+import { extensionConfigs, extensionHeartbeats, extensionReleases, user } from '@/db/schema';
 import { buildRequestContext, normalizeRequestClientInfo } from './request-context';
 
 export const EXTENSION_CHANNELS = ['chrome_store', 'website'] as const;
@@ -110,7 +110,7 @@ export function extensionConfigRequestBody(body: unknown): {
   };
 }
 
-export async function getExtensionConfigResponse(channel: ExtensionChannel) {
+export async function getExtensionConfigResponse(channel: ExtensionChannel, userId?: string) {
   const [config] = await db
     .select()
     .from(extensionConfigs)
@@ -143,6 +143,13 @@ export async function getExtensionConfigResponse(channel: ExtensionChannel) {
     .limit(1);
 
   const extraConfig = optionalRecord(effectiveConfig.extraConfig);
+  const [userLimits] = userId
+    ? await db
+      .select({ maxActiveTrips: user.maxActiveTrips })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1)
+    : [];
 
   return {
     serverTime: new Date().toISOString(),
@@ -161,6 +168,9 @@ export async function getExtensionConfigResponse(channel: ExtensionChannel) {
     featureFlags: optionalRecord(effectiveConfig.featureFlags),
     extraConfig,
     scanPolicy: normalizeScanPolicy(extraConfig),
+    userLimits: {
+      maxActiveTrips: Math.max(1, userLimits?.maxActiveTrips ?? 1),
+    },
     releaseNote: release ? {
       version: release.version,
       title: release.title,
