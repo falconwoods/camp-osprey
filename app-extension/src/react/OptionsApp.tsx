@@ -22,15 +22,16 @@ import { PaymentPanel } from './PaymentPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
 import { getPointsBalance } from '../serverApi'
-import { getGlobalWarnings, type Warning } from '../warnings'
+import { getGlobalWarnings, getRequiredBookingProviders, type Warning } from '../warnings'
 import { IS_LOCAL_BUILD } from '../config'
 import { getExtensionUpdateUrl } from '../extensionConfig'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
 import { AppAlert } from '../components/AppAlert'
 import { useConfirmDialog } from '../components/ConfirmDialog'
-import type { ExtensionRemoteConfig, MatchedSite, Trip } from '../types'
+import type { ExtensionRemoteConfig, MatchedSite, ReservationProvider, Trip } from '../types'
 import { ExtensionUpdateAlert, OptionalUpdateDetails, RequiredUpdateDetails } from './ExtensionUpdateAlert'
+import { providerInfo } from '../providers/config'
 
 type Tab = 'trips' | 'account' | 'payment' | 'settings' | 'logs' | 'demo'
 const LocalLogsPanel = IS_LOCAL_BUILD
@@ -282,9 +283,9 @@ export function OptionsApp() {
           <TripsView
             trips={state.trips}
             signedIn={Boolean(state.auth?.user)}
-            bcParksLoggedIn={state.bcParksLoggedIn}
+            providerLoggedIn={state.providerLoggedIn}
             extensionConfig={state.storage.extensionConfig}
-            warnings={getGlobalWarnings(state.trips, state.bcParksLoggedIn, state.storage.payment)}
+            warnings={getGlobalWarnings(state.trips, state.providerLoggedIn, state.storage.payment)}
             onSignIn={openAuthDialog}
             onEdit={trip => setEditing(trip)}
             onStart={handleStart}
@@ -420,7 +421,7 @@ function PageLoadingShell({ tab }: { tab: Tab }) {
 function TripsView({
   trips,
   signedIn,
-  bcParksLoggedIn,
+  providerLoggedIn,
   extensionConfig,
   warnings,
   onSignIn,
@@ -434,7 +435,7 @@ function TripsView({
 }: {
   trips: Trip[]
   signedIn: boolean
-  bcParksLoggedIn: boolean
+  providerLoggedIn: Record<ReservationProvider, boolean>
   extensionConfig: ExtensionRemoteConfig | null
   warnings: Warning[]
   onSignIn: () => void
@@ -446,11 +447,12 @@ function TripsView({
   onRequiredUpdate: () => void
   onOptionalUpdate: () => void
 }) {
-  const connectBcParks = () => chrome.tabs.create({ url: 'https://camping.bcparks.ca/login' })
-  const needsTwoStepOnboarding = !signedIn && !bcParksLoggedIn
-  const needsCampsoonReconnect = !signedIn && bcParksLoggedIn
-  const needsBcParksReconnect = signedIn && !bcParksLoggedIn
-  const visibleWarnings = warnings.filter(warning => warning.title !== 'BC Parks sign-in needed')
+  const requiredProviders = getRequiredBookingProviders(trips)
+  const missingProviders = requiredProviders.filter(provider => !providerLoggedIn[provider])
+  const connectProvider = (provider: ReservationProvider) => chrome.tabs.create({ url: providerInfo(provider).loginUrl })
+  const needsTwoStepOnboarding = !signedIn && missingProviders.length > 0
+  const needsCampsoonReconnect = !signedIn && missingProviders.length === 0 && trips.length > 0
+  const visibleWarnings = warnings.filter(warning => !warning.title?.endsWith('sign-in needed'))
 
   return (
     <div className="trips-dashboard">
@@ -467,15 +469,19 @@ function TripsView({
           action={{ label: 'Sign in', onClick: onSignIn }}
         />
       ) : null}
-      {needsBcParksReconnect ? (
-        <AppAlert
-          variant="error"
-          title="BC Parks sign-in needed"
-          message="Sign in to BC Parks to continue using auto-reserve and auto-pay."
-          action={{ label: 'Open BC Parks', onClick: connectBcParks }}
-        />
-      ) : null}
-      {signedIn && bcParksLoggedIn ? (
+      {signedIn ? missingProviders.map(provider => {
+        const info = providerInfo(provider)
+        return (
+          <AppAlert
+            key={provider}
+            variant="error"
+            title={`${info.label} sign-in needed`}
+            message={`Sign in to ${info.label} to continue using auto-reserve and auto-pay for trips on that provider.`}
+            action={{ label: `Open ${info.label}`, onClick: () => connectProvider(provider) }}
+          />
+        )
+      }) : null}
+      {signedIn && missingProviders.length === 0 ? (
         <div className="connection-grid setup-complete-grid">
           <section className="connection-card">
             <div className="connection-icon"><UserCircle size={34} /></div>
@@ -484,13 +490,18 @@ function TripsView({
               <p><span className="mini-dot online" /> Signed in</p>
             </div>
           </section>
-          <section className="connection-card">
-            <div className="connection-icon"><TreePine size={32} /></div>
-            <div className="connection-copy">
-              <h2>BC Parks</h2>
-              <p><span className="mini-dot online" /> Signed in</p>
-            </div>
-          </section>
+          {requiredProviders.map(provider => {
+            const info = providerInfo(provider)
+            return (
+              <section className="connection-card" key={provider}>
+                <div className="connection-icon"><TreePine size={32} /></div>
+                <div className="connection-copy">
+                  <h2>{info.label}</h2>
+                  <p><span className="mini-dot online" /> Signed in</p>
+                </div>
+              </section>
+            )
+          })}
         </div>
       ) : null}
       {needsTwoStepOnboarding ? (
@@ -513,8 +524,8 @@ function TripsView({
                   <div className="connection-icon"><TreePine size={31} /></div>
                   <div>
                     <strong>Step 2</strong>
-                    <h3>Sign in to BC Parks</h3>
-                    <p>Required for Auto-reserve and Auto-pay to make bookings and payments.</p>
+                    <h3>Sign in to {missingProviders.map(provider => providerInfo(provider).label).join(' and ')}</h3>
+                    <p>Required only for providers used by your Auto-reserve and Auto-pay trips.</p>
                   </div>
                 </div>
               </div>

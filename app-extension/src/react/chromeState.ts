@@ -3,9 +3,10 @@ import { getAuth, getDebugLog, getStorage } from '../storage'
 import { isLoggedIn } from '../background/login'
 import { getTrips, TRIPS_CACHE_KEY } from '../tripStore'
 import { applyTheme } from '../theme'
-import type { AuthState, DebugLogEntry, StorageData, Trip } from '../types'
+import type { AuthState, DebugLogEntry, ReservationProvider, StorageData, Trip } from '../types'
 import { refreshExtensionConfig } from '../extensionConfig'
 import { RuntimeMessageCode } from '../protocol'
+import { PROVIDERS } from '../providers/config'
 
 export interface ExtensionState {
   storage: StorageData | null
@@ -13,6 +14,7 @@ export interface ExtensionState {
   trips: Trip[]
   debugLog: DebugLogEntry[]
   bcParksLoggedIn: boolean
+  providerLoggedIn: Record<ReservationProvider, boolean>
   loading: boolean
   tripsLoaded: boolean
 }
@@ -27,6 +29,10 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
     trips: [],
     debugLog: [],
     bcParksLoggedIn: false,
+    providerLoggedIn: {
+      bc_parks: false,
+      parks_canada: false,
+    },
     loading: true,
     tripsLoaded: false,
   })
@@ -42,17 +48,32 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
         return { trips: tripsRef.current, loaded: true }
       }
     }
-    const [storage, auth, tripsResult, debugLog, bcParksLoggedIn] = await Promise.all([
+    const [storage, auth, tripsResult, debugLog, providerLoginEntries] = await Promise.all([
       getStorage(),
       getAuth(),
       loadTrips(),
       getDebugLog().catch(() => []),
-      isLoggedIn().catch(() => false),
+      Promise.all(
+        Object.keys(PROVIDERS).map(async provider => [
+          provider,
+          await isLoggedIn(provider as ReservationProvider).catch(() => false),
+        ] as const),
+      ),
     ])
+    const providerLoggedIn = Object.fromEntries(providerLoginEntries) as Record<ReservationProvider, boolean>
     applyTheme(storage.settings.theme ?? 'auto')
     tripsRef.current = tripsResult.trips
     tripsLoadedRef.current = tripsResult.loaded
-    setState({ storage, auth, trips: tripsResult.trips, debugLog, bcParksLoggedIn, loading: false, tripsLoaded: tripsLoadedRef.current })
+    setState({
+      storage,
+      auth,
+      trips: tripsResult.trips,
+      debugLog,
+      bcParksLoggedIn: providerLoggedIn.bc_parks,
+      providerLoggedIn,
+      loading: false,
+      tripsLoaded: tripsLoadedRef.current,
+    })
     hasLoadedRef.current = true
   }, [])
 

@@ -1,6 +1,7 @@
-import type { PaymentConfig, Trip } from './types'
+import type { PaymentConfig, ReservationProvider, Trip } from './types'
 import { hasSavedParkPayment } from './paymentCrypto'
 import { expandDateRange, isBookable } from './dates'
+import { providerInfo } from './providers/config'
 
 export interface Warning {
   level: 'error' | 'warn'
@@ -30,15 +31,32 @@ export function getTripWarnings(trip: Trip): Warning[] {
   return warnings
 }
 
-export function getGlobalWarnings(trips: Trip[], loggedIn: boolean, payment: PaymentConfig | null = null): Warning[] {
-  const warnings: Warning[] = []
+export function getRequiredBookingProviders(trips: Trip[]): ReservationProvider[] {
+  const providers = new Set<ReservationProvider>()
+  for (const trip of trips) {
+    if (trip.mode === 'reserve' || trip.mode === 'autopay') providers.add(trip.provider)
+  }
+  return [...providers]
+}
 
-  if (!loggedIn) {
+export function getGlobalWarnings(
+  trips: Trip[],
+  providerLoggedIn: Partial<Record<ReservationProvider, boolean>> | boolean,
+  payment: PaymentConfig | null = null,
+): Warning[] {
+  const warnings: Warning[] = []
+  const loggedInByProvider: Partial<Record<ReservationProvider, boolean>> = typeof providerLoggedIn === 'boolean'
+    ? { bc_parks: providerLoggedIn }
+    : providerLoggedIn
+
+  for (const provider of getRequiredBookingProviders(trips)) {
+    if (loggedInByProvider[provider]) continue
+    const info = providerInfo(provider)
     warnings.push({
       level: 'warn',
-      title: 'BC Parks sign-in needed',
-      message: 'Sign in to BC Parks to continue using auto-reserve and auto-pay.',
-      action: { label: 'Open BC Parks', url: 'https://camping.bcparks.ca/login' },
+      title: `${info.label} sign-in needed`,
+      message: `Sign in to ${info.label} to continue using auto-reserve and auto-pay for trips on that provider.`,
+      action: { label: `Open ${info.label}`, url: info.loginUrl },
     })
   }
 

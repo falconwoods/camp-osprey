@@ -81,7 +81,7 @@ export function PopupApp() {
 
   if (state.loading || !state.storage) return <div className="popup-shell loading-view">Loading...</div>
 
-  const warnings = getGlobalWarnings(state.trips, state.bcParksLoggedIn, state.storage.payment)
+  const warnings = getGlobalWarnings(state.trips, state.providerLoggedIn, state.storage.payment)
 
   return (
     <div className="popup-shell">
