@@ -472,18 +472,37 @@ chrome.storage.onChanged.addListener(changes => {
 })
 
 async function setupAlarm(intervalSeconds: number): Promise<void> {
-  await new Promise<void>(resolve => chrome.alarms.clear(ALARM_NAME, () => resolve()))
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: intervalSeconds / 60 })
+  const periodInMinutes = Math.max(1, intervalSeconds / 60)
+  const existing = await getAlarm(ALARM_NAME)
+  if (existing && Math.abs((existing.periodInMinutes ?? 0) - periodInMinutes) < 0.001) return
+
+  await clearAlarm(ALARM_NAME)
+  chrome.alarms.create(ALARM_NAME, { periodInMinutes })
 }
 
 async function setupLogSyncAlarm(): Promise<void> {
-  await new Promise<void>(resolve => chrome.alarms.clear(LOG_SYNC_ALARM_NAME, () => resolve()))
+  const existing = await getAlarm(LOG_SYNC_ALARM_NAME)
+  if (existing && Math.abs((existing.periodInMinutes ?? 0) - 1) < 0.001) return
+
+  await clearAlarm(LOG_SYNC_ALARM_NAME)
   chrome.alarms.create(LOG_SYNC_ALARM_NAME, { periodInMinutes: 1 })
 }
 
 async function setupExtensionConfigAlarm(intervalSeconds: number): Promise<void> {
-  await new Promise<void>(resolve => chrome.alarms.clear(EXTENSION_CONFIG_ALARM_NAME, () => resolve()))
-  chrome.alarms.create(EXTENSION_CONFIG_ALARM_NAME, { periodInMinutes: Math.max(1, intervalSeconds / 60) })
+  const periodInMinutes = Math.max(1, intervalSeconds / 60)
+  const existing = await getAlarm(EXTENSION_CONFIG_ALARM_NAME)
+  if (existing && Math.abs((existing.periodInMinutes ?? 0) - periodInMinutes) < 0.001) return
+
+  await clearAlarm(EXTENSION_CONFIG_ALARM_NAME)
+  chrome.alarms.create(EXTENSION_CONFIG_ALARM_NAME, { periodInMinutes })
+}
+
+function getAlarm(name: string): Promise<chrome.alarms.Alarm | undefined> {
+  return new Promise(resolve => chrome.alarms.get(name, alarm => resolve(alarm)))
+}
+
+function clearAlarm(name: string): Promise<void> {
+  return new Promise(resolve => chrome.alarms.clear(name, () => resolve()))
 }
 
 async function refreshAndScheduleExtensionConfig(): Promise<void> {
@@ -561,6 +580,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
     provider.beforeAvailabilityMapRequest = signal => waitForAvailabilitySlot(scanPolicy.requestSpacingMs, signal)
     const effectiveIntervalSeconds = getEffectiveScanIntervalSeconds(settings.pollIntervalSeconds, extensionConfig)
     await setupAlarm(effectiveIntervalSeconds)
+    const scanAlarm = await getAlarm(ALARM_NAME)
     const targetSet = targetTripIds
       ? new Set(Array.isArray(targetTripIds) ? targetTripIds : [targetTripIds])
       : null
@@ -584,6 +604,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
         requestSpacingMs: scanPolicy.requestSpacingMs,
         maxRequestsPerCycle: scanPolicy.maxRequestsPerCycle,
         maxRequestsPerTripPerCycle: scanPolicy.maxRequestsPerTripPerCycle,
+        nextAlarmAt: scanAlarm?.scheduledTime ? new Date(scanAlarm.scheduledTime).toISOString() : null,
       },
     })
 
