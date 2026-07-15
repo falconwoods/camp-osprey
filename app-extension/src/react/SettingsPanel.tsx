@@ -1,11 +1,11 @@
-import { Bell, Clock, Mail, Moon, Palette, Sun, SunMoon, TriangleAlert } from 'lucide-react'
+import { Bell, Clock, Info, Mail, Moon, Palette, Sun, SunMoon, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { saveSettings } from '../storage'
 import { applyTheme } from '../theme'
 import { Button } from '../components/ui/button'
 import { Select } from '../components/ui/select'
 import { useConfirmDialog } from '../components/ConfirmDialog'
-import { getDefaultScanPolicy, resolveScanIntervalSeconds } from '../extensionConfig'
+import { getCurrentExtensionVersion, getDefaultScanPolicy, resolveScanIntervalSeconds } from '../extensionConfig'
 import type { ExtensionRemoteConfig, Settings, Theme } from '../types'
 
 export function SettingsPanel({ settings, extensionConfig, onChanged }: { settings: Settings; extensionConfig: ExtensionRemoteConfig | null; onChanged: () => Promise<void> }) {
@@ -18,6 +18,8 @@ export function SettingsPanel({ settings, extensionConfig, onChanged }: { settin
   const effectiveInterval = intervalOptions.includes(settings.pollIntervalSeconds)
     ? settings.pollIntervalSeconds
     : resolveScanIntervalSeconds(settings.pollIntervalSeconds, scanPolicy)
+  const currentVersion = getCurrentExtensionVersion()
+  const latestVersion = extensionConfig?.latestVersion
 
   async function update(patch: Partial<Settings>) {
     const next = { ...settings, ...patch }
@@ -100,6 +102,22 @@ export function SettingsPanel({ settings, extensionConfig, onChanged }: { settin
         <div className="settings-card-title"><Bell className="icon" /> Notifications</div>
         <Button variant="secondary" onClick={testNotification}><Bell size={16} /> Test Notification</Button>
         <div className="notification-help"><strong>Tip</strong> If the test does not appear, check Chrome notification permissions in your OS notification settings, such as macOS System Settings or Windows Settings &gt; System &gt; Notifications.</div>
+      </section>
+
+      <section className="settings-card about-card">
+        <div className="settings-card-title"><Info className="icon" /> About</div>
+        <dl className="settings-version-details">
+          <div>
+            <dt>Installed version</dt>
+            <dd>{currentVersion}</dd>
+          </div>
+          {latestVersion ? (
+            <div>
+              <dt>Latest version</dt>
+              <dd>{latestVersion}</dd>
+            </div>
+          ) : null}
+        </dl>
       </section>
       </div>
       {confirmation.dialog}

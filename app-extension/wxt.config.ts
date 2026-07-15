@@ -1,5 +1,6 @@
 import { defineConfig } from 'wxt'
 import tailwindcss from '@tailwindcss/vite'
+import packageJson from './package.json' with { type: 'json' }
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
@@ -13,7 +14,7 @@ export default defineConfig({
   }),
   manifest: {
     name: 'campsoon',
-    version: '0.1.0',
+    version: packageJson.version,
     description: 'Scan BC Parks for campsite cancellations and auto-reserve when found.',
     permissions: ['alarms', 'cookies', 'notifications', 'storage', 'tabs', 'unlimitedStorage'],
     host_permissions: ['https://camping.bcparks.ca/*'],
