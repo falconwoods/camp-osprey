@@ -8,7 +8,7 @@ import { validateAuth } from '../auth'
 import { notifyUserResult, requestScanLease, sendBookingPaymentEvent } from '../serverApi'
 import type { BookingPaymentEventPayload } from '../serverApi'
 import { flushPendingServerLogs } from '../logSync'
-import { getTrips, updateTrip } from '../tripStore'
+import { getTrips, updateTrip, updateTripLastScannedAt } from '../tripStore'
 import { IS_LOCAL_BUILD } from '../config'
 import {
   getCachedExtensionConfig,
@@ -701,6 +701,7 @@ async function runScanCycle(targetTripIds?: string | string[]): Promise<void> {
           })
           const results = await provider.getAvailability(id, ci, co, filters, controller.signal)
           clearAvailabilityFailure()
+          await updateTripLastScannedAt(trip.id)
           if (results.length > 0) {
             await logEntry({
               level: 'info',

@@ -34,6 +34,12 @@ function toNullableTime(value: unknown): number | null {
   return Number.isNaN(time) ? null : time
 }
 
+function toOptionalTime(value: unknown): number | undefined {
+  if (value === null || value === undefined) return undefined
+  const time = toTime(value, Number.NaN)
+  return Number.isNaN(time) ? undefined : time
+}
+
 function normalizeMode(value: unknown): Trip['mode'] {
   if (value === 'notify' || value === 'alert') return 'alert'
   if (value === 'autopay') return 'autopay'
@@ -69,8 +75,14 @@ export function normalizeTrip(value: unknown): Trip {
     attempted: Array.isArray(source.attempted) ? source.attempted : [],
     createdAt,
     updatedAt,
+    lastScannedAt: toOptionalTime(source.lastScannedAt),
     deletedAt: toNullableTime(source.deletedAt),
   } as Trip
+}
+
+function mergeLocalTripFields(serverTrip: Trip, cachedTrip?: Trip): Trip {
+  if (!cachedTrip?.lastScannedAt) return serverTrip
+  return { ...serverTrip, lastScannedAt: cachedTrip.lastScannedAt }
 }
 
 async function readTripsCache(authToken: string): Promise<Trip[] | null> {
@@ -108,8 +120,12 @@ export async function getTrips(options: { refresh?: boolean } = {}): Promise<Tri
     if (cached) return cached
   }
 
+  const cachedTrips = await readTripsCache(auth.token)
+  const cachedById = new Map((cachedTrips ?? []).map(trip => [trip.id, trip]))
   const rows = await serverFetch<unknown[]>('/api/trips', { method: 'GET', auth: true })
-  const trips = rows.map(normalizeTrip).filter(trip => !trip.deletedAt)
+  const trips = rows
+    .map(row => mergeLocalTripFields(normalizeTrip(row), cachedById.get(String((row as { id?: unknown })?.id))))
+    .filter(trip => !trip.deletedAt)
   const refreshedAuth = await getAuth()
   await writeTripsCache(refreshedAuth.token ?? auth.token, trips)
   return trips
@@ -124,9 +140,10 @@ export async function saveTrip(trip: Trip): Promise<Trip> {
   const refreshedAuth = await getAuth()
   await updateTripsCache(refreshedAuth.token ?? auth.token, trips => {
     const existingIndex = trips.findIndex(item => item.id === normalized.id)
+    const next = mergeLocalTripFields(normalized, existingIndex === -1 ? undefined : trips[existingIndex])
     if (normalized.deletedAt) return trips.filter(item => item.id !== normalized.id)
-    if (existingIndex === -1) return [normalized, ...trips]
-    return trips.map((item, index) => index === existingIndex ? normalized : item)
+    if (existingIndex === -1) return [next, ...trips]
+    return trips.map((item, index) => index === existingIndex ? next : item)
   })
   notifyTripsChanged()
   return normalized
@@ -137,6 +154,15 @@ export async function updateTrip(tripId: string, updates: Partial<Trip>): Promis
   const trip = trips.find(t => t.id === tripId)
   if (!trip) throw new Error(`Trip ${tripId} not found`)
   return saveTrip({ ...trip, ...updates, updatedAt: Date.now() })
+}
+
+export async function updateTripLastScannedAt(tripId: string, lastScannedAt = Date.now()): Promise<void> {
+  const auth = await getAuth()
+  if (!auth.token) return
+  await updateTripsCache(auth.token, trips =>
+    trips.map(trip => trip.id === tripId ? { ...trip, lastScannedAt } : trip)
+  )
+  notifyTripsChanged()
 }
 
 export async function deleteTrip(trip: Trip): Promise<void> {

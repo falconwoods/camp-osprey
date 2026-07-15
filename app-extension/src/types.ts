@@ -11,6 +11,7 @@ export interface Trip {
   attempted: string[]     // "parkId|checkIn|checkOut" dedup keys
   createdAt: number
   updatedAt?: number
+  lastScannedAt?: number  // local-only scanner heartbeat; not synced to server
   deletedAt?: number | null
 }
 

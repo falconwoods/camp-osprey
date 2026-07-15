@@ -18,9 +18,9 @@ export function modeLabel(mode: Trip['mode']): string {
 
 export function statusDisplay(trip: Trip): { title: string; detail: string; time: string } {
   const lastActivity = trip.lastMatch?.paidAt ?? trip.lastMatch?.reservedAt ?? trip.lastMatch?.foundAt
-  const checkedAt = lastActivity ?? (trip.updatedAt ? new Date(trip.updatedAt).toISOString() : '')
-  const updated = checkedAt ? formatDateTime(checkedAt) : ''
-  const time = checkedAt ? `Last checked ${relativeTime(checkedAt)}` : 'Not checked yet'
+  const scannedAt = trip.lastScannedAt ? new Date(trip.lastScannedAt).toISOString() : ''
+  const updated = lastActivity ? formatDateTime(lastActivity) : ''
+  const time = scannedAt ? `Last scanned ${relativeTime(scannedAt)} · ${formatScanTimestamp(scannedAt)}` : 'Not scanned yet'
 
   if (trip.mode === 'alert' && trip.lastMatch?.foundAt) {
     return { title: 'Found', detail: 'Campsite available', time: updated || time }
@@ -59,6 +59,21 @@ export function formatDateTime(value?: string): string {
 
 export function matchLine(match: MatchedSite): string {
   return `${match.parkName} / ${match.sectionName || 'Section'} / Site ${match.siteName}`
+}
+
+function formatScanTimestamp(value: string): string {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return formatDateTime(value)
+  const now = new Date()
+  const sameDay = date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate()
+  return date.toLocaleString(undefined, {
+    ...(sameDay ? {} : { month: 'short', day: 'numeric' } as const),
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 function relativeTime(value: string): string {
