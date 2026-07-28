@@ -7,6 +7,7 @@ import { LogEventCode, RuntimeMessageCode } from '../protocol'
 // We write logs to a hidden DOM element instead, readable from the page context.
 const _dbg: string[] = []
 let activeTargetSite: TargetSite | null = null
+const TARGET_MAX_AGE_MS = 30 * 60 * 1000
 
 function dbg(msg: string, data?: unknown): void {
   const line = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg
@@ -94,13 +95,17 @@ function clearCampsoonTarget(): void {
   if (!target) return
   if (target.provider && target.provider !== 'bc_parks') { dbg('target provider is not BC Parks, ignoring', target.provider); return }
   activeTargetSite = target
-  const age = Math.round((Date.now() - target.setAt) / 1000)
-  dbg('target loaded', { ...target, ageSeconds: age })
-  if (age > 300) { dbg('target is stale, ignoring'); return }
+  const ageMs = Date.now() - target.setAt
+  const ageSeconds = Math.round(ageMs / 1000)
+  dbg('target loaded', { ...target, ageSeconds })
+  if (ageMs > TARGET_MAX_AGE_MS) { dbg('target is stale, ignoring'); return }
 
-  // Handle initial URL (results page only — other pages handled by watcher below)
+  // Handle initial URL. Confirmation detection runs for both reserve and auto-pay
+  // because reserve users may complete payment manually after Campsoon holds the site.
   const initialUrl = window.location.href
-  if (initialUrl.includes('/create-booking/results')) {
+  if (reportExistingBookingConfirmation(target.tripId)) {
+    return
+  } else if (initialUrl.includes('/create-booking/results')) {
     dbg('detected: results page (initial)')
     handleResultsPage(target)
   } else if (initialUrl.includes('reservationmessages')) {
@@ -123,9 +128,14 @@ function clearCampsoonTarget(): void {
     if (url.includes('reservationmessages')) {
       dbg('detected: reservationmessages page')
       handleReservationReview(target.tripId, target.mode)
-    } else if (url.includes('/create-booking/') && !url.includes('/results') && target.mode === 'autopay') {
-      dbg('detected: checkout step')
-      runCheckout(target.tripId)
+    } else if (url.includes('/create-booking/') && !url.includes('/results')) {
+      if (reportExistingBookingConfirmation(target.tripId)) return
+      if (target.mode === 'autopay') {
+        dbg('detected: checkout step')
+        runCheckout(target.tripId)
+      } else {
+        dbg('detected manual checkout step')
+      }
     } else {
       dbg('SPA: no action for this route', { path })
     }
@@ -723,7 +733,6 @@ async function handleReservationReview(tripId: string, mode: 'reserve' | 'autopa
       setStatus('Site reserved for 15 min — complete payment now!')
       dbg('reserved complete — site in cart')
       chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingReserved, tripId, scanLease: activeTargetSite?.scanLease })
-      clearCampsoonTarget()
       return
     }
 
@@ -791,6 +800,26 @@ async function waitForBookingConfirmation(timeoutMs = 60_000): Promise<NonNullab
   throw new Error('Payment submitted, but BC Parks confirmation page was not detected')
 }
 
+function reportConfirmedBooking(tripId: string, confirmationNumber: string): void {
+  dbg('booking confirmed', confirmationNumber)
+  chrome.runtime.sendMessage({
+    t: RuntimeMessageCode.bookingConfirmed,
+    tripId,
+    scanLease: activeTargetSite?.scanLease,
+    confirmationNumber,
+    bookingUrl: window.location.href,
+    paidAt: new Date().toISOString(),
+  })
+  clearCampsoonTarget()
+}
+
+function reportExistingBookingConfirmation(tripId: string): boolean {
+  const confirmation = findBookingConfirmation(document, window.location.href)
+  if (!confirmation) return false
+  reportConfirmedBooking(tripId, confirmation.confirmationNumber)
+  return true
+}
+
 // Checkout wizard driver — confirmed selectors from Playwright recording.
 // BC Parks checkout is a multi-step wizard; each step is a separate page load.
 // We detect which step we're on by looking for the step's unique confirm button.
@@ -802,19 +831,6 @@ async function waitForBookingConfirmation(timeoutMs = 60_000): Promise<NonNullab
 async function runCheckout(tripId: string): Promise<void> {
   dbg('runCheckout', { url: window.location.pathname })
   await sleep(1500)  // wait for Angular to render the step
-
-  const reportConfirmedBooking = (confirmationNumber: string) => {
-    dbg('booking confirmed', confirmationNumber)
-    chrome.runtime.sendMessage({
-      t: RuntimeMessageCode.bookingConfirmed,
-      tripId,
-      scanLease: activeTargetSite?.scanLease,
-      confirmationNumber,
-      bookingUrl: window.location.href,
-      paidAt: new Date().toISOString(),
-    })
-    clearCampsoonTarget()
-  }
 
   // Helper: find a button containing the given text (case-insensitive)
   const btn = (text: string): HTMLElement | null =>
@@ -830,7 +846,7 @@ async function runCheckout(tripId: string): Promise<void> {
   try {
     const existingConfirmation = findBookingConfirmation(document, window.location.href)
     if (existingConfirmation) {
-      reportConfirmedBooking(existingConfirmation.confirmationNumber)
+      reportConfirmedBooking(tripId, existingConfirmation.confirmationNumber)
       return
     }
     const existingFailure = findPaymentFailure(document, window.location.href)
@@ -930,7 +946,7 @@ async function runCheckout(tripId: string): Promise<void> {
       dbg('clicked: Apply payment')
 
       const confirmed = await waitForBookingConfirmation(60_000)
-      reportConfirmedBooking(confirmed.confirmationNumber)
+      reportConfirmedBooking(tripId, confirmed.confirmationNumber)
       return
     }
 

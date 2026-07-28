@@ -1336,8 +1336,6 @@ chrome.runtime.onMessage.addListener((msg: {
     return
   }
   if (msg.t === RuntimeMessageCode.bookingReserved && msg.tripId) {
-    void clearReservationTargetForSender(sender)
-    chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
     getTrips().then(trips => {
       const trip = trips.find(t => t.id === msg.tripId)
       const reservedAt = new Date().toISOString()
