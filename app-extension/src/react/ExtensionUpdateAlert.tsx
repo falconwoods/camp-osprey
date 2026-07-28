@@ -24,37 +24,39 @@ function UpdateReleaseDetails({
   const releaseNote = config?.releaseNote
 
   return (
-    <>
-      <p>
+    <div className="update-details">
+      <p className="update-details-lead">
         {required
-          ? config?.forceUpdateMessage ?? 'This version of Campsoon is no longer supported for scanning.'
+          ? `${config?.forceUpdateMessage ?? 'Please download the latest Campsoon extension to continue.'} Then install it and reload the extension before starting scans again.`
           : `A newer version of Campsoon is available.`}
       </p>
-      {releaseNote?.title ? <p><strong>{releaseNote.title}</strong></p> : null}
+      {releaseNote?.title ? <p className="update-release-title">{releaseNote.title}</p> : null}
       <dl className="update-version-details">
         <div>
           <dt>Current version</dt>
-          <dd>{currentVersion}</dd>
+          <dd><span className="update-version-badge">{currentVersion}</span></dd>
         </div>
         {required ? (
           <div>
             <dt>Required version</dt>
-            <dd>{requiredVersion} or newer</dd>
+            <dd><span className="update-version-badge update-version-badge-required">{requiredVersion}+</span></dd>
           </div>
         ) : null}
         <div>
           <dt>Latest version</dt>
-          <dd>{latestVersion}</dd>
+          <dd><span className="update-version-badge update-version-badge-latest">{latestVersion}</span></dd>
         </div>
       </dl>
-      {!required && releaseNote?.summary ? <p>{releaseNote.summary}</p> : null}
+      {!required && releaseNote?.summary ? <p className="update-release-summary">{releaseNote.summary}</p> : null}
       {releaseNote?.notes.length ? (
-        <ul className="update-release-notes">
+        <div className="update-release-notes">
+          <span className="update-release-notes-label">What’s new</span>
+          <ul>
           {releaseNote.notes.map(note => <li key={note}>{note}</li>)}
-        </ul>
+          </ul>
+        </div>
       ) : null}
-      <p className="update-install-note">Download and install the update, then reload the extension before starting scans again.</p>
-    </>
+    </div>
   )
 }
 

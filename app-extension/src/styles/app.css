@@ -593,18 +593,26 @@ a {
 
 .update-version-details {
   display: grid;
-  gap: 7px;
-  margin: 12px 0;
-  padding: 10px 12px;
+  gap: 0;
+  margin: 16px 0;
+  padding: 0;
   border: 1px solid var(--co-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--co-control);
+  overflow: hidden;
 }
 
 .update-version-details div {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
+.update-version-details div + div {
+  border-top: 1px solid var(--co-border);
 }
 
 .update-version-details dt,
@@ -624,20 +632,60 @@ a {
   text-align: right;
 }
 
+.update-version-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--co-border);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.update-version-badge-required {
+  color: var(--co-red);
+  background: var(--red-subtle);
+}
+
+.update-version-badge-latest {
+  color: var(--co-brand-dark);
+  background: var(--green-subtle);
+}
+
+.update-details-lead,
+.update-release-title,
+.update-release-summary {
+  margin: 0;
+}
+
+.update-release-title {
+  color: var(--co-text);
+  font-weight: 800;
+}
+
 .update-release-notes {
-  margin: 10px 0 0;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--green-subtle);
+}
+
+.update-release-notes-label {
+  color: var(--co-brand-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.update-release-notes ul {
+  margin: 6px 0 0;
   padding-left: 18px;
 }
 
 .update-release-notes li + li {
   margin-top: 5px;
-}
-
-.update-install-note {
-  display: block;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--co-border);
 }
 
 .confirm-dialog-actions {
