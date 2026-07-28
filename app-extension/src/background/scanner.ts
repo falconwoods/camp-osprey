@@ -30,16 +30,35 @@ export interface ScanTripResult {
 }
 
 const blockedBookingWindows = new Set<string>()
+const BLOCKED_BOOKING_WINDOWS_KEY = 'campsoonBlockedBookingWindows'
+let blockedBookingWindowsLoaded = false
+
+async function loadBlockedBookingWindows(): Promise<void> {
+  if (blockedBookingWindowsLoaded) return
+  const result = await new Promise<Record<string, unknown>>(resolve => {
+    chrome.storage.session.get(BLOCKED_BOOKING_WINDOWS_KEY, values => resolve(values as Record<string, unknown>))
+  })
+  const stored = result[BLOCKED_BOOKING_WINDOWS_KEY]
+  if (Array.isArray(stored)) {
+    stored.filter((value): value is string => typeof value === 'string').forEach(key => blockedBookingWindows.add(key))
+  }
+  blockedBookingWindowsLoaded = true
+}
 
 export function bookingWindowKey(tripId: string, provider: ReservationProvider, campgroundId: string, checkIn: string, checkOut: string): string {
   return `${tripId}|${provider}|${campgroundId}|${checkIn}|${checkOut}`
 }
 
-export function blockBookingWindow(key: string): void {
+export async function blockBookingWindow(key: string): Promise<void> {
+  await loadBlockedBookingWindows()
   blockedBookingWindows.add(key)
+  await new Promise<void>(resolve => {
+    chrome.storage.session.set({ [BLOCKED_BOOKING_WINDOWS_KEY]: [...blockedBookingWindows] }, () => resolve())
+  })
 }
 
-export function isBookingWindowBlocked(key: string): boolean {
+export async function isBookingWindowBlocked(key: string): Promise<boolean> {
+  await loadBlockedBookingWindows()
   return blockedBookingWindows.has(key)
 }
 
@@ -58,7 +77,8 @@ function cursorKey(cursor: TripScanCursor): string {
   return `${cursor.parkIndex}:${cursor.dateRangeIndex}:${cursor.windowIndex}`
 }
 
-function buildCandidates(trip: Trip): ScanCandidate[] {
+async function buildCandidates(trip: Trip): Promise<ScanCandidate[]> {
+  await loadBlockedBookingWindows()
   const candidates: ScanCandidate[] = []
 
   trip.parks.forEach((park, parkIndex) => {
@@ -66,7 +86,7 @@ function buildCandidates(trip: Trip): ScanCandidate[] {
       expandDateRange(dateRange).forEach((window, windowIndex) => {
         const key = `${park.id}|${window.checkIn}|${window.checkOut}`
         if (trip.attempted.includes(key)) return
-        if (isBookingWindowBlocked(bookingWindowKey(trip.id, trip.provider, park.id, window.checkIn, window.checkOut))) return
+        if (blockedBookingWindows.has(bookingWindowKey(trip.id, trip.provider, park.id, window.checkIn, window.checkOut))) return
         candidates.push({
           parkIndex,
           dateRangeIndex,
@@ -96,7 +116,7 @@ export async function scanTrip(
   shouldContinue: () => boolean = () => true,
   options: { cursor?: TripScanCursor; budget?: ScanBudget } = {},
 ): Promise<ScanTripResult> {
-  const candidates = orderedCandidates(buildCandidates(trip), options.cursor ?? START_CURSOR)
+  const candidates = orderedCandidates(await buildCandidates(trip), options.cursor ?? START_CURSOR)
   let cursor = candidates[0]
     ? { parkIndex: candidates[0].parkIndex, dateRangeIndex: candidates[0].dateRangeIndex, windowIndex: candidates[0].windowIndex }
     : START_CURSOR

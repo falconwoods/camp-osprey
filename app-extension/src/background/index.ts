@@ -1345,7 +1345,7 @@ chrome.runtime.onMessage.addListener((msg: {
       const target = typeof tabId === 'number' ? await getReservationTargetForTab(tabId) : null
       if (!target) return
       const provider = target.provider ?? DEFAULT_PROVIDER
-      blockBookingWindow(bookingWindowKey(target.tripId, provider, target.campgroundId, target.checkIn, target.checkOut))
+      await blockBookingWindow(bookingWindowKey(target.tripId, provider, target.campgroundId, target.checkIn, target.checkOut))
       const warningMap = await new Promise<Record<string, string[]>>(resolve =>
         chrome.storage.session.get(BOOKING_WINDOW_WARNINGS_KEY, result =>
           resolve((result[BOOKING_WINDOW_WARNINGS_KEY] as Record<string, string[]>) ?? {})
