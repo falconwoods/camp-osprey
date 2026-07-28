@@ -4,8 +4,14 @@ import packageJson from './package.json' with { type: 'json' }
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
-  vite: () => ({
+  vite: ({ mode }) => ({
     plugins: [tailwindcss()],
+    build: mode === 'development'
+      ? {
+          minify: false,
+          sourcemap: true,
+        }
+      : undefined,
     resolve: {
       alias: {
         '@': new URL('./src', import.meta.url).pathname,

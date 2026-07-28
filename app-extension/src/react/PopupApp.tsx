@@ -114,7 +114,7 @@ export function PopupApp() {
           />
         ))}
         {state.trips.length ? state.trips.map(trip => (
-          <TripCard key={trip.id} trip={trip} compact onStart={start} onPause={pause} />
+          <TripCard key={trip.id} trip={trip} compact onStart={start} onPause={pause} bookingWindowWarnings={state.bookingWindowWarnings[trip.id]} />
         )) : (
           <div className="empty-state">
             <h2>No trips yet.</h2>

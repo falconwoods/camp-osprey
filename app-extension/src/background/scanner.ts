@@ -1,6 +1,6 @@
 import type { Trip, AvailableSite, Filters, ReservationProvider } from '../types'
 import { providerInfo } from '../providers/config'
-import { expandDateRange, isBookable } from '../dates'
+import { expandDateRange } from '../dates'
 
 type GetAvailabilityFn = (
   campgroundId: string,
@@ -29,6 +29,20 @@ export interface ScanTripResult {
   requestsMade: number
 }
 
+const blockedBookingWindows = new Set<string>()
+
+export function bookingWindowKey(tripId: string, provider: ReservationProvider, campgroundId: string, checkIn: string, checkOut: string): string {
+  return `${tripId}|${provider}|${campgroundId}|${checkIn}|${checkOut}`
+}
+
+export function blockBookingWindow(key: string): void {
+  blockedBookingWindows.add(key)
+}
+
+export function isBookingWindowBlocked(key: string): boolean {
+  return blockedBookingWindows.has(key)
+}
+
 interface ScanCandidate {
   parkIndex: number
   dateRangeIndex: number
@@ -50,9 +64,9 @@ function buildCandidates(trip: Trip): ScanCandidate[] {
   trip.parks.forEach((park, parkIndex) => {
     trip.dateRanges.forEach((dateRange, dateRangeIndex) => {
       expandDateRange(dateRange).forEach((window, windowIndex) => {
-        if (!isBookable(window.checkIn)) return
         const key = `${park.id}|${window.checkIn}|${window.checkOut}`
         if (trip.attempted.includes(key)) return
+        if (isBookingWindowBlocked(bookingWindowKey(trip.id, trip.provider, park.id, window.checkIn, window.checkOut))) return
         candidates.push({
           parkIndex,
           dateRangeIndex,

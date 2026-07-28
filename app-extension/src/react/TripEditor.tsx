@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Filter, Settings2, Tag, Trash2, Zap } from 'lucide-react'
 import { BCParksProvider } from '../providers/bcparks'
 import { ParksCanadaProvider } from '../providers/parksCanada'
@@ -11,6 +11,8 @@ import type { DateRange, Park, ReservationProvider, Trip } from '../types'
 import { describeRange, statusDisplay } from './format'
 import { isValidParkPayment, saveTripDraft, startTripNow } from './tripActions'
 import { DEFAULT_PROVIDER, PROVIDERS } from '../providers/config'
+import { DayPicker, type DateRange as PickerDateRange } from 'react-day-picker'
+import 'react-day-picker/style.css'
 
 const providers = {
   bc_parks: new BCParksProvider(),
@@ -55,6 +57,9 @@ export function TripEditor({
   const [dateMode, setDateMode] = useState<'specific' | 'recurring'>('specific')
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
+  const [specificRange, setSpecificRange] = useState<PickerDateRange | undefined>()
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const datePickerRef = useRef<HTMLDivElement>(null)
   const [recYear, setRecYear] = useState(new Date().getFullYear())
   const [recMonth, setRecMonth] = useState(new Date().getMonth() + 1)
   const [recStart, setRecStart] = useState(4)
@@ -92,6 +97,17 @@ export function TripEditor({
   useEffect(() => {
     if (recEnd <= recStart) setRecEnd(Math.min(recStart + 1, 6))
   }, [recStart, recEnd])
+
+  useEffect(() => {
+    if (!calendarOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [calendarOpen])
 
   function addPark(park: Park) {
     if (!parks.some(item => item.id === park.id)) setParks([...parks, park])
@@ -133,6 +149,20 @@ export function TripEditor({
     setError('')
     setFieldErrors({ ...fieldErrors, dates: '' })
     setDateRanges([...dateRanges, range])
+    if (dateMode === 'specific') {
+      setSpecificRange(undefined)
+      setCheckIn('')
+      setCheckOut('')
+      setCalendarOpen(false)
+    }
+  }
+
+  function selectSpecificRange(nextRange: PickerDateRange | undefined) {
+    setSpecificRange(nextRange)
+    setCheckIn(nextRange?.from ? dateToISO(nextRange.from) : '')
+    setCheckOut(nextRange?.to ? dateToISO(nextRange.to) : '')
+    if (nextRange?.from && nextRange?.to) setFieldErrors({ ...fieldErrors, dates: '' })
+    if (nextRange?.from && nextRange?.to) setCalendarOpen(false)
   }
 
   async function save(startAfterSave: boolean) {
@@ -274,9 +304,36 @@ export function TripEditor({
               </div>
               <div className="date-form-body">
                 <div id="specific-inputs" className={dateMode === 'specific' ? '' : 'hidden'}>
-                  <div className="row">
-                    <div className="date-field"><div className="section-label">Check-in</div><Input id="date-checkin" type="date" value={checkIn} onChange={event => setCheckIn(event.target.value)} /></div>
-                    <div className="date-field"><div className="section-label">Check-out</div><Input id="date-checkout" type="date" value={checkOut} onChange={event => setCheckOut(event.target.value)} /></div>
+                  <div className="date-range-picker-field" ref={datePickerRef}>
+                    <div className="section-label">Dates</div>
+                    <button
+                      id="date-range-trigger"
+                      className={`date-range-trigger${calendarOpen ? ' open' : ''}`}
+                      type="button"
+                      aria-haspopup="dialog"
+                      aria-expanded={calendarOpen}
+                      onClick={() => setCalendarOpen(open => !open)}
+                    >
+                      <CalendarDays size={17} />
+                      <span>{checkIn && checkOut ? `${checkIn} → ${checkOut}` : 'Select check-in and check-out'}</span>
+                    </button>
+                    {calendarOpen ? (
+                      <div className="date-range-popover" role="dialog" aria-label="Select date range">
+                        <DayPicker
+                          mode="range"
+                          min={1}
+                          selected={specificRange}
+                          onSelect={selectSpecificRange}
+                          numberOfMonths={1}
+                          defaultMonth={specificRange?.from ?? new Date()}
+                          disabled={{ before: new Date() }}
+                          showOutsideDays
+                        />
+                        <div className="date-range-selection-hint">
+                          {specificRange?.from && !specificRange.to ? 'Now choose your check-out date.' : 'Choose your check-in date, then check-out date.'}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div id="recurring-inputs" className={dateMode === 'recurring' ? '' : 'hidden'}>
@@ -346,6 +403,13 @@ function dateRangesEqual(a: DateRange, b: DateRange): boolean {
     return a.year === b.year && a.month === b.month && a.startDay === b.startDay && a.endDay === b.endDay
   }
   return false
+}
+
+function dateToISO(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function formatParkName(park: Park): string {

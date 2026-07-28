@@ -13,6 +13,7 @@ export const RuntimeMessageCode = {
   getDecryptedPayment: 7110,
   getCampsoonTarget: 7111,
   clearCampsoonTarget: 7112,
+  bookingWindowClosed: 7113,
 } as const
 
 export const ResultCode = {

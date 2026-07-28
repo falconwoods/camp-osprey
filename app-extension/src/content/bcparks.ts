@@ -44,9 +44,19 @@ function dbg(msg: string, data?: unknown): void {
   el.textContent = _dbg.join('\n')
 }
 
+function reportBookingWindowClosed(): void {
+  const target = activeTargetSite
+  if (!target) return
+  const el = document.getElementById('campsoon-status')
+  if (el) el.textContent = 'BC Parks booking window closed — skipping this date'
+  chrome.runtime.sendMessage({ t: RuntimeMessageCode.bookingWindowClosed, tripId: target.tripId })
+  setTimeout(() => window.close(), 4000)
+}
+
 interface TargetSite {
   provider?: 'bc_parks' | 'parks_canada'
   resourceId: string
+  campgroundId: string
   siteName: string
   sectionName: string
   parkName: string
@@ -199,7 +209,6 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
   const reportRetryableFailure = (reason: string) => {
     reportMatchFailed(reason, null)
   }
-
   // Step 1: wait for Angular to render (2s)
   await sleep(2000)
 
@@ -298,6 +307,10 @@ async function handleResultsPage(target: TargetSite): Promise<void> {
     setStatus(target.mode === 'autopay'
       ? 'Reserved — proceeding to payment…'
       : 'Reserved ✓ — complete payment in BC Parks')
+  } else if (reserveResult === 'booking-window-closed') {
+    // The booking-window result is already recorded and blocked in memory.
+    // Do not report it as a retryable timing failure.
+    return
   } else {
     // Reserve button not found — likely a panel expansion timing issue, not confirmed unavailable.
     // Do NOT add to attempted — allow retry next scan cycle.
@@ -473,7 +486,7 @@ async function switchToListView(): Promise<boolean> {
 }
 
 // Expand BC Parks mat-expansion-panel.list-entry rows and click Reserve.
-async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<true | 'no-reserve-btn'> {
+async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<true | 'no-reserve-btn' | 'booking-window-closed'> {
   // Load all panels first (click "View more" if present)
   await loadAllPanels()
 
@@ -591,6 +604,12 @@ async function expandAndReserve(noDouble: boolean, noWalkin: boolean): Promise<t
               buttons: dialogButtons,
               snippet: dialogText.replace(/\s+/g, ' ').substring(0, 160),
             })
+            if (dialogText.includes('only be made up to 8:00:00 p.m. 2 days before arrival')) {
+              const closeBtn = findDialogButton(dialog, ['ok', 'close', 'dismiss'])
+              if (closeBtn) { ;(closeBtn as HTMLElement).click(); await sleep(300) }
+              reportBookingWindowClosed()
+              return 'booking-window-closed'
+            }
             if (dialogText.includes('park alerts')) {
               const acknowledgeBtn = findDialogButton(dialog, ['acknowledge'])
               dbg(`panel ${i} park alerts dialog`, { acknowledgeFound: !!acknowledgeBtn })

@@ -288,6 +288,7 @@ export function OptionsApp() {
             signedIn={Boolean(state.auth?.user)}
             providerLoggedIn={state.providerLoggedIn}
             extensionConfig={state.storage.extensionConfig}
+            bookingWindowWarnings={state.bookingWindowWarnings}
             warnings={getGlobalWarnings(state.trips, state.providerLoggedIn, state.storage.payment)}
             onSignIn={openAuthDialog}
             onEdit={trip => setEditing(trip)}
@@ -426,6 +427,7 @@ function TripsView({
   signedIn,
   providerLoggedIn,
   extensionConfig,
+  bookingWindowWarnings,
   warnings,
   onSignIn,
   onEdit,
@@ -440,6 +442,7 @@ function TripsView({
   signedIn: boolean
   providerLoggedIn: Record<ReservationProvider, boolean>
   extensionConfig: ExtensionRemoteConfig | null
+  bookingWindowWarnings: Record<string, string[]>
   warnings: Warning[]
   onSignIn: () => void
   onEdit: (trip: Trip) => void
@@ -557,14 +560,14 @@ function TripsView({
         />
       ))}
       {trips.length ? trips.map(trip => (
-        <TripCard key={trip.id} trip={trip} onEdit={onEdit} onStart={onStart} onPause={onPause} onDelete={onDelete} />
-      )) : signedIn ? (
+        <TripCard key={trip.id} trip={trip} onEdit={onEdit} onStart={onStart} onPause={onPause} onDelete={onDelete} bookingWindowWarnings={bookingWindowWarnings[trip.id]} />
+      )) : (
         <section className="empty-state trips-empty-state">
           <FeatureOverview />
           <div className="empty-illustration" aria-hidden="true" />
           <h2>No trips yet</h2>
         </section>
-      ) : null}
+      )}
     </div>
   )
 }

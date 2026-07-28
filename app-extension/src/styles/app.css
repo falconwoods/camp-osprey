@@ -2781,7 +2781,9 @@ a {
   border: 1px solid var(--co-border);
   border-radius: 8px;
   padding: 0;
-  overflow: hidden;
+  /* The range picker is an absolutely positioned popover and must be able to
+     extend beyond the date form without being clipped. */
+  overflow: visible;
 }
 
 #trip-editor .date-mode-toggle {
@@ -2821,6 +2823,59 @@ a {
 
 .date-field {
   flex: 1;
+}
+
+#trip-editor .date-range-picker-field {
+  position: relative;
+  max-width: 420px;
+}
+
+#trip-editor .date-range-trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--co-border);
+  border-radius: 8px;
+  background: var(--co-surface);
+  color: var(--co-text);
+  padding: 0 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+#trip-editor .date-range-trigger:hover,
+#trip-editor .date-range-trigger.open {
+  border-color: var(--co-brand);
+}
+
+#trip-editor .date-range-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  border: 1px solid var(--co-border);
+  border-radius: 10px;
+  background: var(--co-surface);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  padding: 12px;
+}
+
+#trip-editor .date-range-values {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--co-text-soft);
+  font-size: 12px;
+}
+
+#trip-editor .date-range-selection-hint {
+  border-top: 1px solid var(--co-border);
+  color: var(--co-text-soft);
+  font-size: 12px;
+  padding: 8px 4px 2px;
 }
 
 .recurring-row {

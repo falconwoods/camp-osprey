@@ -1,6 +1,5 @@
 import type { PaymentConfig, ReservationProvider, Trip } from './types'
 import { hasSavedParkPayment } from './paymentCrypto'
-import { expandDateRange, isBookable } from './dates'
 import { providerInfo } from './providers/config'
 
 export interface Warning {
@@ -10,7 +9,7 @@ export interface Warning {
   action?: { label: string; url: string }
 }
 
-export function getTripWarnings(trip: Trip): Warning[] {
+export function getTripWarnings(trip: Trip, bookingWindowWarnings: string[] = []): Warning[] {
   const warnings: Warning[] = []
 
   if (trip.parks.length === 0) {
@@ -19,13 +18,10 @@ export function getTripWarnings(trip: Trip): Warning[] {
 
   if (trip.dateRanges.length === 0) {
     warnings.push({ level: 'error', message: 'No date ranges — open the editor, configure dates, then click "+ Add This Range".' })
-  } else {
-    const hasBookable = trip.dateRanges.some(r =>
-      expandDateRange(r).some(w => isBookable(w.checkIn))
-    )
-    if (!hasBookable) {
-      warnings.push({ level: 'warn', message: 'All dates are past the BC Parks booking deadline (8 PM, 2 days before check-in).' })
-    }
+  }
+
+  for (const message of bookingWindowWarnings) {
+    warnings.push({ level: 'warn', message })
   }
 
   return warnings

@@ -8,6 +8,8 @@ import { refreshExtensionConfig } from '../extensionConfig'
 import { RuntimeMessageCode } from '../protocol'
 import { PROVIDERS } from '../providers/config'
 
+export const BOOKING_WINDOW_WARNINGS_KEY = 'campsoonBookingWindowWarnings'
+
 export interface ExtensionState {
   storage: StorageData | null
   auth: AuthState | null
@@ -17,6 +19,7 @@ export interface ExtensionState {
   providerLoggedIn: Record<ReservationProvider, boolean>
   loading: boolean
   tripsLoaded: boolean
+  bookingWindowWarnings: Record<string, string[]>
 }
 
 export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): ExtensionState & { refresh: (options?: { syncTrips?: boolean; includeTrips?: boolean }) => Promise<void> } {
@@ -35,6 +38,7 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
     },
     loading: true,
     tripsLoaded: false,
+    bookingWindowWarnings: {},
   })
 
   const refresh = useCallback(async (refreshOptions: { syncTrips?: boolean; includeTrips?: boolean } = {}) => {
@@ -48,7 +52,7 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
         return { trips: tripsRef.current, loaded: true }
       }
     }
-    const [storage, auth, tripsResult, debugLog, providerLoginEntries] = await Promise.all([
+    const [storage, auth, tripsResult, debugLog, providerLoginEntries, bookingWindowWarningResult] = await Promise.all([
       getStorage(),
       getAuth(),
       loadTrips(),
@@ -59,6 +63,7 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
           await isLoggedIn(provider as ReservationProvider).catch(() => false),
         ] as const),
       ),
+      new Promise<Record<string, string[]>>(resolve => chrome.storage.session.get(BOOKING_WINDOW_WARNINGS_KEY, result => resolve((result[BOOKING_WINDOW_WARNINGS_KEY] as Record<string, string[]>) ?? {}))),
     ])
     const providerLoggedIn = Object.fromEntries(providerLoginEntries) as Record<ReservationProvider, boolean>
     applyTheme(storage.settings.theme ?? 'auto')
@@ -73,6 +78,7 @@ export function useExtensionState(options: { syncTripsOnLoad?: boolean } = {}): 
       providerLoggedIn,
       loading: false,
       tripsLoaded: tripsLoadedRef.current,
+      bookingWindowWarnings: bookingWindowWarningResult,
     })
     hasLoadedRef.current = true
   }, [])

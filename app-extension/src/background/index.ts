@@ -2,7 +2,7 @@ import { BCParksApiError, BCParksCooldownError, BCParksProvider } from '../provi
 import { ParksCanadaApiError, ParksCanadaCooldownError, ParksCanadaProvider } from '../providers/parksCanada'
 import { getStorage, savePayment, addDebugLog, formatDateTime } from '../storage'
 import { isLoggedIn, watchLoginChanges } from './login'
-import { scanTrip, buildBookingUrl } from './scanner'
+import { scanTrip, buildBookingUrl, blockBookingWindow, bookingWindowKey } from './scanner'
 import type { ScanBudget, TripScanCursor } from './scanner'
 import type { AvailableSite, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, ScanLease, Trip } from '../types'
 import { validateAuth } from '../auth'
@@ -30,6 +30,7 @@ const SCAN_CURSORS_KEY = 'campsoonScanCursors'
 const SCAN_TRIP_CURSOR_KEY = 'campsoonScanTripCursor'
 const CAMPSOON_TARGETS_BY_TAB_KEY = 'campsoonTargetsByTab'
 const LEGACY_CAMPSOON_TARGET_KEY = 'campOspreyTarget'
+const BOOKING_WINDOW_WARNINGS_KEY = 'campsoonBookingWindowWarnings'
 const providers = {
   bc_parks: new BCParksProvider(),
   parks_canada: new ParksCanadaProvider(),
@@ -56,6 +57,7 @@ type ConfirmedBookingPaymentPayload = BookingPaymentEventPayload & { idempotency
 type ScanCursorMap = Record<string, TripScanCursor>
 interface ReservationTabTarget {
   resourceId: string
+  campgroundId: string
   provider: Trip['provider']
   siteName: string
   sectionName: string
@@ -1126,6 +1128,7 @@ async function handleMatch(
   // cannot overwrite each other.
   const reservationTarget: ReservationTabTarget = {
     resourceId: site.resourceId,
+    campgroundId: site.campgroundId,
     provider: siteProvider,
     siteName: site.siteName,
     sectionName: site.sectionName,
@@ -1241,6 +1244,7 @@ chrome.runtime.onMessage.addListener((msg: {
   paidAt?: string
   error?: string
   attemptKey?: string
+  failureKind?: 'booking_window_closed'
   resetActiveMatch?: boolean
   scanLease?: unknown
 }, sender, sendResponse) => {
@@ -1333,6 +1337,56 @@ chrome.runtime.onMessage.addListener((msg: {
       })
       void updateTrip(msg.tripId!, { status: 'scanning', lastMatch: null, attempted })
     })
+    return
+  }
+  if (msg.t === RuntimeMessageCode.bookingWindowClosed && msg.tripId) {
+    void (async () => {
+      const tabId = sender.tab?.id
+      const target = typeof tabId === 'number' ? await getReservationTargetForTab(tabId) : null
+      if (!target) return
+      const provider = target.provider ?? DEFAULT_PROVIDER
+      blockBookingWindow(bookingWindowKey(target.tripId, provider, target.campgroundId, target.checkIn, target.checkOut))
+      const warningMap = await new Promise<Record<string, string[]>>(resolve =>
+        chrome.storage.session.get(BOOKING_WINDOW_WARNINGS_KEY, result =>
+          resolve((result[BOOKING_WINDOW_WARNINGS_KEY] as Record<string, string[]>) ?? {})
+        )
+      )
+      const warning = `BC Parks cannot reserve ${target.checkIn}–${target.checkOut}: this type of reservation is only available until 8:00 p.m. two days before arrival.`
+      warningMap[target.tripId] = [...new Set([...(warningMap[target.tripId] ?? []), warning])]
+      await new Promise<void>(resolve => chrome.storage.session.set({ [BOOKING_WINDOW_WARNINGS_KEY]: warningMap }, resolve))
+      clearFailedActiveMatch(target.tripId, `${target.resourceId}|${target.checkIn}|${target.checkOut}`)
+      const trips = await getTrips()
+      const trip = trips.find(item => item.id === target.tripId)
+      if (trip?.status === 'reserving') {
+        await updateTrip(target.tripId, { status: 'scanning', lastMatch: null })
+      }
+      await logEntry({
+        level: 'info',
+        eventCode: LogEventCode.matchFailed,
+        message: 'Booking window closed; skipping this date window in memory',
+        tripId: target.tripId,
+        checkIn: target.checkIn,
+        checkOut: target.checkOut,
+        metadata: { provider, campgroundId: target.campgroundId, resourceId: target.resourceId },
+      })
+      await clearReservationTargetForSender(sender)
+      chrome.storage.local.remove(LEGACY_CAMPSOON_TARGET_KEY)
+      if (typeof tabId === 'number') {
+        try {
+          await chrome.tabs.remove(tabId)
+        } catch (err) {
+          await logEntry({
+            level: 'warning',
+            eventCode: LogEventCode.matchFailed,
+            message: 'Booking window tab close failed',
+            tripId: target.tripId,
+            checkIn: target.checkIn,
+            checkOut: target.checkOut,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
+    })()
     return
   }
   if (msg.t === RuntimeMessageCode.bookingReserved && msg.tripId) {

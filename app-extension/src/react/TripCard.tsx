@@ -29,6 +29,7 @@ export function TripCard({
   onStart,
   onPause,
   onDelete,
+  bookingWindowWarnings = [],
 }: {
   trip: Trip
   compact?: boolean
@@ -36,11 +37,12 @@ export function TripCard({
   onStart: (trip: Trip) => void | Promise<void>
   onPause: (trip: Trip) => void | Promise<void>
   onDelete?: (trip: Trip) => void | Promise<void>
+  bookingWindowWarnings?: string[]
 }) {
   const [starting, setStarting] = useState(false)
   const [pausing, setPausing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const warnings = getTripWarnings(trip)
+  const warnings = getTripWarnings(trip, bookingWindowWarnings)
   const tripProvider = providerInfo(trip.provider)
   const parks = trip.parks.map(park => park.parentName ? `${park.parentName} › ${park.name}` : park.name).join(', ') || 'No parks'
   const dateSummary = conciseDateSummary(trip.dateRanges)
