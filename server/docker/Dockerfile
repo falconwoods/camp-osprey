@@ -9,9 +9,11 @@ WORKDIR /app
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
 
 COPY .next/standalone ./
-COPY .next/static ./.next/static
+COPY .next/static ./server/.next/static
 
 USER nextjs
+
+WORKDIR /app/server
 
 EXPOSE 3000
 
