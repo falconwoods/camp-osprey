@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { trips } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { trips, user } from '@/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
 import { decodeDateRanges, decodeTripMode, decodeTripStatus } from '@/lib/extension-protocol';
@@ -46,11 +46,16 @@ export async function PUT(
   const updatedAt = parseDate(body.updatedAt) ?? new Date();
   const deletedAt = body.deletedAt === null ? null : parseDate(body.deletedAt);
 
-  const [trip] = await db
-    .update(trips)
-    .set({ clientId, name, provider: provider ?? 'bc_parks', parks, dateRanges: decodeDateRanges(dateRanges), filters, mode, status, lastMatch, attempted, deletedAt, updatedAt })
-    .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
-    .returning();
+  const trip = await db.transaction(async (tx) => {
+    // Serialize status changes with start-trip capacity checks.
+    await tx.execute(sql`select "id" from "user" where "id" = ${session.user.id} for update`);
+    const [updated] = await tx
+      .update(trips)
+      .set({ clientId, name, provider: provider ?? 'bc_parks', parks, dateRanges: decodeDateRanges(dateRanges), filters, mode, status, lastMatch, attempted, deletedAt, updatedAt })
+      .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
+      .returning();
+    return updated;
+  });
 
   if (trip) return withExtensionCors(request, NextResponse.json(trip));
 
@@ -93,11 +98,14 @@ export async function DELETE(
   };
   const deletedAt = parseDate(body.deletedAt) ?? new Date();
 
-  const [trip] = await db
-    .update(trips)
-    .set({ clientId: body.clientId, deletedAt, status: 'paused', updatedAt: deletedAt })
-    .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
-    .returning();
+  const [trip] = await db.transaction(async (tx) => {
+    await tx.execute(sql`select "id" from "user" where "id" = ${session.user.id} for update`);
+    return tx
+      .update(trips)
+      .set({ clientId: body.clientId, deletedAt, status: 'paused', updatedAt: deletedAt })
+      .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)))
+      .returning();
+  });
 
   if (!trip) return withExtensionCors(request, NextResponse.json({ error: 'Not found' }, { status: 404 }));
   return withExtensionCors(request, NextResponse.json({ ok: true }));

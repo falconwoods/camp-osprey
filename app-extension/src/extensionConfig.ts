@@ -8,7 +8,7 @@ const DEFAULT_POLL_INTERVAL_SECONDS = 600
 const DEFAULT_SCAN_POLICY = {
   minIntervalSeconds: 60,
   maxIntervalSeconds: 300,
-  defaultIntervalSeconds: 120,
+  defaultIntervalSeconds: 60,
   allowedIntervalSeconds: [60, 120, 180, 300],
   requestSpacingMs: 2000,
   maxRequestsPerCycle: 30,
@@ -131,7 +131,7 @@ export function normalizeExtensionConfig(value: unknown): ExtensionRemoteConfig 
     logSyncMinLevel: asLogLevel(value.logSyncMinLevel),
     scanPolicy: normalizeScanPolicy(value.scanPolicy),
     userLimits: {
-      maxActiveTrips: positiveInteger(userLimits.maxActiveTrips, 1),
+      maxActiveTrips: positiveInteger(userLimits.maxActiveTrips, 5),
     },
     featureFlags: isRecord(value.featureFlags) ? value.featureFlags : {},
     extraConfig: isRecord(value.extraConfig) ? value.extraConfig : {},

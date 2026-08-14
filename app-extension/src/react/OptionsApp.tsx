@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Bell,
   CalendarCheck,
@@ -23,7 +23,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { isValidParkPayment, pauseTrip, removeTrip, startTripNow } from './tripActions'
 import { getPointsBalance } from '../serverApi'
 import { getGlobalWarnings, getRequiredBookingProviders, type Warning } from '../warnings'
-import { IS_LOCAL_BUILD } from '../config'
+import { APP_CONFIG, IS_LOCAL_BUILD } from '../config'
 import { getExtensionUpdateUrl } from '../extensionConfig'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
@@ -52,6 +52,7 @@ export function OptionsApp() {
   const initialHash = location.hash.replace('#', '')
   const [tab, setTab] = useState<Tab>(() => initialHash === 'auth' ? 'account' : tabFromHash())
   const state = useExtensionState({ syncTripsOnLoad: tab === 'trips' })
+  const initialAuthRouteApplied = useRef(false)
   const [editing, setEditing] = useState<Trip | null | undefined>(undefined)
   const [authDialogOpen, setAuthDialogOpen] = useState(() => initialHash === 'auth')
   const [updateDialogRequested, setUpdateDialogRequested] = useState(() => initialHash === 'update-required')
@@ -59,6 +60,7 @@ export function OptionsApp() {
   const [pointsLoading, setPointsLoading] = useState(false)
   const [pointsError, setPointsError] = useState('')
   const confirmation = useConfirmDialog()
+  const bookingPointCostLabel = APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
   const userKey = state.auth?.user ? state.auth.user.id || state.auth.user.email : null
 
   useEffect(() => {
@@ -84,6 +86,12 @@ export function OptionsApp() {
       void state.refresh({ syncTrips: true, includeTrips: true })
     }
   }, [state.loading, state.refresh, state.tripsLoaded, tab])
+
+  useEffect(() => {
+    if (initialHash !== '' || state.loading || initialAuthRouteApplied.current) return
+    initialAuthRouteApplied.current = true
+    if (!state.auth?.user) navigate('account')
+  }, [initialHash, state.auth?.user, state.loading])
 
   useEffect(() => {
     if (tab !== 'trips' || !userKey) {
@@ -142,7 +150,7 @@ export function OptionsApp() {
     if (!result.ok && result.reason === 'extension_update_required') await promptForExtensionUpdate()
     if (!result.ok && result.reason === 'active_trip') await promptForActiveTrip()
     if (!result.ok && result.reason === 'payment') await promptForPaymentSetup()
-    if (!result.ok && result.reason === 'points') await promptForPointsTopUp()
+    if (!result.ok && result.reason === 'points') await promptForPointsTopUp(result.points)
     await state.refresh()
   }
 
@@ -169,7 +177,7 @@ export function OptionsApp() {
   }
 
   async function promptForActiveTrip() {
-    const maxActiveTrips = state.storage?.extensionConfig?.userLimits?.maxActiveTrips ?? 1
+    const maxActiveTrips = state.storage?.extensionConfig?.userLimits?.maxActiveTrips ?? 5
     await confirmation.confirm({
       title: 'Active trip limit reached',
       message: maxActiveTrips === 1
@@ -180,16 +188,32 @@ export function OptionsApp() {
     })
   }
 
-  async function promptForPointsTopUp() {
+  async function promptForPointsTopUp(points?: {
+    activeBookingTripCount: number
+    occupiedPoints: number
+    balance: number
+    requiredPoints: number
+  }) {
+    const bookingPointCostLabel = points?.requiredPoints.toLocaleString() ?? APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
     const confirmed = await confirmation.confirm({
-      title: 'Not enough points',
+      title: 'More points needed to start this Trip',
       message: (
         <>
-          <p>Auto-reserve and Auto-pay require enough points for one successful booking before scanning can start.</p>
-          <p>Top up your account to start this trip.</p>
+          {points ? (
+            <>
+              <p>You currently have {points.activeBookingTripCount} active booking Trips, using {points.occupiedPoints.toLocaleString()} points of your {points.balance.toLocaleString()} available points.</p>
+              <p>Starting this Trip requires another {bookingPointCostLabel} points.</p>
+              <p>Stop an active booking Trip or add more points to start this one.</p>
+            </>
+          ) : (
+            <>
+              <p>Each active booking Trip needs {bookingPointCostLabel} available points. Your points are only charged after a successful booking.</p>
+              <p>Stop another active Trip or add points to start this one.</p>
+            </>
+          )}
         </>
       ),
-      confirmLabel: 'Top up points',
+      confirmLabel: 'Add points',
     })
     if (confirmed) {
       setEditing(undefined)

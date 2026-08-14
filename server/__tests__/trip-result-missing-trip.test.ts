@@ -3,9 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => {
   const tripsTable = { table: 'trips' };
   const bookingResultsTable = { table: 'bookingResults' };
+  const userTable = { table: 'user' };
   let selectedTrips: unknown[] = [];
 
   const db = {
+    execute: vi.fn(async () => []),
+    transaction: vi.fn(async (callback: (tx: typeof db) => unknown) => callback(db)),
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(async () => selectedTrips),
@@ -35,6 +38,7 @@ const mocks = vi.hoisted(() => {
     db,
     tripsTable,
     bookingResultsTable,
+    userTable,
     getSession: vi.fn(),
     buildResultEmail: vi.fn(),
     sendEmail: vi.fn(),
@@ -49,6 +53,7 @@ vi.mock('@/db', () => ({
 vi.mock('@/db/schema', () => ({
   trips: mocks.tripsTable,
   bookingResults: mocks.bookingResultsTable,
+  user: mocks.userTable,
 }));
 
 vi.mock('@/lib/session', () => ({

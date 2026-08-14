@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { trips, bookingResults } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { trips, bookingResults, user } from '@/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { getSession } from '@/lib/session';
 import { sendEmail, buildResultEmail } from '@/lib/email';
 import { extensionCorsPreflight, withExtensionCors } from '@/lib/extension-cors';
@@ -200,14 +200,17 @@ export async function POST(
     failed:   'idle',
   };
 
-  await db
-    .update(trips)
-    .set({
-      status:    statusMap[outcome],
-      lastMatch: matchedSite ?? trip.lastMatch,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)));
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select "id" from "user" where "id" = ${session.user.id} for update`);
+    await tx
+      .update(trips)
+      .set({
+        status:    statusMap[outcome],
+        lastMatch: matchedSite ?? trip.lastMatch,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(trips.id, id), eq(trips.userId, session.user.id)));
+  });
 
   const [result] = await db
     .insert(bookingResults)

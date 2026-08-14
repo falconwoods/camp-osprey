@@ -1158,7 +1158,7 @@ function defaultExtensionConfigForm(channel: ExtensionChannel): ExtensionConfigF
       scanPolicy: {
         minIntervalSeconds: 60,
         maxIntervalSeconds: 300,
-        defaultIntervalSeconds: 120,
+        defaultIntervalSeconds: 60,
         allowedIntervalSeconds: [60, 120, 180, 300],
         requestSpacingMs: 2000,
         maxRequestsPerCycle: 30,

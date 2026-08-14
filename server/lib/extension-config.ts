@@ -12,7 +12,7 @@ const DEFAULT_VERSION = '0.1.0';
 const DEFAULT_SCAN_POLICY = {
   minIntervalSeconds: 60,
   maxIntervalSeconds: 300,
-  defaultIntervalSeconds: 120,
+  defaultIntervalSeconds: 60,
   allowedIntervalSeconds: [60, 120, 180, 300],
   requestSpacingMs: 2000,
   maxRequestsPerCycle: 30,
@@ -169,7 +169,7 @@ export async function getExtensionConfigResponse(channel: ExtensionChannel, user
     extraConfig,
     scanPolicy: normalizeScanPolicy(extraConfig),
     userLimits: {
-      maxActiveTrips: Math.max(1, userLimits?.maxActiveTrips ?? 1),
+      maxActiveTrips: Math.max(1, userLimits?.maxActiveTrips ?? 5),
     },
     releaseNote: release ? {
       version: release.version,

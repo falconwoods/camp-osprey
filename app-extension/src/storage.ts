@@ -8,7 +8,7 @@ let debugLogWriteQueue = Promise.resolve()
 const DEFAULTS: StorageData = {
   clientId: null,
   payment: null,
-  settings: { pollIntervalSeconds: 120, theme: 'auto' },
+  settings: { pollIntervalSeconds: 60, theme: 'auto' },
   debugLog: [],
   auth: { token: null, user: null, lastEmail: null, pointsBalance: null },
   extensionConfig: null,

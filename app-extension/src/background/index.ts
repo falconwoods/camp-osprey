@@ -299,7 +299,10 @@ async function getScanLeaseForTrip(trip: Trip): Promise<ScanLease> {
   const cached = activeScanLeases.get(trip.id)
   if (cached && !scanLeaseExpiresSoon(cached)) return cached
 
-  const scanLease = await requestScanLease(trip.id)
+  // A service-worker restart loses the in-memory lease, while the server trip
+  // remains active. Reconnect to that active trip instead of trying to start
+  // it a second time.
+  const scanLease = await requestScanLease(trip.id, { reconnect: true })
   activeScanLeases.set(trip.id, scanLease)
   await logEntry({
     level: 'debug',
@@ -556,6 +559,10 @@ chrome.runtime.onInstalled.addListener(() => {
   setupLogSyncAlarm()
   setupExtensionConfigAlarm(10 * 60)
   void refreshAndScheduleExtensionConfig()
+  // An installed extension can inherit trips that are already scanning on the
+  // server. Recreate the worker-side scan loop immediately instead of waiting
+  // for the first alarm tick.
+  triggerScanCycle()
 })
 
 // Restore alarm on service worker restart
@@ -572,13 +579,30 @@ chrome.storage.local.get(['settings', 'extensionConfig'], result => {
   setupExtensionConfigAlarm(10 * 60)
   void flushPendingBookingPaymentEvents()
   void refreshAndScheduleExtensionConfig()
+  // Alarms survive worker restarts, but the scan itself does not. Restore any
+  // server-side scanning trips as soon as this service worker starts.
+  triggerScanCycle()
 })
 
 chrome.storage.onChanged.addListener(changes => {
-  if (!changes.settings && !changes.extensionConfig) return
+  if (!changes.settings && !changes.extensionConfig && !changes.auth) return
   void (async () => {
-    const { settings, extensionConfig } = await getStorage()
-    await setupAlarm(getEffectiveScanIntervalSeconds(settings.pollIntervalSeconds, extensionConfig))
+    if (changes.settings || changes.extensionConfig) {
+      const { settings, extensionConfig } = await getStorage()
+      await setupAlarm(getEffectiveScanIntervalSeconds(settings.pollIntervalSeconds, extensionConfig))
+    }
+
+    // Server auth is stored locally, so signing in does not change a provider
+    // cookie and therefore cannot be observed by watchLoginChanges. Start the
+    // already-active server trips when the token transitions from absent to
+    // present.
+    if (changes.auth) {
+      const previousToken = (changes.auth.oldValue as { token?: unknown } | undefined)?.token
+      const nextToken = (changes.auth.newValue as { token?: unknown } | undefined)?.token
+      if (!previousToken && typeof nextToken === 'string' && nextToken.length > 0) {
+        triggerScanCycle()
+      }
+    }
   })()
 })
 
@@ -614,6 +638,12 @@ function getAlarm(name: string): Promise<chrome.alarms.Alarm | undefined> {
 
 function clearAlarm(name: string): Promise<void> {
   return new Promise(resolve => chrome.alarms.clear(name, () => resolve()))
+}
+
+function triggerScanCycle(): void {
+  void runScanCycle().catch(err => {
+    console.error('Unable to restore scan cycle:', err)
+  })
 }
 
 async function refreshAndScheduleExtensionConfig(): Promise<void> {

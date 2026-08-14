@@ -2,18 +2,26 @@ import { isLoggedIn } from '../background/login'
 import { validateAuth } from '../auth'
 import { openAuthGateForTrip, requireServerAuthForStart } from '../startAuthGate'
 import { getClientId, getStorage } from '../storage'
-import { deleteTrip, getTrips, saveTrip, updateTrip } from '../tripStore'
+import { deleteTrip, getTrips, saveTrip, updateTrip, updateTripLocal } from '../tripStore'
 import type { DateRange, Park, PaymentConfig, ScanLease, Trip } from '../types'
-import { APP_CONFIG } from '../config'
 import { getCachedExtensionConfig, isForceUpdateRequired, refreshExtensionConfig } from '../extensionConfig'
-import { ServerApiError, getPointPackages, getPointsBalance, requestScanLease } from '../serverApi'
+import { ServerApiError, requestScanLease } from '../serverApi'
 import { RuntimeMessageCode } from '../protocol'
 import { decryptParkPayment, hasSavedParkPayment } from '../paymentCrypto'
 import { DEFAULT_PROVIDER, providerInfo } from '../providers/config'
 
 export type StartTripResult =
   | { ok: true }
-  | { ok: false; reason: string }
+  | {
+    ok: false
+    reason: string
+    points?: {
+      activeBookingTripCount: number
+      occupiedPoints: number
+      balance: number
+      requiredPoints: number
+    }
+  }
 
 export function isValidParkPayment(payment: PaymentConfig | null): payment is PaymentConfig {
   return hasSavedParkPayment(payment)
@@ -37,37 +45,12 @@ async function canUseParkPayment(): Promise<boolean> {
   }
 }
 
-function requiresBookingPoints(trip: Trip | undefined): boolean {
-  return trip?.mode === 'reserve' || trip?.mode === 'autopay'
-}
-
-function isActiveTrip(trip: Trip): boolean {
-  return trip.status === 'scanning' || trip.status === 'reserving'
-}
-
-async function hasEnoughBookingPoints(): Promise<boolean> {
-  const [summary, packages] = await Promise.all([
-    getPointsBalance(),
-    getPointPackages().catch(() => null),
-  ])
-  const requiredPoints = packages?.successfulBookingPointCost ?? APP_CONFIG.points.successfulBookingPointCost
-  return summary.balance >= requiredPoints
-}
-
 export async function startTripNow(tripId: string, openAuth = true): Promise<StartTripResult> {
   const extensionConfig = await getCachedExtensionConfig() ?? await refreshExtensionConfig().catch(() => null)
   if (isForceUpdateRequired(extensionConfig)) return { ok: false, reason: 'extension_update_required' }
   if (!(await requireServerAuthForStart(tripId, openAuth))) return { ok: false, reason: 'server_auth' }
   const trips = await getTrips()
   const trip = trips.find(item => item.id === tripId)
-  const maxActiveTrips = extensionConfig?.userLimits?.maxActiveTrips ?? 1
-  const activeTripCount = trips.filter(item => item.id !== tripId && isActiveTrip(item)).length
-  if (activeTripCount >= maxActiveTrips) {
-    return { ok: false, reason: 'active_trip' }
-  }
-  if (requiresBookingPoints(trip) && !(await hasEnoughBookingPoints())) {
-    return { ok: false, reason: 'points' }
-  }
   if (trip && trip.mode !== 'alert' && !(await isLoggedIn(trip.provider))) {
     chrome.tabs.create({ url: providerInfo(trip.provider).loginUrl })
     return { ok: false, reason: 'provider_auth' }
@@ -79,12 +62,32 @@ export async function startTripNow(tripId: string, openAuth = true): Promise<Sta
   try {
     scanLease = await requestScanLease(tripId)
   } catch (err) {
-    if (err instanceof ServerApiError && err.code === 'insufficient_points') return { ok: false, reason: 'points' }
-    if (err instanceof ServerApiError && err.code === 'active_trip_exists') return { ok: false, reason: 'active_trip' }
+    if (err instanceof ServerApiError && err.code === 'insufficient_points') {
+      const details = err.details
+      if (
+        typeof details.activeBookingTripCount === 'number' &&
+        typeof details.occupiedPoints === 'number' &&
+        typeof details.balance === 'number' &&
+        typeof details.requiredPoints === 'number'
+      ) {
+        return {
+          ok: false,
+          reason: 'points',
+          points: {
+            activeBookingTripCount: details.activeBookingTripCount,
+            occupiedPoints: details.occupiedPoints,
+            balance: details.balance,
+            requiredPoints: details.requiredPoints,
+          },
+        }
+      }
+      return { ok: false, reason: 'points' }
+    }
+    if (err instanceof ServerApiError && (err.code === 'active_trip_exists' || err.code === 'trip_already_active')) return { ok: false, reason: 'active_trip' }
     throw err
   }
   chrome.storage.local.remove('campOspreyTarget')
-  await updateTrip(tripId, { status: 'scanning', lastMatch: null, attempted: [] })
+  await updateTripLocal(tripId, { status: 'scanning', lastMatch: null, attempted: [] })
   chrome.runtime.sendMessage({ t: RuntimeMessageCode.scanNow, tripId, resetActiveMatch: true, scanLease })
   return { ok: true }
 }

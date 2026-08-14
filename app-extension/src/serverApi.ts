@@ -4,7 +4,7 @@ import type { ClientInfo, DebugLogEntry, ExtensionRemoteConfig, MatchedSite, Sca
 import { encodeDateRange, encodeDebugLogEntries, encodeTripMode, encodeTripStatus } from './protocol'
 
 export class ServerApiError extends Error {
-  constructor(public status: number, public code: string) {
+  constructor(public status: number, public code: string, public details: Record<string, unknown> = {}) {
     super(code)
   }
 }
@@ -63,7 +63,7 @@ export async function serverFetch<T>(
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new ServerApiError(response.status, String(data.error ?? 'server_error'))
+    throw new ServerApiError(response.status, String(data.error ?? 'server_error'), data as Record<string, unknown>)
   }
   return data as T
 }
@@ -173,12 +173,12 @@ export async function notifyUserResult(
   })
 }
 
-export async function requestScanLease(tripId: string): Promise<ScanLease> {
+export async function requestScanLease(tripId: string, options: { reconnect?: boolean } = {}): Promise<ScanLease> {
   const [clientId, clientInfo] = await Promise.all([getClientId(), getClientInfo()])
   return serverFetch<ScanLease>(`/api/trips/${encodeURIComponent(tripId)}/scan-lease`, {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ clientId, clientInfo }),
+    body: JSON.stringify({ clientId, clientInfo, reconnect: options.reconnect === true }),
   })
 }
 

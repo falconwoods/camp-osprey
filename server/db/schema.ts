@@ -17,7 +17,7 @@ export const user = pgTable('user', {
   banned:        boolean('banned'),
   banReason:     text('banReason'),
   banExpires:    timestamp('banExpires'),
-  maxActiveTrips: integer('maxActiveTrips').notNull().default(1),
+  maxActiveTrips: integer('maxActiveTrips').notNull().default(5),
 });
 
 export const session = pgTable('session', {

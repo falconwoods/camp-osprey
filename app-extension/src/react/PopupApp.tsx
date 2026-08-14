@@ -8,11 +8,13 @@ import { Button } from '../components/ui/button'
 import { AppAlert } from '../components/AppAlert'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import type { Trip } from '../types'
+import { APP_CONFIG } from '../config'
 import { ExtensionUpdateAlert, OptionalUpdateDetails, RequiredUpdateDetails } from './ExtensionUpdateAlert'
 
 export function PopupApp() {
   const state = useExtensionState()
   const confirmation = useConfirmDialog()
+  const bookingPointCostLabel = APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
 
   async function start(trip: Trip) {
     const result = await startTripNow(trip.id)
@@ -21,7 +23,7 @@ export function PopupApp() {
       return
     }
     if (!result.ok && result.reason === 'active_trip') {
-      const maxActiveTrips = state.storage?.extensionConfig?.userLimits?.maxActiveTrips ?? 1
+      const maxActiveTrips = state.storage?.extensionConfig?.userLimits?.maxActiveTrips ?? 5
       await confirmation.confirm({
         title: 'Active trip limit reached',
         message: maxActiveTrips === 1
@@ -40,15 +42,25 @@ export function PopupApp() {
       if (confirmed) chrome.tabs.create({ url: chrome.runtime.getURL('options.html#payment') })
     }
     if (!result.ok && result.reason === 'points') {
-      const confirmed = await confirmation.confirm({
-        title: 'Not enough points',
-        message: (
+      const bookingPointCostLabel = result.points?.requiredPoints.toLocaleString() ?? APP_CONFIG.points.successfulBookingPointCost.toLocaleString()
+      const pointsMessage = result.points
+        ? (
           <>
-            <p>Auto-reserve and Auto-pay require enough points for one successful booking before scanning can start.</p>
-            <p>Top up your account to start this trip.</p>
+            <p>You currently have {result.points.activeBookingTripCount} active booking Trips, using {result.points.occupiedPoints.toLocaleString()} points of your {result.points.balance.toLocaleString()} available points.</p>
+            <p>Starting this Trip requires another {bookingPointCostLabel} points.</p>
+            <p>Stop an active booking Trip or add more points to start this one.</p>
           </>
-        ),
-        confirmLabel: 'Top up points',
+        )
+        : (
+          <>
+            <p>Each active booking Trip needs {bookingPointCostLabel} available points. Your points are only charged after a successful booking.</p>
+            <p>Stop another active Trip or add points to start this one.</p>
+          </>
+        )
+      const confirmed = await confirmation.confirm({
+        title: 'More points needed to start this Trip',
+        message: pointsMessage,
+        confirmLabel: 'Add points',
       })
       if (confirmed) chrome.tabs.create({ url: chrome.runtime.getURL('options.html#account') })
     }

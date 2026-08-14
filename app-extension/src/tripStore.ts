@@ -158,6 +158,21 @@ export async function updateTrip(tripId: string, updates: Partial<Trip>): Promis
   return saveTrip({ ...trip, ...updates, updatedAt: Date.now() })
 }
 
+/** Update the local cache after the server has already authorized the transition. */
+export async function updateTripLocal(tripId: string, updates: Partial<Trip>): Promise<Trip> {
+  const auth = await getAuth()
+  if (!auth.token) throw new ServerApiError(401, 'auth_required')
+  let updated: Trip | null = null
+  await updateTripsCache(auth.token, trips => trips.map(trip => {
+    if (trip.id !== tripId) return trip
+    updated = { ...trip, ...updates, updatedAt: Date.now() }
+    return updated
+  }))
+  if (!updated) throw new Error(`Trip ${tripId} not found`)
+  notifyTripsChanged()
+  return updated
+}
+
 export async function updateTripLastScannedAt(tripId: string, lastScannedAt = Date.now()): Promise<void> {
   const auth = await getAuth()
   if (!auth.token) return
