@@ -1,0 +1,1 @@
+ALTER TABLE "user" ALTER COLUMN "maxActiveTrips" SET DEFAULT 5;
